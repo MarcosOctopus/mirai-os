@@ -23,10 +23,104 @@ function loadEnv(name: string): string {
   return process.env[name] || "";
 }
 
+const OPENAI_API_KEY = loadEnv("OPENAI_API_KEY");
 const GOOGLE_API_KEY = loadEnv("GOOGLE_API_KEY");
 
-// ─── Google Cloud Speech-to-Text (MUITO mais preciso que Gemini) ──
-const STT_URL = "https://speech.googleapis.com/v1/speech:recognize";
+function isStuckInstruction(text: string): boolean {
+  const lower = text.toLowerCase();
+  if (lower.includes("transcreva o audio em portugues brasileiro")) return true;
+  if (["the user wants", "the audio is", "i need to", "therefore", "the transcription should be", "here is the transcription"].some(s => lower.includes(s))) return true;
+  return false;
+}
+
+async function tryWhisper(audioBlob: Blob): Promise<string | null> {
+  if (!OPENAI_API_KEY) return null;
+  try {
+    const ext = (audioBlob.type?.split("/")[1]) || "webm";
+    const form = new FormData();
+    form.append("file", audioBlob, `audio.${ext}`);
+    form.append("model", "whisper-1");
+    form.append("language", "pt");
+    form.append("response_format", "json");
+
+    const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: form,
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const text = (data.text || "").trim();
+    return text && !isStuckInstruction(text) ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+async function tryGoogleSTT(audioBlob: Blob): Promise<string | null> {
+  if (!GOOGLE_API_KEY) return null;
+  try {
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+
+    const resp = await fetch(
+      `https://speech.googleapis.com/v1/speech:recognize?key=${GOOGLE_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          config: { encoding: "WEBM_OPUS", languageCode: "pt-BR", model: "latest_short", enableAutomaticPunctuation: true, useEnhanced: true },
+          audio: { content: base64 },
+        }),
+        signal: AbortSignal.timeout(8000),
+      }
+    );
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const results = data?.results || [];
+    if (!results.length) return null;
+    const text = results.map((r: any) => r?.alternatives?.[0]?.transcript || "").filter(Boolean).join(" ").trim();
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
+async function tryGemini(audioBlob: Blob): Promise<string | null> {
+  if (!GOOGLE_API_KEY) return null;
+  try {
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            role: "user",
+            parts: [
+              { inlineData: { mimeType: audioBlob.type || "audio/webm", data: base64 } },
+              { text: "Transcreva o audio em portugues brasileiro com maxima precisao. Apenas o texto transcrito, sem explicacoes, sem prefixos, sem pontuacao extra." },
+            ],
+          }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 512 },
+        }),
+        signal: AbortSignal.timeout(10000),
+      }
+    );
+    if (!resp.ok) return null;
+    const result = await resp.json();
+    const text = (result?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+    return text && !isStuckInstruction(text) ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── POST /api/stt ─────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,93 +132,25 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Audio too large (max 10MB)" }, { status: 400 });
     }
 
-    const arrayBuffer = await blob.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64Audio = buffer.toString("base64");
-    const mimeType = blob.type || "audio/webm";
+    // ─── WHISPER + GOOGLE EM PARALELO (8s cada) ─────────────────
+    const winner = await Promise.race([
+      tryWhisper(blob).then(text => ({ source: "whisper" as const, text })),
+      tryGoogleSTT(blob).then(text => ({ source: "google" as const, text })),
+    ]);
 
-    const encodingMap: Record<string, string> = {
-      "audio/webm": "WEBM_OPUS",
-      "audio/webm;codecs=opus": "WEBM_OPUS",
-      "audio/ogg": "OGG_OPUS",
-      "audio/ogg;codecs=opus": "OGG_OPUS",
-      "audio/wav": "LINEAR16",
-      "audio/mp4": "MP3",
-      "audio/mpeg": "MP3",
-    };
-    const encoding = encodingMap[mimeType] || "WEBM_OPUS";
-
-    const body = {
-      config: {
-        languageCode: "pt-BR",
-        encoding,
-        sampleRateHertz: 48000,
-        enableAutomaticPunctuation: true,
-        model: "latest_short",
-        useEnhanced: true,
-      },
-      audio: { content: base64Audio },
-    };
-
-    const resp = await fetch(`${STT_URL}?key=${GOOGLE_API_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: typeof AbortSignal !== "undefined" && typeof (AbortSignal as any).timeout === "function"
-        ? AbortSignal.timeout(15000)
-        : undefined,
-    });
-
-    if (!resp.ok) {
-      const err = await resp.text();
-      console.error("Google STT error:", resp.status, err);
-      return await fallbackGemini(base64Audio, mimeType);
+    if (winner.text) {
+      return Response.json({ text: winner.text });
     }
 
-    const result = await resp.json();
-    const transcription = result?.results?.[0]?.alternatives?.[0]?.transcript ?? "";
-
-    if (!transcription.trim()) {
-      return await fallbackGemini(base64Audio, mimeType);
+    // ─── FALLBACK: Gemini (10s) ──────────────────────────────────
+    const geminiText = await tryGemini(blob);
+    if (geminiText) {
+      return Response.json({ text: geminiText });
     }
 
-    return Response.json({ text: transcription.trim() });
+    return Response.json({ error: "All STT providers failed" }, { status: 422 });
   } catch (err: any) {
     console.error("STT API error:", err);
-    try {
-      return await fallbackGeminiFromReq(req);
-    } catch {
-      return Response.json({ error: err.message }, { status: 500 });
-    }
+    return Response.json({ error: err.message }, { status: 500 });
   }
-}
-
-// ─── Fallback: Gemini multimodal ─────────────────────────────────
-async function fallbackGemini(base64Audio: string, mimeType: string): Promise<Response> {
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_API_KEY}`;
-  const resp = await fetch(geminiUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{
-        role: "user",
-        parts: [
-          { inlineData: { mimeType, data: base64Audio } },
-          { text: "Transcreva o audio em portugues brasileiro com maxima precisao. Apenas o texto transcrito, sem explicacoes, sem prefixos, sem pontuacao extra." },
-        ],
-      }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 512 },
-    }),
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!resp.ok) return Response.json({ error: "STT failed" }, { status: 502 });
-  const result = await resp.json();
-  const text = result?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  return Response.json({ text: text.trim() });
-}
-
-async function fallbackGeminiFromReq(req: NextRequest): Promise<Response> {
-  const blob = await req.blob();
-  const buf = Buffer.from(await blob.arrayBuffer());
-  return await fallbackGemini(buf.toString("base64"), blob.type || "audio/webm");
 }
