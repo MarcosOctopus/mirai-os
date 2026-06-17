@@ -97,7 +97,9 @@ function detectModeSwitch(text: string): ChatMode | null {
 
 function detectStop(text: string): boolean {
   const normalized = text.toLowerCase().trim();
-  return ["obrigado", "para", "stop", "pode ser", "é só", "e só"].some((term) => normalized.includes(term));
+  return ["obrigado", "para", "stop", "pode ser", "é só", "e só",
+    "valeu", "tchau", "entendi", "stop mirai", "chega", "já deu",
+    "pode parar", "encerrar"].some((term) => normalized.includes(term));
 }
 
 function MiraiAppCore() {
