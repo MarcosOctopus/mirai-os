@@ -1,11 +1,31 @@
+# Dependencies
 node_modules/
+
+# Build
 .next/
+
+# Data
+data/*.sqlite
+data/*.sqlite-*
+
+# Media assets (generated)
+public/music/
+public/thumbs/
+
+# Environment
 .env
 .env.local
-.env.*.local
-*.log
-.DS_Store
-.credentials/
 .env.production
-.mirai_key
-.SESSION_STATE.md
+.env.development
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+SESSION_STATE.md
+*.backup

@@ -1,0 +1,43 @@
+Construa o módulo Media Factory dentro do projeto Next.js em /opt/data/mirai-app.
+
+## Contexto
+- Next.js 15 com App Router, Tailwind CSS, TypeScript
+- Servidor rodando em localhost:3333
+- Já existe src/lib/media-factory/PLAN.md com o plano completo
+
+## O que construir:
+
+### 1. Banco: src/lib/media-factory/db.ts
+Usar better-sqlite3 (instalar se não existir). Tabelas:
+- channels: id INTEGER PK, name TEXT, slug TEXT UNIQUE, platform TEXT DEFAULT 'youtube', active INTEGER DEFAULT 1, created_at TEXT
+- pipeline_stages: id INTEGER PK, channel_id INTEGER FK, stage_order INTEGER, stage_name TEXT (BUSCA/THUMB/MUSICA/ANIMACAO/VIDEO_PRONTO/REVISAO/POSTADO), status TEXT DEFAULT 'pendente', updated_at TEXT
+- videos: id INTEGER PK, channel_id INTEGER FK, title TEXT, current_stage TEXT, thumbnail_url TEXT, video_url TEXT, views INTEGER DEFAULT 0, created_at TEXT, posted_at TEXT
+- video_logs: id INTEGER PK, video_id INTEGER FK, stage TEXT, status TEXT, message TEXT, created_at TEXT
+
+Exportar funcoes: initDB(), getChannels(), createChannel(name, slug), getPipeline(channelId), updateVideoStage(videoId, stage), createVideo(channelId, title), getVideos(channelId), getDashboardData(channelId)
+
+### 2. API: src/app/api/media-factory/
+Criar endpoints REST:
+- GET /api/media-factory/channels
+- POST /api/media-factory/channels
+- GET /api/media-factory/channels/[id]/pipeline
+- GET /api/media-factory/channels/[id]/videos
+- GET /api/media-factory/channels/[id]/dashboard
+- PATCH /api/media-factory/videos/[id]/stage
+- POST /api/media-factory/webhook
+
+### 3. Integration: src/lib/media-factory/integration.ts
+- reportStatus(channelSlug, stage, videoTitle, status, message)
+- getPendingVideos(channelSlug)
+
+### 4. Seed: src/lib/media-factory/seed.ts
+Criar canal Atomic News com pipeline se nao existir.
+
+### 5. Paginas:
+- src/app/media-factory/page.tsx — Kanban com dropdown
+- src/app/media-factory/dashboard/page.tsx — Metricas
+
+REGRAS:
+- better-sqlite3
+- Tipagem forte
+- Nao quebrar o que ja existe
