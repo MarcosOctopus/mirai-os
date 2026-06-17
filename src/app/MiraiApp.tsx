@@ -257,7 +257,11 @@ function MiraiAppCore() {
     }
 
     setAwake(true);
-    const requestMessages = [...messages, { role: "user" as const, content: cleanText }];
+    // Usar refs pra evitar stale closures — messages e chatMode do state podem
+    // estar desatualizados quando o callback roda (ex: após 2+ interações)
+    const currentMessages = messagesRef.current;
+    const currentMode = chatModeRef.current;
+    const requestMessages = [...currentMessages, { role: "user" as const, content: cleanText }];
     setMessages(requestMessages);
     setThinking(true);
     setStatus("thinking");
@@ -266,7 +270,7 @@ function MiraiAppCore() {
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: requestMessages, mode: chatMode }),
+        body: JSON.stringify({ messages: requestMessages, mode: currentMode }),
       });
 
       if (!resp.ok) {
@@ -306,11 +310,13 @@ function MiraiAppCore() {
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
       setThinking(false);
 
-      if (chatMode === "conversa") {
+      if (currentMode === "conversa") {
         setStatus("speaking");
         void voiceRef.current.speakText(reply).then(() => {
           setStatus("idle");
-          setTimeout(startPostResponseListening, 500);
+          setTimeout(() => {
+            startPostResponseListening();
+          }, 500);
         }).catch(() => setStatus("idle"));
       } else {
         setStatus("idle");
@@ -320,7 +326,7 @@ function MiraiAppCore() {
       setThinking(false);
       setStatus("idle");
     }
-  }, [chatMode, messages, startPostResponseListening]);
+  }, [startPostResponseListening]); // ← só startPostResponseListening, sem messages/chatMode!
 
   useEffect(() => {
     handleSendRef.current = handleSend;
