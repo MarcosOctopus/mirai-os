@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getChannels, getDashboardData } from "@/lib/media-factory/db";
 import { seedMediaFactory } from "@/lib/media-factory/seed";
 import { DashboardCharts } from "@/components/DashboardCharts";
+import { PipelineControl } from "@/components/PipelineControl";
 
 interface DashboardPageProps {
   searchParams: Promise<{ channel?: string }>;
@@ -51,6 +52,8 @@ export default async function MediaFactoryDashboardPage({ searchParams }: Dashbo
             </div>
           ))}
         </section>
+
+        <PipelineControl />
 
         <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="rounded-3xl border border-cyan-300/15 bg-black/20 p-6">

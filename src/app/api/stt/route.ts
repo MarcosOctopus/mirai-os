@@ -25,6 +25,7 @@ function loadEnv(name: string): string {
 
 const OPENAI_API_KEY = loadEnv("OPENAI_API_KEY");
 const GOOGLE_API_KEY = loadEnv("GOOGLE_API_KEY");
+const GROQ_API_KEY = loadEnv("GROQ_API_KEY");
 
 function isStuckInstruction(text: string): boolean {
   const lower = text.toLowerCase();
@@ -33,6 +34,33 @@ function isStuckInstruction(text: string): boolean {
   return false;
 }
 
+// ─── GROQ Whisper (PRINCIPAL) ──────────────────────────────────────
+async function tryGroq(audioBlob: Blob): Promise<string | null> {
+  if (!GROQ_API_KEY) return null;
+  try {
+    const ext = (audioBlob.type?.split("/")[1]) || "webm";
+    const form = new FormData();
+    form.append("file", audioBlob, `audio.${ext}`);
+    form.append("model", "whisper-large-v3");
+    form.append("language", "pt");
+    form.append("response_format", "json");
+
+    const resp = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+      body: form,
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const text = (data.text || "").trim();
+    return text && !isStuckInstruction(text) ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── OpenAI Whisper (FALLBACK) ─────────────────────────────────────
 async function tryWhisper(audioBlob: Blob): Promise<string | null> {
   if (!OPENAI_API_KEY) return null;
   try {
@@ -58,6 +86,7 @@ async function tryWhisper(audioBlob: Blob): Promise<string | null> {
   }
 }
 
+// ─── Google STT (FALLBACK) ─────────────────────────────────────────
 async function tryGoogleSTT(audioBlob: Blob): Promise<string | null> {
   if (!GOOGLE_API_KEY) return null;
   try {
@@ -87,6 +116,7 @@ async function tryGoogleSTT(audioBlob: Blob): Promise<string | null> {
   }
 }
 
+// ─── Gemini (ÚLTIMO FALLBACK) ──────────────────────────────────────
 async function tryGemini(audioBlob: Blob): Promise<string | null> {
   if (!GOOGLE_API_KEY) return null;
   try {
@@ -132,17 +162,23 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Audio too large (max 10MB)" }, { status: 400 });
     }
 
-    // ─── WHISPER + GOOGLE EM PARALELO (8s cada) ─────────────────
-    const winner = await Promise.race([
+    // ─── 1. GROQ Whisper (PRINCIPAL) ────────────────────────────
+    const groqText = await tryGroq(blob);
+    if (groqText) {
+      return Response.json({ text: groqText, provider: "groq" });
+    }
+
+    // ─── 2. FALLBACK: Whisper + Google em paralelo ──────────────
+    const fallbackWinner = await Promise.race([
       tryWhisper(blob).then(text => ({ source: "whisper" as const, text })),
       tryGoogleSTT(blob).then(text => ({ source: "google" as const, text })),
     ]);
 
-    if (winner.text) {
-      return Response.json({ text: winner.text });
+    if (fallbackWinner.text) {
+      return Response.json({ text: fallbackWinner.text });
     }
 
-    // ─── FALLBACK: Gemini (10s) ──────────────────────────────────
+    // ─── 3. ÚLTIMO FALLBACK: Gemini ─────────────────────────────
     const geminiText = await tryGemini(blob);
     if (geminiText) {
       return Response.json({ text: geminiText });
