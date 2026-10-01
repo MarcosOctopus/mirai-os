@@ -149,6 +149,22 @@ function wantsClaude(txt: string): boolean {
   return kw.some(k => txt.toLowerCase().includes(k));
 }
 
+// ─── Contexto do CRM (MCP do produto Saaso) ─────────────────────
+async function querySaaso(saasoToken?: string): Promise<string> {
+  if (!saasoToken) return "";
+  try {
+    const { saasoContexto } = await import("@/lib/saaso");
+    const ctx = await Promise.race([
+      saasoContexto(saasoToken),
+      new Promise<string>((r) => setTimeout(() => r(""), 6000)),
+    ]);
+    return ctx || "";
+  } catch (e) {
+    console.error("Saaso contexto:", e instanceof Error ? e.message : e);
+    return "";
+  }
+}
+
 // ─── Workaround: system prompt como user message ─────────────────
 function buildMsgs(messages: {role:string;content:string}[], system:string) {
   return [
@@ -168,28 +184,42 @@ export async function POST(req: NextRequest) {
     const lastMsg = messages?.[messages.length - 1]?.content || "";
     const chatMode: "conversa" | "arquiteto" = mode === "arquiteto" ? "arquiteto" : "conversa";
 
+    // CRM: a credencial e a da ORGANIZACAO da conta logada (nunca uma global).
+    // Sem vinculo => sem token => o chat responde sem dado de CRM.
+    let saasoToken: string | undefined;
+    try {
+      const { contaDaRequisicao, credencialSaasoDaConta } = await import("@/lib/orgs");
+      const conta = await contaDaRequisicao(req);
+      if (conta) {
+        const cred = credencialSaasoDaConta(conta);
+        saasoToken = cred?.token || (conta.ehDono ? (process.env.SAASO_MCP_TOKEN || "").trim() || undefined : undefined);
+      }
+    } catch (e) {
+      console.error("CRM da conta:", e instanceof Error ? e.message : e);
+    }
+
     if (useClaude || wantsClaude(lastMsg)) {
       // Tenta OpenRouter Claude primeiro
       if (OPENROUTER_KEY) {
-        return await callOpenRouter(messages, lastMsg, chatMode);
+        return await callOpenRouter(messages, lastMsg, chatMode, saasoToken);
       }
       // Fallback: Gemini
       if (GOOGLE_API_KEY) {
-        return await callGemini(messages, lastMsg, chatMode);
+        return await callGemini(messages, lastMsg, chatMode, saasoToken);
       }
       return Response.json({ error: "Nenhum provider configurado" }, { status: 500 });
     }
 
     // Padrão: DeepSeek V4.1 (Verboo) -> V4.0 -> Gemini -> Claude
     if (VERBOO_API_KEY) {
-      return await callVerboo(messages, lastMsg, chatMode);
+      return await callVerboo(messages, lastMsg, chatMode, VERBOO_MODEL, saasoToken);
     }
     if (GOOGLE_API_KEY) {
-      return await callGemini(messages, lastMsg, chatMode);
+      return await callGemini(messages, lastMsg, chatMode, saasoToken);
     }
     // Fallback: OpenRouter
     if (OPENROUTER_KEY) {
-      return await callOpenRouter(messages, lastMsg, chatMode);
+      return await callOpenRouter(messages, lastMsg, chatMode, saasoToken);
     }
     return Response.json({ error: "Nenhum provider configurado" }, { status: 500 });
   } catch (err: any) {
@@ -201,10 +231,14 @@ export async function POST(req: NextRequest) {
 // ─── Verboo Handler (DeepSeek V4.1 -> V4.0 -> Gemini -> Claude) ──
 async function callVerboo(messages: {role:string;content:string}[], lastMsg: string,
                           chatMode: "conversa" | "arquiteto" = "conversa",
-                          modelo: string = VERBOO_MODEL): Promise<Response> {
-  const arca = await queryArca(lastMsg);
+                          modelo: string = VERBOO_MODEL,
+                          saasoToken?: string): Promise<Response> {
+  const [arca, saaso] = await Promise.all([queryArca(lastMsg), querySaaso(saasoToken)]);
   const basePrompt = chatMode === "arquiteto" ? ARQUITETO_PROMPT : SYSTEM_PROMPT;
-  const system = arca ? `${basePrompt}\n\n${arca}\n\n${SHARED_CONTEXT}` : `${basePrompt}\n\n${SHARED_CONTEXT}`;
+  const contextoExtra = [arca, saaso].filter(Boolean).join("\n\n");
+  const system = contextoExtra
+    ? `${basePrompt}\n\n${contextoExtra}\n\n${SHARED_CONTEXT}`
+    : `${basePrompt}\n\n${SHARED_CONTEXT}`;
   const msgs = buildMsgs(messages, system);
 
   let resp: Response;
@@ -224,10 +258,10 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
     console.error(`Verboo ${modelo} error:`, resp.status, err.slice(0, 300));
     if (modelo === VERBOO_MODEL) {
       console.log("V4.1 caiu — indo para o V4.0...");
-      return await callVerboo(messages, lastMsg, chatMode, VERBOO_MODEL_40);
+      return await callVerboo(messages, lastMsg, chatMode, VERBOO_MODEL_40, saasoToken);
     }
-    if (GOOGLE_API_KEY) return await callGemini(messages, lastMsg, chatMode);
-    if (OPENROUTER_KEY) return await callOpenRouter(messages, lastMsg, chatMode);
+    if (GOOGLE_API_KEY) return await callGemini(messages, lastMsg, chatMode, saasoToken);
+    if (OPENROUTER_KEY) return await callOpenRouter(messages, lastMsg, chatMode, saasoToken);
     return Response.json({ error: `Verboo error: ${resp.status}`, details: err }, { status: 502 });
   }
 
@@ -236,10 +270,13 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
 }
 
 // ─── Gemini Handler ──────────────────────────────────────────────
-async function callGemini(messages: {role:string;content:string}[], lastMsg: string, chatMode: "conversa" | "arquiteto" = "conversa"): Promise<Response> {
-  const arca = await queryArca(lastMsg);
+async function callGemini(messages: {role:string;content:string}[], lastMsg: string, chatMode: "conversa" | "arquiteto" = "conversa", saasoToken?: string): Promise<Response> {
+  const [arca, saaso] = await Promise.all([queryArca(lastMsg), querySaaso(saasoToken)]);
   const basePrompt = chatMode === "arquiteto" ? ARQUITETO_PROMPT : SYSTEM_PROMPT;
-  const system = arca ? `${basePrompt}\n\n${arca}\n\n${SHARED_CONTEXT}` : `${basePrompt}\n\n${SHARED_CONTEXT}`;
+  const contextoExtra = [arca, saaso].filter(Boolean).join("\n\n");
+  const system = contextoExtra
+    ? `${basePrompt}\n\n${contextoExtra}\n\n${SHARED_CONTEXT}`
+    : `${basePrompt}\n\n${SHARED_CONTEXT}`;
 
   const contents: {role:string;parts:{text:string}[]}[] = [];
   for (const m of messages) {
@@ -263,7 +300,7 @@ async function callGemini(messages: {role:string;content:string}[], lastMsg: str
     // Fallback: OpenRouter
     if (OPENROUTER_KEY) {
       console.log("Gemini failed, falling back to OpenRouter Claude...");
-      return await callOpenRouter(messages, lastMsg);
+      return await callOpenRouter(messages, lastMsg, chatMode, saasoToken);
     }
     return Response.json({ error: `Gemini error: ${resp.status}`, details: err }, { status: 502 });
   }
@@ -272,10 +309,13 @@ async function callGemini(messages: {role:string;content:string}[], lastMsg: str
 }
 
 // ─── OpenRouter Handler ──────────────────────────────────────────
-async function callOpenRouter(messages: {role:string;content:string}[], lastMsg: string, chatMode: "conversa" | "arquiteto" = "conversa"): Promise<Response> {
-  const arca = await queryArca(lastMsg);
+async function callOpenRouter(messages: {role:string;content:string}[], lastMsg: string, chatMode: "conversa" | "arquiteto" = "conversa", saasoToken?: string): Promise<Response> {
+  const [arca, saaso] = await Promise.all([queryArca(lastMsg), querySaaso(saasoToken)]);
   const basePrompt = chatMode === "arquiteto" ? ARQUITETO_PROMPT : SYSTEM_PROMPT;
-  const system = arca ? `${basePrompt}\n\n${arca}\n\n${SHARED_CONTEXT}` : `${basePrompt}\n\n${SHARED_CONTEXT}`;
+  const contextoExtra = [arca, saaso].filter(Boolean).join("\n\n");
+  const system = contextoExtra
+    ? `${basePrompt}\n\n${contextoExtra}\n\n${SHARED_CONTEXT}`
+    : `${basePrompt}\n\n${SHARED_CONTEXT}`;
   const msgs = buildMsgs(messages, system);
 
   const resp = await fetch(`${OPENROUTER_BASE}/chat/completions`, {

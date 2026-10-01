@@ -21,6 +21,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 401 });
     }
 
+    const { contaDaRequisicao } = await import("@/lib/orgs");
+    const conta = await contaDaRequisicao(req);
+
     return NextResponse.json({
       user: {
         id: user.id,
@@ -29,6 +32,12 @@ export async function GET(req: NextRequest) {
         avatar_url: user.avatar_url,
         tenant_id: user.tenant_id,
         platform_config: JSON.parse(user.platform_config || "{}"),
+        // quem e esta conta: dono da plataforma, ou cliente de UMA organizacao
+        ehDono: conta?.ehDono ?? false,
+        papel: conta?.ehDono ? "dono" : conta?.org ? "cliente" : "sem-organizacao",
+        organizacao: conta?.org
+          ? { id: conta.org.id, nome: conta.org.nome, slug: conta.org.slug }
+          : null,
       },
     });
   } catch (err: any) {

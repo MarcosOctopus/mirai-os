@@ -13,12 +13,16 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 
-const ITENS = [
-  { href: "/dashboard", label: "Painel", desc: "Métricas e pipeline" },
+type ItemMenu = { href: string; label: string; desc: string; donoOnly?: boolean };
+
+const ITENS: ItemMenu[] = [
+  { href: "/dashboard", label: "Painel", desc: "Conta, integrações e CRM" },
   { href: "/dashboard/connect", label: "Integrações", desc: "Conectar as ferramentas" },
   { href: "/chat", label: "Chat", desc: "Conversar por escrito" },
   { href: "/", label: "Conversa", desc: "Falar com a Mirai (orb)" },
-  { href: "/system", label: "Sistema", desc: "Estado do app" },
+  // Só o dono: clientes não veem as áreas internas (a trava real é no servidor)
+  { href: "/admin/organizacoes", label: "Organizações", desc: "Clientes e acessos", donoOnly: true },
+  { href: "/system", label: "Sistema", desc: "Estado da plataforma", donoOnly: true },
 ];
 
 function IconeMenu({ className = "h-5 w-5" }: { className?: string }) {
@@ -61,6 +65,21 @@ export default function Nav({
   flutuante?: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
+  // Quem é esta conta: dono da plataforma ou cliente de uma organização.
+  const [ehDono, setEhDono] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (vivo && d?.user) setEhDono(Boolean(d.user.ehDono));
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, []);
+  const itens = ITENS.filter((i) => !i.donoOnly || ehDono);
   // A gaveta vai para o <body> por PORTAL. Motivo medido: dentro da <nav>, que
   // tem backdrop-blur, o filtro vira "referencia de posicionamento" e o
   // `fixed inset-0` passa a valer so a altura da barrinha (62px) -> a gaveta
@@ -102,7 +121,7 @@ export default function Nav({
       </div>
 
       <div className="flex flex-col gap-2 overflow-y-auto">
-        {ITENS.map((i) => (
+        {itens.map((i) => (
           <Link
             key={i.href}
             href={i.href}
@@ -177,7 +196,7 @@ export default function Nav({
         <span className="mr-4 text-sm font-semibold tracking-[0.2em] text-cyan-200">
           MIRAI OS
         </span>
-        {ITENS.map((i) => (
+        {itens.map((i) => (
           <Link key={i.href} href={i.href} className={itemClasse(i.href)}>
             {i.label}
           </Link>

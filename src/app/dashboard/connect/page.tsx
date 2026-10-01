@@ -39,6 +39,26 @@ interface PlatformDef {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Produtos ligados a Mirai por MCP (regra "MCP por produto")         */
+/* ------------------------------------------------------------------ */
+
+interface ProdutoMcp {
+  nome: string;
+  descricao: string;
+  configurado: boolean;
+  conectado: boolean;
+  ferramentas: number;
+  endpoint: string;
+  erro?: string;
+  funil?: string;
+  fila?: string;
+  vinculado?: boolean;
+  ehDono?: boolean;
+  papel?: string;
+  organizacao?: { id: string; nome: string; slug: string } | null;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Platform definitions                                                */
 /* ------------------------------------------------------------------ */
 
@@ -265,6 +285,8 @@ export default function ConnectDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [apiKeyPlatform, setApiKeyPlatform] = useState<PlatformDef | null>(null);
+  const [saaso, setSaaso] = useState<ProdutoMcp | null>(null);
+  const [saasoErro, setSaasoErro] = useState("");
 
   /* Fetch user on mount */
   const fetchUser = useCallback(async () => {
@@ -285,6 +307,29 @@ export default function ConnectDashboardPage() {
   useEffect(() => {
     fetchUser();
   }, [fetchUser]);
+
+  /* Produto Saaso: estado lido ao vivo pelo MCP dele */
+  const fetchSaaso = useCallback(async () => {
+    try {
+      const res = await fetch("/api/integracoes/saaso");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const d = (await res.json()) as Omit<ProdutoMcp, "nome" | "descricao">;
+      setSaaso({
+        nome: "Saaso",
+        descricao: d.organizacao
+          ? `CRM de ${d.organizacao.nome} — o dado vem pelo MCP do produto`
+          : "CRM multi-whitelabel (WhatsApp) — o dado vem pelo MCP do produto",
+        ...d,
+      });
+      setSaasoErro("");
+    } catch (err) {
+      setSaasoErro(err instanceof Error ? err.message : "falha ao ler o MCP do Saaso");
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSaaso();
+  }, [fetchSaaso]);
 
   /* Logout */
   const handleLogout = useCallback(async () => {
@@ -425,6 +470,86 @@ export default function ConnectDashboardPage() {
               </div>
             );
           })}
+        </section>
+
+        {/* ================================================================ */}
+        {/*  Produtos ligados a Mirai (MCP)                                   */}
+        {/* ================================================================ */}
+        <section className="flex flex-col gap-4">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-xs uppercase tracking-[0.28em] text-cyan-100/50">
+              Produtos ligados a Mirai
+            </h2>
+            <button
+              onClick={fetchSaaso}
+              className="text-[11px] uppercase tracking-[0.18em] text-cyan-300/60 transition-colors hover:text-cyan-200"
+            >
+              Atualizar
+            </button>
+          </div>
+
+          {saasoErro && (
+            <p className="text-xs text-amber-300/80">Nao consegui ler o MCP: {saasoErro}</p>
+          )}
+
+          {saaso ? (
+            <div className="rounded-xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm transition-all hover:border-white/20">
+              <div className="flex items-center gap-4">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center text-3xl">
+                  &#129517;
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold text-cyan-50">{saaso.nome}</p>
+                  <p className="mt-0.5 text-xs text-cyan-100/50">{saaso.descricao}</p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.18em] ${
+                    saaso.conectado
+                      ? "border-emerald-400/30 text-emerald-300/90"
+                      : "border-red-400/30 text-red-300/90"
+                  }`}
+                >
+                  {saaso.conectado ? "Conectado" : "Sem conexao"}
+                </span>
+              </div>
+
+              <dl className="mt-4 grid grid-cols-1 gap-2 text-xs text-cyan-100/70 sm:grid-cols-2">
+                <div>
+                  <dt className="text-cyan-100/40">Ferramentas no MCP</dt>
+                  <dd>{saaso.ferramentas}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-cyan-100/40">Endpoint (MCP do produto)</dt>
+                  <dd className="truncate">{saaso.endpoint}</dd>
+                </div>
+              </dl>
+
+              {saaso.organizacao && (
+                <p className="mt-3 text-xs text-cyan-100/60">
+                  Organização desta conta:{" "}
+                  <span className="text-cyan-100/90">{saaso.organizacao.nome}</span>
+                  {saaso.ehDono ? " (dono)" : ""}
+                </p>
+              )}
+              {!saaso.vinculado && (
+                <p className="mt-2 text-xs text-amber-300/80">
+                  Sem CRM vinculado a esta conta — nada do CRM é consultado.
+                </p>
+              )}
+              {saaso.erro && (
+                <p className="mt-3 text-xs text-amber-300/80">{saaso.erro}</p>
+              )}
+              {saaso.funil && (
+                <p className="mt-3 break-words text-xs text-cyan-100/60">
+                  Leitura ao vivo do CRM: {saaso.funil.slice(0, 260)}
+                </p>
+              )}
+            </div>
+          ) : (
+            !saasoErro && (
+              <p className="text-xs text-cyan-100/40">Lendo o MCP do CRM...</p>
+            )
+          )}
         </section>
 
         {/* ================================================================ */}

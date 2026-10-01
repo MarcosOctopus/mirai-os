@@ -40,6 +40,32 @@ function isProtectedPath(pathname: string): boolean {
   );
 }
 
+// ─── SO O DONO (01/10/2026) ───────────────────────────────────────
+// Medido em 01/10: QUALQUER conta logada lia /api/system, /api/pipeline,
+// /api/config e o CRM do dono. Regra do dono, na letra: "cada pessoa tem a
+// sua conta, e essa conta é só para ela" — organizacao por organizacao.
+// Aqui fica a trava central: rota nova ja nasce fechada para nao-dono.
+const OWNER_EMAIL = (
+  process.env.MIRAI_OWNER_EMAIL || 'marcospaulonascimentoguimaraes@gmail.com'
+).toLowerCase();
+
+const OWNER_ONLY_API = [
+  '/api/system',
+  '/api/pipeline',
+  '/api/config',
+  '/api/admin',
+  '/api/media-factory/channels',
+  '/api/media-factory/videos',
+];
+const OWNER_ONLY_PAGES = ['/system'];
+
+function soDono(pathname: string): boolean {
+  // webhook tem guarda propria (nao passa por sessao de usuario)
+  if (pathname.startsWith('/api/media-factory/webhook')) return false;
+  if (OWNER_ONLY_API.some((p) => pathname.startsWith(p))) return true;
+  return OWNER_ONLY_PAGES.some((p) => pathname === p || pathname.startsWith(p + '/'));
+}
+
 // ─── REQUEST PATH NORMALISATION ───────────────────────────────────
 function getPathname(request: NextRequest): string {
   return new URL(request.url).pathname;
@@ -101,6 +127,13 @@ export async function middleware(request: NextRequest) {
       return isApiRoute
         ? NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         : NextResponse.redirect(new URL('/login', request.url));
+    }
+
+    // Interno da plataforma: so o dono. Rota de API -> 403; pagina -> painel.
+    if (soDono(pathname) && (payload.email || '').toLowerCase() !== OWNER_EMAIL) {
+      return isApiRoute
+        ? NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        : NextResponse.redirect(new URL('/dashboard', request.url));
     }
 
     // Token is valid — clone request with user info in headers for downstream handlers
