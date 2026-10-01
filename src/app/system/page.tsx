@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Nav from "@/components/mirai/Nav";
 
 type SysData = {
   status: string;
@@ -55,7 +56,8 @@ export default function SystemPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-black text-white font-mono">
+    <div className="min-h-dvh overflow-y-auto bg-black text-white font-mono">
+      <Nav atual="/system" />
       {/* Header */}
       <div className="border-b border-cyan-900/50 px-6 py-4 flex items-center justify-between">
         <div>
@@ -203,7 +205,7 @@ export default function SystemPage() {
                 <div key={i} className="text-xs text-gray-400 py-0.5">● {p}</div>
               ))}
               <div className="mt-2 pt-2 border-t border-gray-800 text-xs">
-                <span className="text-cyan-400">Ativo:</span> claude-opus-4-8 via MyAPI
+                <span className="text-cyan-400">Ativo:</span> deepseek-v4.1-flash (V4.1) via Verboo — reserva: deepseek-v4-flash (V4.0)
               </div>
             </Card>
             <Card title="MCPS">

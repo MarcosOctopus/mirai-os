@@ -1,5 +1,12 @@
 // 🛡️ Mirai OS Middleware — Edge Runtime Compatible
 // No Node.js native modules or better-sqlite3 imports allowed
+//
+// ─── REGRA (30/09/2026): /api/* É FECHADO POR PADRÃO ───────────────
+// Antes: a regra 3 mandava "tudo que não está na lista → passa". Então toda rota
+// nova NASCIA aberta — e /api/chat, /api/tts, /api/stt (as que gastam chave do
+// dono) ficaram acessíveis para qualquer um na internet. Medido: POST vazio
+// devolvia 400/502 em vez de 401, e /api/chat lê GOOGLE/OPENROUTER/VERBOO keys.
+// Agora só é público o que existe para ENTRAR (/api/auth). O resto exige sessão.
 import { jwtVerify } from 'jose';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -7,7 +14,7 @@ const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback');
 
 // ─── PUBLIC PATHS (no auth needed) ────────────────────────────────
 const PUBLIC_PATHS = [
-  '/api/auth',
+  '/api/auth', // entrar/sair: login, register, oauth — precisam ser públicas
   '/login',
   '/register',
   '/_next/static',
@@ -16,22 +23,21 @@ const PUBLIC_PATHS = [
   '/manifest.json',
   '/sw.js',
   '/icons',
-  '/',
-  '/system',
 ];
 
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some((p) => {
-    if (p === '/') return pathname === '/';
-    return pathname.startsWith(p);
-  });
+  return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 }
 
 // ─── PROTECTED PATHS (need valid token) ───────────────────────────
-const PROTECTED_PATHS = ['/dashboard', '/canais'];
+// '/' = a presença (orb + conversa). É o MODO CONVERSA: entra-se por dentro,
+// depois do painel — não é porta de rua.
+const PROTECTED_PATHS = ['/dashboard', '/system', '/chat', '/'];
 
 function isProtectedPath(pathname: string): boolean {
-  return PROTECTED_PATHS.some((p) => pathname.startsWith(p));
+  return PROTECTED_PATHS.some((p) =>
+    p === '/' ? pathname === '/' : pathname.startsWith(p),
+  );
 }
 
 // ─── REQUEST PATH NORMALISATION ───────────────────────────────────
@@ -81,8 +87,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Protected paths → check token
-  if (isProtectedPath(pathname)) {
+  // 2. Protected paths — E TODA rota de API que não seja pública (fechado por padrão)
+  if (isProtectedPath(pathname) || isApiRoute) {
     const token = extractToken(request);
     if (!token) {
       return isApiRoute
@@ -110,7 +116,7 @@ export async function middleware(request: NextRequest) {
     });
   }
 
-  // 3. Everything else (other /api/* routes, unknown paths) → allow through
+  // 3. O resto (páginas desconhecidas, assets) → passa; quem responde é o Next (404)
   return NextResponse.next();
 }
 

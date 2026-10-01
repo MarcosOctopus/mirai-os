@@ -2,6 +2,7 @@
 
 import { Component, type ErrorInfo, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Nav from "@/components/mirai/Nav";
 import { useVoice } from "@/hooks/useVoice";
 import { useWakeWord } from "@/hooks/useWakeWord";
 import { unlockAudio } from "@/lib/voice";
@@ -397,6 +398,9 @@ function MiraiAppCore() {
         <BackgroundCanvas status={status} />
       </div>
       <div className="mirai-status-halo" />
+
+      {/* Saída do modo conversa: sem isto, quem entra no orb fica sem menu. */}
+      <Nav atual="/" flutuante />
 
       {(micWarning || wakeState === "error") && (
         <div className="mirai-mic-warning" role="status">

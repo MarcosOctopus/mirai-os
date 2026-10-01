@@ -129,8 +129,8 @@ export async function GET(req: NextRequest) {
       return Response.json({
         status: "ok",
         hermes: {
-          providers: ["verboo (deepseek)", "oneprovider (claude-opus)", "myapi (claude-opus)", "openrouter (gpt-4o vision)"],
-          modelo_ativo: "claude-opus-4-8 via MyAPI",
+          providers: ["verboo (deepseek-v4.1-flash)", "verboo (deepseek-v4-flash reserva)", "gemini-2.5-flash (reserva)", "openrouter (claude-sonnet-4.6 reserva)"],
+          modelo_ativo: "deepseek-v4.1-flash (V4.1) via Verboo",
           mcps: [
             { name: "Higgsfield", funcao: "imagem/video", status: "ok" },
             { name: "YouTube", funcao: "API do YouTube", status: "expirado" },

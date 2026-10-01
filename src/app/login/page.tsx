@@ -46,14 +46,14 @@ export default function LoginPage() {
 
   return (
     <main
-      className="min-h-screen flex items-center justify-center px-4"
+      className="h-[100dvh] overflow-y-auto flex px-4 py-6"
       style={{
         background:
           "#03040d radial-gradient(ellipse at 50% 30%, rgba(120, 80, 255, 0.25) 0%, rgba(0, 200, 255, 0.15) 50%, transparent 70%)",
       }}
     >
       {/* Card */}
-      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-8 sm:p-10 shadow-2xl">
+      <div className="w-full max-w-md m-auto rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-8 sm:p-10 shadow-2xl">
         {/* Logo / Title */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold tracking-widest bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
@@ -62,6 +62,25 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-white/50">
             Sua fábrica de conteúdo inteligente
           </p>
+        </div>
+
+        {/* Conta Mirai — a porta de entrada do ecossistema (identidade única) */}
+        <a
+          href="/api/auth/mirai/start?next=%2Fdashboard%2Fconnect"
+          className="flex items-center justify-center gap-3 w-full rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-200 hover:bg-cyan-500/20 transition-colors"
+        >
+          Entrar com a Conta Mirai
+        </a>
+        <p className="mt-2 text-center text-xs text-white/35">
+          Uma conta para todo o ecossistema.
+        </p>
+
+        <div className="flex items-center gap-3 my-6">
+          <span className="flex-1 h-px bg-white/10" />
+          <span className="text-xs text-white/30 uppercase tracking-wider">
+            ou direto pelo app
+          </span>
+          <span className="flex-1 h-px bg-white/10" />
         </div>
 
         {/* Google Button */}

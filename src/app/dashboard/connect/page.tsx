@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Nav from "@/components/mirai/Nav";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -328,6 +329,7 @@ export default function ConnectDashboardPage() {
 
   return (
     <main className="min-h-dvh overflow-y-auto bg-[#03040d] text-cyan-100">
+      <Nav atual="/dashboard/connect" />
       {/* Radial gradient overlays */}
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(176,38,255,0.16),transparent_30%),radial-gradient(circle_at_80%_0%,rgba(10,239,255,0.14),transparent_32%)]" />
 

@@ -1,5 +1,19 @@
 import type { Metadata, Viewport } from "next";
+import fs from "node:fs";
+import path from "node:path";
+import AtualizadorAutomatico from "@/components/mirai/AtualizadorAutomatico";
 import "./globals.css";
+
+// Build no ar, gravado no HTML servido. O AtualizadorAutomatico compara este
+// valor com /version: se a aba estiver rodando código velho, ela se recarrega
+// sozinha (o JS já carregado não troca quando eu publico algo novo).
+function buildNoAr() {
+  try {
+    return fs.readFileSync(path.join(process.cwd(), ".next", "BUILD_ID"), "utf8").trim();
+  } catch {
+    return "dev";
+  }
+}
 
 export const metadata: Metadata = {
   title: "MIRAI OS",
@@ -32,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg" />
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="x-build" content={buildNoAr()} />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -44,7 +59,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <AtualizadorAutomatico />
+      </body>
     </html>
   );
 }

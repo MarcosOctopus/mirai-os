@@ -29,3 +29,14 @@ Thumbs.db
 # Temp
 SESSION_STATE.md
 *.backup
+
+# segredos (nunca versionar)
+.mirai_key
+.credentials/
+data/*.db-shm
+data/*.db-wal
+
+# copias de seguranca locais
+*.bak
+*.bak-*
+*.backup

@@ -24,6 +24,9 @@ const GOOGLE_API_KEY  = loadEnv("GOOGLE_API_KEY");
 const OPENROUTER_KEY  = loadEnv("OPENROUTER_API_KEY");
 const VERBOO_API_KEY  = loadEnv("VERBOO_API_KEY");
 
+const VERBOO_BASE     = "https://code.verboo.ai/router/v1";
+const VERBOO_MODEL    = "deepseek-v4.1-flash";      // V4.1 (principal do ecossistema)
+const VERBOO_MODEL_40 = "deepseek-v4-flash";        // V4.0 (reserva imediata)
 const GEMINI_BASE     = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_MODEL    = "gemini-2.5-flash";
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
@@ -70,7 +73,7 @@ const SYSTEM_PROMPT = `Você é Mirai, uma assistente inteligente criada por Mar
 
 ## MIRAI OS
 - app.miraitohope.com
-- Chat: streaming via Gemini 2.5 Flash (padrão, rápido)
+- Chat: streaming via DeepSeek V4.1 (Verboo, padrão, rápido)
 - STT: reconhecimento de voz por wake word "Hey Mirai"
 - Quando usuário pedir "chama o Claude" ou algo complexo, usa modelo mais forte
 
@@ -109,7 +112,7 @@ const ARQUITETO_PROMPT = `Você é Mirai, uma assistente inteligente criada por 
 
 ## MIRAI OS
 - app.miraitohope.com
-- Chat: streaming via Gemini 2.5 Flash (padrão, rápido)
+- Chat: streaming via DeepSeek V4.1 (Verboo, padrão, rápido)
 - STT: reconhecimento de voz por wake word "Hey Mirai"
 - Quando usuário pedir "chama o Claude" ou algo complexo, usa modelo mais forte
 
@@ -177,7 +180,10 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Nenhum provider configurado" }, { status: 500 });
     }
 
-    // Padrão: Gemini
+    // Padrão: DeepSeek V4.1 (Verboo) -> V4.0 -> Gemini -> Claude
+    if (VERBOO_API_KEY) {
+      return await callVerboo(messages, lastMsg, chatMode);
+    }
     if (GOOGLE_API_KEY) {
       return await callGemini(messages, lastMsg, chatMode);
     }
@@ -190,6 +196,43 @@ export async function POST(req: NextRequest) {
     console.error("Chat API error:", err);
     return Response.json({ error: err.message || "Unknown" }, { status: 500 });
   }
+}
+
+// ─── Verboo Handler (DeepSeek V4.1 -> V4.0 -> Gemini -> Claude) ──
+async function callVerboo(messages: {role:string;content:string}[], lastMsg: string,
+                          chatMode: "conversa" | "arquiteto" = "conversa",
+                          modelo: string = VERBOO_MODEL): Promise<Response> {
+  const arca = await queryArca(lastMsg);
+  const basePrompt = chatMode === "arquiteto" ? ARQUITETO_PROMPT : SYSTEM_PROMPT;
+  const system = arca ? `${basePrompt}\n\n${arca}\n\n${SHARED_CONTEXT}` : `${basePrompt}\n\n${SHARED_CONTEXT}`;
+  const msgs = buildMsgs(messages, system);
+
+  let resp: Response;
+  try {
+    resp = await fetch(`${VERBOO_BASE}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${VERBOO_API_KEY}` },
+      body: JSON.stringify({ model: modelo, messages: msgs, max_tokens: 4096, stream: true, temperature: 0.6 }),
+    });
+  } catch (e: any) {
+    console.error("Verboo rede:", modelo, e?.message);
+    resp = new Response("falha de rede", { status: 599 });
+  }
+
+  if (!resp.ok) {
+    const err = await resp.text().catch(() => "");
+    console.error(`Verboo ${modelo} error:`, resp.status, err.slice(0, 300));
+    if (modelo === VERBOO_MODEL) {
+      console.log("V4.1 caiu — indo para o V4.0...");
+      return await callVerboo(messages, lastMsg, chatMode, VERBOO_MODEL_40);
+    }
+    if (GOOGLE_API_KEY) return await callGemini(messages, lastMsg, chatMode);
+    if (OPENROUTER_KEY) return await callOpenRouter(messages, lastMsg, chatMode);
+    return Response.json({ error: `Verboo error: ${resp.status}`, details: err }, { status: 502 });
+  }
+
+  console.log(`Verboo respondeu OK com o modelo: ${modelo}`);
+  return streamOpenAIResponse(resp);
 }
 
 // ─── Gemini Handler ──────────────────────────────────────────────
@@ -316,6 +359,8 @@ async function streamOpenAIResponse(resp: Response): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
       const decoder = new TextDecoder();
+      let viuConteudo = false;
+      let guardado = "";
       try {
         while (true) {
           const { done, value } = await reader.read();
@@ -327,10 +372,19 @@ async function streamOpenAIResponse(resp: Response): Promise<Response> {
             if (data === "[DONE]") continue;
             try {
               const p = JSON.parse(data);
-              const c = p.choices?.[0]?.delta?.content || "";
-              if (c) controller.enqueue(encoder.encode(`data: ${JSON.stringify({choices:[{delta:{content:c}}]})}\n\n`));
+              const d = p.choices?.[0]?.delta || {};
+              const c = d.content || "";
+              if (c) { viuConteudo = true; controller.enqueue(encoder.encode(`data: ${JSON.stringify({choices:[{delta:{content:c}}]})}\n\n`)); }
+              else if (d.reasoning_content) {
+                guardado += d.reasoning_content;
+                if (guardado.length > 12000) guardado = guardado.slice(-12000);
+              }
             } catch {}
           }
+        }
+        if (!viuConteudo && guardado.trim()) {
+          const limpo = guardado.replace(/[*#`]/g, "").trim();
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({choices:[{delta:{content:limpo}}]})}\n\n`));
         }
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
