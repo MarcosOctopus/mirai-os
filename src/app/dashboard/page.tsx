@@ -15,6 +15,9 @@ interface User {
   avatar_url?: string;
   tenant_id?: string;
   platform_config?: Record<string, unknown>;
+  ehDono?: boolean;
+  papel?: string;
+  organizacao?: { id: string; nome: string; slug: string } | null;
 }
 
 /* Mesma leitura de status usada em /dashboard/connect — uma fonte, uma regra. */
@@ -48,6 +51,130 @@ function Botao({ href, externo, children }: { href: string; externo?: boolean; c
     <a href={href} target="_blank" rel="noreferrer" className={classe}>{children}</a>
   ) : (
     <Link href={href} className={classe}>{children}</Link>
+  );
+}
+
+/* A empresa desta conta: o CRM dela, o pessoal dela. Só ela — nunca outra. */
+function CartaoOrganizacao() {
+  const [dados, setDados] = useState<{
+    organizacao: { id: string; nome: string; slug: string; crm: boolean } | null;
+    membros: { email: string; papel: string }[];
+    papel: string | null;
+    podeGerir: boolean;
+  } | null>(null);
+  const [email, setEmail] = useState("");
+  const [papel, setPapel] = useState<"membro" | "admin">("membro");
+  const [recado, setRecado] = useState("");
+  const [erro, setErro] = useState("");
+
+  const ler = useCallback(async () => {
+    try {
+      const r = await fetch("/api/minha-organizacao", { cache: "no-store" });
+      if (r.ok) setDados(await r.json());
+    } catch {
+      /* sem organização a tela apenas não aparece */
+    }
+  }, []);
+
+  useEffect(() => {
+    ler();
+  }, [ler]);
+
+  if (!dados?.organizacao) return null;
+
+  async function adicionar() {
+    setErro("");
+    setRecado("");
+    const r = await fetch("/api/minha-organizacao", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, papel }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      setErro(d?.error || `falha (HTTP ${r.status})`);
+      return;
+    }
+    setRecado(`${d.membro.email} entrou como ${d.membro.papel === "admin" ? "admin" : "funcionário"}.`);
+    setEmail("");
+    ler();
+  }
+
+  async function tirar(alvo: string) {
+    setErro("");
+    setRecado("");
+    const r = await fetch(`/api/minha-organizacao?email=${encodeURIComponent(alvo)}`, { method: "DELETE" });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      setErro(d?.error || `falha (HTTP ${r.status})`);
+      return;
+    }
+    setRecado(`${alvo} saiu da organização.`);
+    ler();
+  }
+
+  const org = dados.organizacao;
+  return (
+    <Cartao titulo={org.nome} rotulo="Sua organização">
+      <dl className="flex flex-col gap-3 text-sm">
+        <div>
+          <dt className="text-xs uppercase tracking-[0.28em] text-cyan-300/45">Seu papel</dt>
+          <dd className="mt-1 text-cyan-50">{dados.papel === "admin" ? "Admin da organização" : "Funcionário"}</dd>
+        </div>
+        <div>
+          <dt className="text-xs uppercase tracking-[0.28em] text-cyan-300/45">CRM desta empresa</dt>
+          <dd className="mt-1 text-cyan-100/70">{org.crm ? "ligado (dado vem pelo MCP do produto)" : "ainda não ligado"}</dd>
+        </div>
+        <div>
+          <dt className="text-xs uppercase tracking-[0.28em] text-cyan-300/45">Quem entra</dt>
+          <dd className="mt-1 flex flex-col gap-1">
+            {dados.membros.map((m) => (
+              <span key={m.email} className="flex items-center gap-2 break-all text-cyan-100/80">
+                {m.email}
+                <span className="rounded-full border border-cyan-300/20 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-cyan-200/60">
+                  {m.papel === "admin" ? "admin" : m.papel === "dono" ? "dono" : "funcionário"}
+                </span>
+                {dados.podeGerir && m.papel !== "dono" && (
+                  <button onClick={() => tirar(m.email)} className="text-[10px] uppercase tracking-[0.2em] text-rose-300/70 hover:text-rose-200">
+                    tirar
+                  </button>
+                )}
+              </span>
+            ))}
+          </dd>
+        </div>
+      </dl>
+
+      {dados.podeGerir && (
+        <div className="mt-auto flex flex-col gap-2 border-t border-cyan-300/10 pt-4">
+          <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/45">Adicionar gente da empresa</p>
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="funcionario@empresa.com"
+              className="min-w-[190px] flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs text-cyan-50 outline-none focus:border-cyan-400/40"
+            />
+            <select
+              value={papel}
+              onChange={(e) => setPapel(e.target.value === "admin" ? "admin" : "membro")}
+              className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs text-cyan-50 outline-none"
+            >
+              <option value="membro">funcionário</option>
+              <option value="admin">admin</option>
+            </select>
+            <button
+              onClick={adicionar}
+              className="rounded-lg bg-cyan-500/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-cyan-300 hover:bg-cyan-500/30"
+            >
+              adicionar
+            </button>
+          </div>
+          {recado && <p className="text-xs text-emerald-300/80">{recado}</p>}
+          {erro && <p className="text-xs text-rose-300/80">{erro}</p>}
+        </div>
+      )}
+    </Cartao>
   );
 }
 
@@ -120,6 +247,8 @@ export default function PainelPage() {
         )}
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {user?.organizacao && <CartaoOrganizacao />}
+
           <Cartao titulo="Sua conta" rotulo="Identidade">
             {carregando ? (
               <p className="text-sm text-cyan-100/50">lendo…</p>
@@ -173,19 +302,21 @@ export default function PainelPage() {
             <Botao href="/">Ir para o Orb</Botao>
           </Cartao>
 
-          <Cartao titulo="Sistema" rotulo="Estado">
-            <dl className="flex flex-col gap-3 text-sm">
-              <div>
-                <dt className="text-xs uppercase tracking-[0.28em] text-cyan-300/45">Build</dt>
-                <dd className="mt-1 font-mono text-xs text-cyan-100/70">{build || "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-[0.28em] text-cyan-300/45">Modelo</dt>
-                <dd className="mt-1 text-cyan-100/70">DeepSeek V4.1 (reserva V4.0)</dd>
-              </div>
-            </dl>
-            <Botao href="/system">Ver o sistema</Botao>
-          </Cartao>
+          {user?.ehDono && (
+            <Cartao titulo="Sistema" rotulo="Estado">
+              <dl className="flex flex-col gap-3 text-sm">
+                <div>
+                  <dt className="text-xs uppercase tracking-[0.28em] text-cyan-300/45">Build</dt>
+                  <dd className="mt-1 font-mono text-xs text-cyan-100/70">{build || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-[0.28em] text-cyan-300/45">Modelo</dt>
+                  <dd className="mt-1 text-cyan-100/70">DeepSeek V4.1 (reserva V4.0)</dd>
+                </div>
+              </dl>
+              <Botao href="/system">Ver o sistema</Botao>
+            </Cartao>
+          )}
 
           <Cartao titulo="Como este painel é" rotulo="Regra">
             <p className="text-sm text-cyan-100/60">

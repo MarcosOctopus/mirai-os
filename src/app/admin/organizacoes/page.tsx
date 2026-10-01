@@ -92,6 +92,47 @@ export default function OrganizacoesPage() {
     }
   }, [nome, email, saasoOrgId, saasoToken, carregar]);
 
+  const addMembro = useCallback(
+    async (org: Organizacao, email: string, papel: string) => {
+      setErro("");
+      setAviso("");
+      try {
+        const res = await fetch("/api/admin/organizacoes", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: org.id, membro: { email, papel } }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d?.error || `HTTP ${res.status}`);
+        setAviso(`${email} entrou em ${org.nome} como ${papel}.`);
+        carregar();
+      } catch (e) {
+        setErro(e instanceof Error ? e.message : "falha ao adicionar");
+      }
+    },
+    [carregar],
+  );
+
+  const tirarMembro = useCallback(
+    async (org: Organizacao, email: string) => {
+      setErro("");
+      setAviso("");
+      try {
+        const res = await fetch(
+          `/api/admin/organizacoes?email=${encodeURIComponent(email)}&orgId=${encodeURIComponent(org.id)}`,
+          { method: "DELETE" },
+        );
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d?.error || `HTTP ${res.status}`);
+        setAviso(`${email} saiu de ${org.nome}.`);
+        carregar();
+      } catch (e) {
+        setErro(e instanceof Error ? e.message : "falha ao remover");
+      }
+    },
+    [carregar],
+  );
+
   const salvarCredencial = useCallback(
     async (org: Organizacao, campo: "clienteEmail" | "saasoOrgId" | "saasoToken", valor: string) => {
       try {
@@ -220,19 +261,32 @@ export default function OrganizacoesPage() {
                 </span>
               </div>
 
-              <div className="mt-3 flex flex-col gap-1 text-xs text-cyan-100/60">
-                <p>
-                  Quem entra:{" "}
-                  {org.membros.length > 0 ? (
-                    org.membros.map((m) => (
-                      <span key={m.email} className="text-cyan-100/90">
-                        {m.email}{" "}
-                      </span>
-                    ))
+              <div className="mt-3 flex flex-col gap-2 text-xs text-cyan-100/60">
+                <div>
+                  <p className="text-cyan-100/50">Quem entra (só esta empresa):</p>
+                  {org.membros.length === 0 ? (
+                    <p className="mt-1 text-amber-300/70">ninguém ainda — amarre um e-mail</p>
                   ) : (
-                    <span className="text-amber-300/70">ninguém ainda — amarre um e-mail</span>
+                    <ul className="mt-1 flex flex-col gap-1">
+                      {org.membros.map((m) => (
+                        <li key={m.email} className="flex flex-wrap items-center gap-2">
+                          <span className="text-cyan-100/90">{m.email}</span>
+                          <span className="rounded-full border border-cyan-300/20 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-cyan-200/60">
+                            {m.papel === "admin" ? "admin da empresa" : m.papel === "dono" ? "dono (você)" : "funcionário"}
+                          </span>
+                          {m.papel !== "dono" && (
+                            <button
+                              onClick={() => tirarMembro(org, m.email)}
+                              className="text-[10px] uppercase tracking-[0.2em] text-rose-300/70 hover:text-rose-200"
+                            >
+                              tirar
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                </p>
+                </div>
                 <p>
                   Organização no CRM:{" "}
                   <span className="text-cyan-100/90">{org.saaso_org_id || "—"}</span>
@@ -241,15 +295,24 @@ export default function OrganizacoesPage() {
 
               <div className="mt-4 flex flex-wrap gap-2">
                 <input
-                  placeholder="+ e-mail do cliente"
+                  placeholder="+ e-mail de quem entra (dono ou funcionário)"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
-                      salvarCredencial(org, "clienteEmail", (e.target as HTMLInputElement).value);
+                      const alvo = (e.target as HTMLInputElement).value;
+                      const sel = (e.target as HTMLInputElement).parentElement?.querySelector("select");
+                      addMembro(org, alvo, sel?.value || "membro");
                       (e.target as HTMLInputElement).value = "";
                     }
                   }}
                   className="rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-cyan-50 outline-none focus:border-cyan-400/40"
                 />
+                <select
+                  defaultValue="membro"
+                  className="rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-cyan-50 outline-none"
+                >
+                  <option value="membro">funcionário</option>
+                  <option value="admin">admin da empresa</option>
+                </select>
                 <input
                   placeholder="token dsk_... do CRM desta organização"
                   onKeyDown={(e) => {

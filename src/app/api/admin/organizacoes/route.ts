@@ -7,6 +7,8 @@ import {
   exigirDono,
   listarOrganizacoes,
   orgPorId,
+  removerMembro,
+  vincularEmail,
 } from "@/lib/orgs";
 
 export const runtime = "nodejs";
@@ -55,6 +57,18 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "organizacao nao encontrada" }, { status: 404 });
   }
 
+  // Membro (funcionario) da empresa: adicionar ou mudar o papel
+  const membro = corpo?.membro as { email?: string; papel?: string } | undefined;
+  if (membro?.email) {
+    const alvo = String(membro.email).trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(alvo)) {
+      return NextResponse.json({ error: "informe um e-mail valido" }, { status: 400 });
+    }
+    const papel = membro.papel === "admin" ? "admin" : membro.papel === "dono" ? "dono" : "membro";
+    vincularEmail(alvo, id, papel);
+    return NextResponse.json({ organizacao: orgPorId(id), membro: { email: alvo, papel } });
+  }
+
   const org = atualizarOrganizacao(id, {
     nome: corpo?.nome !== undefined ? String(corpo.nome) : undefined,
     clienteEmail:
@@ -83,10 +97,13 @@ export async function DELETE(req: NextRequest) {
   const g = await exigirDono(req);
   if (!g.ok) return g.resposta;
 
-  const email = new URL(req.url).searchParams.get("email");
+  const params = new URL(req.url).searchParams;
+  const email = params.get("email");
+  const orgId = params.get("orgId");
   if (!email) {
     return NextResponse.json({ error: "informe o e-mail" }, { status: 400 });
   }
-  desvincularEmail(email);
-  return NextResponse.json({ ok: true, email });
+  // com orgId: tira so daquela empresa; sem: tira o vinculo (o dono manda)
+  const ok = orgId ? removerMembro(email, orgId) : (desvincularEmail(email), true);
+  return NextResponse.json({ ok, email, orgId: orgId || null });
 }

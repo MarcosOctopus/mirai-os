@@ -118,7 +118,8 @@ export function criarOrganizacao(dados: {
     agora,
   );
   c.close();
-  if (dados.clienteEmail) vincularEmail(dados.clienteEmail, id, "cliente");
+  // Quem funda a empresa entra como ADMIN dela (gerencia os funcionarios).
+  if (dados.clienteEmail) vincularEmail(dados.clienteEmail, id, "admin");
   return orgPorId(id) as Organizacao;
 }
 
@@ -157,17 +158,58 @@ export function atualizarOrganizacao(
   valores.push(id);
   c.prepare(`UPDATE organizations SET ${campos.join(", ")} WHERE id = ?`).run(...(valores as never[]));
   c.close();
-  if (dados.clienteEmail) vincularEmail(dados.clienteEmail, id, "cliente");
+  // Quem funda a empresa entra como ADMIN dela (gerencia os funcionarios).
+  if (dados.clienteEmail) vincularEmail(dados.clienteEmail, id, "admin");
   return orgPorId(id);
 }
 
-export function vincularEmail(email: string, orgId: string, papel = "cliente"): void {
+export function vincularEmail(email: string, orgId: string, papel = "membro"): void {
   const c = db();
   c.prepare(
     `INSERT INTO memberships (email, org_id, papel, criada_em) VALUES (?, ?, ?, ?)
      ON CONFLICT(email) DO UPDATE SET org_id = excluded.org_id, papel = excluded.papel`,
   ).run(normaliza(email), orgId, papel, new Date().toISOString());
   c.close();
+}
+
+/**
+ * Papel de um e-mail NA EMPRESA (organizacao): 'dono' (dono da plataforma),
+ * 'admin' (dono da empresa — gerencia os funcionarios) ou 'membro' (funcionario).
+ */
+export function papelNaOrg(email: string): string | null {
+  const c = db();
+  const v = c
+    .prepare("SELECT papel FROM memberships WHERE lower(email) = ?")
+    .get(normaliza(email)) as { papel: string } | undefined;
+  c.close();
+  return v?.papel ?? null;
+}
+
+/** Quem manda NA EMPRESA: o dono da plataforma ou o admin daquela organizacao. */
+export function ehAdminDaOrg(conta: Conta): boolean {
+  if (conta.ehDono) return true;
+  const p = papelNaOrg(conta.email);
+  return p === "admin" || p === "dono";
+}
+
+/** Organizacao a que o e-mail ja pertence (para nao "roubar" gente de outra empresa). */
+export function orgDoEmail(email: string): string | null {
+  const c = db();
+  const v = c
+    .prepare("SELECT org_id FROM memberships WHERE lower(email) = ?")
+    .get(normaliza(email)) as { org_id: string } | undefined;
+  c.close();
+  return v?.org_id ?? null;
+}
+
+/** Tira o e-mail da empresa — so se ele for DESTA empresa. */
+export function removerMembro(email: string, orgId: string): boolean {
+  const c = db();
+  const r = c
+    .prepare("DELETE FROM memberships WHERE lower(email) = ? AND org_id = ?")
+    .run(normaliza(email), orgId);
+  c.close();
+  return Number((r as { changes?: number }).changes ?? 0) > 0;
 }
 
 export function desvincularEmail(email: string): void {
