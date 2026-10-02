@@ -271,7 +271,7 @@ export default function PainelPage() {
                 </div>
               </dl>
             )}
-            <Botao href="https://id.miraitohope.com" externo>Gerenciar identidade</Botao>
+            <Botao href="https://id.miraitohope.com/login" externo>Gerenciar identidade</Botao>
           </Cartao>
 
           <Cartao titulo="Integrações" rotulo="Conexões">
