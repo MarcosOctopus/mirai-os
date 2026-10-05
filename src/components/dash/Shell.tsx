@@ -153,17 +153,16 @@ export default function Shell({
           </button>
         </div>
 
-        {/* setinha: recolhe/expande só no desktop */}
+        {/* setinha: recolhe/expande só no desktop — só a seta, sem caixa nem texto */}
         <button
           aria-label={recolhida ? "Expandir menu" : "Recolher menu"}
           title={recolhida ? "Expandir menu" : "Recolher menu"}
           onClick={() => setRecolhida((v) => !v)}
-          className={`mt-5 hidden h-9 items-center gap-2 rounded-[10px] bg-dash-raise/70 text-[12px] text-dash-muted transition hover:text-white lg:flex ${
-            recolhida ? "justify-center" : "self-end px-3"
+          className={`mt-5 hidden h-6 w-6 items-center justify-center text-dash-muted transition hover:text-white lg:flex ${
+            recolhida ? "self-center" : "self-end"
           }`}
         >
           <IconeSeta className={`h-4 w-4 transition-transform ${recolhida ? "" : "rotate-180"}`} />
-          {!recolhida && <span>recolher</span>}
         </button>
 
         <nav className="mt-9 space-y-1.5">
