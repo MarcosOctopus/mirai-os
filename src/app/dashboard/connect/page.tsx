@@ -3,7 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Shell from "@/components/dash/Shell";
 import { Card, Secao, Selo, StatCard } from "@/components/dash/kit";
-import { IconePlug, IconeOrganizacoes, IconeRobo } from "@/components/dash/icons";
+import {
+  IconeBusca,
+  IconeCamera,
+  IconeEnviar,
+  IconeFilme,
+  IconeImagem,
+  IconeMusica,
+  IconeNuvem,
+  IconeOrganizacoes,
+  IconePlay,
+  IconePlug,
+  IconeRobo,
+} from "@/components/dash/icons";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -129,6 +141,18 @@ const PLATFORMS: PlatformDef[] = [
   },
 ];
 
+/* Um traço só, sem cor própria (herda currentColor): o ícone de cada canal. */
+const ICONE_CANAL: Record<PlatformId, React.ReactNode> = {
+  drive: <IconeNuvem />,
+  youtube: <IconePlay />,
+  higgsfield: <IconeImagem />,
+  suno: <IconeMusica />,
+  telegram: <IconeEnviar />,
+  magnific: <IconeBusca />,
+  instagram: <IconeCamera />,
+  kling: <IconeFilme />,
+};
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
 /* ------------------------------------------------------------------ */
@@ -240,8 +264,10 @@ function ApiKeyModal({ platform, onClose, onSaved }: ApiKeyModalProps) {
 
         {/* Header */}
         <div className="mb-5 flex items-center gap-3">
-          <span className="text-3xl">{platform.icon}</span>
-          <h2 className="text-lg font-semibold text-cyan-50">
+          <span className="grid h-10 w-10 place-items-center rounded-[12px] bg-dash-raise text-dash-muted">
+            {ICONE_CANAL[platform.id]}
+          </span>
+          <h2 className="text-[16px] font-semibold text-white">
             {platform.name}
           </h2>
         </div>
@@ -433,8 +459,8 @@ export default function ConnectDashboardPage() {
             const on = status === "connected";
             return (
               <Card key={platform.id} interativo className="flex items-center gap-4 p-5">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] bg-dash-raise text-[20px]">
-                  {platform.icon}
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] bg-dash-raise text-dash-muted">
+                  {ICONE_CANAL[platform.id]}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[14px] font-semibold text-white">{platform.name}</p>
@@ -488,8 +514,8 @@ export default function ConnectDashboardPage() {
           {saaso ? (
             <div className="rounded-xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm transition-all hover:border-white/20">
               <div className="flex items-center gap-4">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center text-3xl">
-                  &#129517;
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] bg-dash-raise text-dash-muted">
+                  <IconeOrganizacoes className="h-5 w-5" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-cyan-50">{saaso.nome}</p>

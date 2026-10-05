@@ -183,3 +183,55 @@ export const IconeCadeado = ({ className }: Props) => (
     <path d="M8 10V7.5a4 4 0 018 0V10" />
   </Svg>
 );
+
+/* ── Canais (traço só, sem cor própria: herdam currentColor) ────────── */
+
+export const IconeNuvem = ({ className }: Props) => (
+  <Svg className={className}>
+    <path d="M7 18h9.5a3.5 3.5 0 000-7 5.5 5.5 0 00-10.6-1.4A3.8 3.8 0 007 18z" />
+  </Svg>
+);
+
+export const IconePlay = ({ className }: Props) => (
+  <Svg className={className}>
+    <rect x="3" y="6" width="18" height="13" rx="3.5" />
+    <path d="M11 10.2l3.5 2.3-3.5 2.3v-4.6z" />
+  </Svg>
+);
+
+export const IconeImagem = ({ className }: Props) => (
+  <Svg className={className}>
+    <rect x="3" y="4" width="18" height="16" rx="3" />
+    <circle cx="9" cy="10" r="1.6" />
+    <path d="M4 17l4.5-4.2 3.5 3 3-2.6L20 17" />
+  </Svg>
+);
+
+export const IconeMusica = ({ className }: Props) => (
+  <Svg className={className}>
+    <path d="M9 18V6.5l9-2V16" />
+    <circle cx="6.5" cy="18" r="2.5" />
+    <circle cx="15.5" cy="16" r="2.5" />
+  </Svg>
+);
+
+export const IconeEnviar = ({ className }: Props) => (
+  <Svg className={className}>
+    <path d="M21 3L3 10.5l6.5 2.2L12 20l3.5-6.5L21 3z" />
+  </Svg>
+);
+
+export const IconeCamera = ({ className }: Props) => (
+  <Svg className={className}>
+    <rect x="3" y="3" width="18" height="18" rx="5" />
+    <circle cx="12" cy="12" r="3.6" />
+    <path d="M16.8 7.2h.01" />
+  </Svg>
+);
+
+export const IconeFilme = ({ className }: Props) => (
+  <Svg className={className}>
+    <rect x="3" y="4" width="18" height="16" rx="3" />
+    <path d="M8 4v16M16 4v16M3 12h18" />
+  </Svg>
+);

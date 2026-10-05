@@ -17,6 +17,12 @@
 .dash-root {
   font-family: var(--fonte-poppins);
   -webkit-font-smoothing: antialiased;
+  /* O body do app é travado (a tela do Orb ocupa a tela inteira e não rola).
+     A casca do dash precisa rolar por conta própria — senão a página trava. */
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 * { box-sizing: border-box; }
