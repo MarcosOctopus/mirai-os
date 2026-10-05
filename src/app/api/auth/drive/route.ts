@@ -7,17 +7,17 @@ export async function GET(request: NextRequest) {
   // ─── Auth check ──────────────────────────────────────────────────
   const token = request.cookies.get("token")?.value;
   if (!token) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/login", basePublica(request)));
   }
 
   const payload = await verifyToken(token);
   if (!payload) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/login", basePublica(request)));
   }
 
   const user = getUserById(payload.userId);
   if (!user) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/login", basePublica(request)));
   }
 
   // ─── Build dynamic callback URL ──────────────────────────────────

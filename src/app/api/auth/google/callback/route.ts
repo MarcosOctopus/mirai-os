@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
 
   if (!code) {
-    return NextResponse.redirect(new URL("/login?error=no_code", request.url));
+    return NextResponse.redirect(new URL("/login?error=no_code", basePublica(request)));
   }
 
   // endereco publico: o visitante nunca esta no localhost do servidor
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   if (!tokenRes.ok) {
     const errText = await tokenRes.text();
     console.error("Google token exchange failed:", errText);
-    return NextResponse.redirect(new URL("/login?error=token_failed", request.url));
+    return NextResponse.redirect(new URL("/login?error=token_failed", basePublica(request)));
   }
 
   const tokens = await tokenRes.json();
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 
   if (!userRes.ok) {
     console.error("Google userinfo fetch failed:", await userRes.text());
-    return NextResponse.redirect(new URL("/login?error=userinfo_failed", request.url));
+    return NextResponse.redirect(new URL("/login?error=userinfo_failed", basePublica(request)));
   }
 
   const googleUser = await userRes.json();
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
   // ─── Set cookie & redirect ───────────────────────────────────────
   const isProd = process.env.NODE_ENV === "production";
   const response = NextResponse.redirect(
-    new URL("/dashboard/connect", request.url)
+    new URL("/dashboard/connect", basePublica(request))
   );
 
   response.cookies.set("token", token, {

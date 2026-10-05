@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   if (!code) {
     return NextResponse.redirect(
-      new URL("/dashboard/connect?error=no_code", request.url)
+      new URL("/dashboard/connect?error=no_code", basePublica(request))
     );
   }
 
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!userId) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/login", basePublica(request)));
   }
 
   // ─── Build callback URL for token exchange ───────────────────────
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     const errText = await tokenRes.text();
     console.error("Drive OAuth token exchange failed:", errText);
     return NextResponse.redirect(
-      new URL("/dashboard/connect?error=token_failed", request.url)
+      new URL("/dashboard/connect?error=token_failed", basePublica(request))
     );
   }
 
