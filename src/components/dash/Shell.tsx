@@ -19,6 +19,7 @@ import {
   IconePainel,
   IconePlug,
   IconeProdutos,
+  IconeSeta,
   IconeSino,
   IconeSistema,
 } from "./icons";
@@ -48,13 +49,15 @@ const SECUNDARIO: Item[] = [
   { label: "Backups", icone: <IconeBackup />, emBreve: true },
 ];
 
-function Marca() {
+function Marca({ recolhida = false }: { recolhida?: boolean }) {
   return (
-    <div className="flex items-center gap-3">
-      <span className="grid h-[30px] w-[30px] place-items-center rounded-[9px] bg-dash-brand font-popping text-[15px] font-bold text-white">
+    <div className={`flex items-center gap-3 ${recolhida ? "lg:justify-center" : ""}`}>
+      <span className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px] bg-dash-brand text-[15px] font-bold text-white">
         M
       </span>
-      <span className="text-[15px] font-semibold tracking-[0.16em] text-white">MIRAI OS</span>
+      <span className={`text-[15px] font-semibold tracking-[0.16em] text-white ${recolhida ? "lg:hidden" : ""}`}>
+        MIRAI OS
+      </span>
     </div>
   );
 }
@@ -63,38 +66,35 @@ function ItemMenu({
   item,
   ativo,
   onNavegar,
+  recolhida = false,
 }: {
   item: Item;
   ativo: boolean;
   onNavegar: () => void;
+  recolhida?: boolean;
 }) {
-  const base =
-    "flex w-full items-center gap-4 rounded-[12px] px-4 py-3 text-left text-[14px] transition";
+  const base = `flex w-full items-center gap-4 rounded-[12px] px-4 py-3 text-left text-[14px] transition ${
+    recolhida ? "lg:justify-center lg:px-0 lg:gap-0" : ""
+  }`;
   const cor = ativo ? "bg-dash-brand/12 text-dash-brand" : "text-dash-muted hover:bg-white/[0.04] hover:text-white";
+  const rotulo = `truncate ${recolhida ? "lg:hidden" : ""}`;
+  const selo = `ml-auto rounded-full px-2 py-[3px] text-[10px] ${recolhida ? "lg:hidden" : ""}`;
 
   if (!item.href || item.emBreve) {
     return (
-      <div className={`${base} ${cor} cursor-default`} title={item.emBreve ? "ainda não existe" : undefined}>
+      <div className={`${base} ${cor} cursor-default`} title={item.label}>
         {item.icone}
-        <span className="truncate">{item.label}</span>
-        {item.emBreve && (
-          <span className="ml-auto rounded-full bg-dash-raise px-2 py-[3px] text-[10px] text-dash-dim">
-            em breve
-          </span>
-        )}
+        <span className={rotulo}>{item.label}</span>
+        {item.emBreve && <span className={`${selo} bg-dash-raise text-dash-dim`}>em breve</span>}
       </div>
     );
   }
 
   return (
-    <Link href={item.href} onClick={onNavegar} className={`${base} ${cor}`}>
+    <Link href={item.href} onClick={onNavegar} className={`${base} ${cor}`} title={item.label}>
       {item.icone}
-      <span className="truncate">{item.label}</span>
-      {item.selo && (
-        <span className="ml-auto rounded-full bg-dash-ok px-2 py-[2px] text-[10px] font-semibold text-dash-side">
-          {item.selo}
-        </span>
-      )}
+      <span className={rotulo}>{item.label}</span>
+      {item.selo && <span className={`${selo} bg-dash-ok font-semibold text-dash-side`}>{item.selo}</span>}
     </Link>
   );
 }
@@ -109,6 +109,7 @@ export default function Shell({
   children: React.ReactNode;
 }) {
   const [aberto, setAberto] = useState(false);
+  const [recolhida, setRecolhida] = useState(false);
   const caminho = usePathname();
   const inicial = (usuario?.nome || usuario?.email || "?").trim().charAt(0).toUpperCase();
   const visiveis = (lista: Item[]) => lista.filter((i) => !i.soDono || usuario?.ehDono);
@@ -125,12 +126,12 @@ export default function Shell({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col overflow-y-auto bg-dash-side px-5 pb-8 pt-6 transition-transform lg:w-[320px] lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col overflow-y-auto bg-dash-side px-5 pb-8 pt-6 transition-all lg:translate-x-0 ${
           aberto ? "translate-x-0" : "-translate-x-full"
-        }`}
+        } ${recolhida ? "lg:w-[84px] lg:px-3" : "lg:w-[320px] lg:px-5"}`}
       >
-        <div className="flex items-center justify-between">
-          <Marca />
+        <div className={`flex items-center ${recolhida ? "lg:justify-center" : "justify-between"}`}>
+          <Marca recolhida={recolhida} />
           <button
             aria-label="Fechar menu"
             onClick={() => setAberto(false)}
@@ -140,6 +141,19 @@ export default function Shell({
           </button>
         </div>
 
+        {/* setinha: recolhe/expande só no desktop */}
+        <button
+          aria-label={recolhida ? "Expandir menu" : "Recolher menu"}
+          title={recolhida ? "Expandir menu" : "Recolher menu"}
+          onClick={() => setRecolhida((v) => !v)}
+          className={`mt-5 hidden h-9 items-center gap-2 rounded-[10px] bg-dash-raise/70 text-[12px] text-dash-muted transition hover:text-white lg:flex ${
+            recolhida ? "justify-center" : "self-end px-3"
+          }`}
+        >
+          <IconeSeta className={`h-4 w-4 transition-transform ${recolhida ? "" : "rotate-180"}`} />
+          {!recolhida && <span>recolher</span>}
+        </button>
+
         <nav className="mt-9 space-y-1.5">
           {visiveis(PRIMARIO).map((i) => (
             <ItemMenu
@@ -147,6 +161,7 @@ export default function Shell({
               item={i}
               ativo={!!i.href && caminho === i.href}
               onNavegar={() => setAberto(false)}
+              recolhida={recolhida}
             />
           ))}
         </nav>
@@ -160,11 +175,12 @@ export default function Shell({
               item={i}
               ativo={!!i.href && caminho === i.href}
               onNavegar={() => setAberto(false)}
+              recolhida={recolhida}
             />
           ))}
         </nav>
 
-        <div className="mt-auto pt-8">
+        <div className={`mt-auto pt-8 ${recolhida ? "lg:hidden" : ""}`}>
           <div className="rounded-[20px] bg-dash-raise/70 p-5">
             <p className="text-[13px] font-semibold text-white">Mirai está de pé</p>
             <p className="mt-2 text-[12px] leading-[1.5] text-dash-muted">
@@ -181,7 +197,7 @@ export default function Shell({
         </div>
       </aside>
 
-      <main className="min-h-dvh lg:ml-[320px]">
+      <main className={`min-h-dvh transition-all ${recolhida ? "lg:ml-[84px]" : "lg:ml-[320px]"}`}>
         <div className="mx-auto max-w-[1145px] px-5 pb-16 pt-5 sm:px-8 lg:px-[44px] lg:pt-10">
           <header className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-4">

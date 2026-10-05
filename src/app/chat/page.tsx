@@ -362,9 +362,25 @@ export default function ChatPage() {
                   <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-dash-dim">
                     {m.role === "user" ? "você" : "mirai"}
                   </span>
-                  <span className="whitespace-pre-wrap break-words">
-                    {m.content || (enviando ? "…" : "")}
-                  </span>
+                  {m.content ? (
+                    <span className="whitespace-pre-wrap break-words">
+                      {m.content}
+                      {enviando && i === mensagens.length - 1 && (
+                        <span className="ml-0.5 inline-block h-[13px] w-[2px] animate-pulse bg-dash-brand align-middle" />
+                      )}
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5 py-1" aria-label="Mirai está digitando">
+                      {[0, 150, 300].map((atraso) => (
+                        <span
+                          key={atraso}
+                          className="h-1.5 w-1.5 animate-bounce rounded-full bg-dash-muted"
+                          style={{ animationDelay: `${atraso}ms`, animationDuration: "1s" }}
+                        />
+                      ))}
+                      <span className="ml-1 text-[11px] text-dash-dim">pensando…</span>
+                    </span>
+                  )}
                 </div>
               ))}
               <div ref={fim} />
