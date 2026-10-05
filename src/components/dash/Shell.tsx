@@ -4,7 +4,7 @@
    Estrutura do template ArtDash: sidebar fixa (off-canvas no celular), topbar com
    título/notificações/avatar e conteúdo em coluna centrada. */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -235,15 +235,122 @@ export default function Shell({
               <span className="relative grid h-[34px] w-[34px] place-items-center rounded-full bg-dash-side text-dash-muted">
                 <IconeSino />
               </span>
-              <span className="grid h-[34px] w-[34px] place-items-center rounded-full border border-white/15 bg-dash-raise text-[13px] text-white">
-                {inicial}
-              </span>
+              <MenuDaConta inicial={inicial} usuario={usuario} />
             </div>
           </header>
 
           <div className="mt-8">{children}</div>
         </div>
       </main>
+    </div>
+  );
+}
+
+/* Canto superior direito do Shell: clicar na bolinha abre o menu da conta.
+   Perfil e saída — sair chama o /api/auth/logout que já existe no app. */
+function MenuDaConta({
+  inicial,
+  usuario,
+}: {
+  inicial: string;
+  usuario?: { nome?: string; email?: string; ehDono?: boolean } | null;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [saindo, setSaindo] = useState(false);
+  const caixa = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!aberto) return;
+    const fora = (e: MouseEvent) => {
+      if (caixa.current && !caixa.current.contains(e.target as Node)) setAberto(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAberto(false);
+    };
+    document.addEventListener("mousedown", fora);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", fora);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [aberto]);
+
+  async function sair() {
+    setSaindo(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      window.location.href = "/login";
+    }
+  }
+
+  return (
+    <div className="relative" ref={caixa}>
+      <button
+        aria-label="Menu da conta"
+        aria-expanded={aberto}
+        onClick={() => setAberto((v) => !v)}
+        className={`grid h-[34px] w-[34px] place-items-center rounded-full border text-[13px] text-white transition ${
+          aberto
+            ? "border-dash-brand bg-dash-raise"
+            : "border-white/15 bg-dash-raise hover:border-dash-brand/60"
+        }`}
+      >
+        {inicial}
+      </button>
+
+      {aberto && (
+        <div className="absolute right-0 top-[42px] z-50 w-[236px] rounded-[16px] border border-white/[0.10] bg-dash-surface p-1.5 shadow-2xl">
+          <div className="px-3 py-2.5">
+            <p className="truncate text-[12.5px] font-semibold text-white">
+              {usuario?.nome || "Sua conta"}
+            </p>
+            {usuario?.email && (
+              <p className="truncate text-[11.5px] text-dash-muted">{usuario.email}</p>
+            )}
+          </div>
+
+          <div className="my-1 h-px bg-white/[0.08]" />
+
+          <Link
+            href="/perfil"
+            onClick={() => setAberto(false)}
+            className="flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] text-white/85 transition hover:bg-white/[0.06] hover:text-white"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-[17px] w-[17px] shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+            >
+              <circle cx="12" cy="8" r="3.5" />
+              <path d="M4.5 20c1.2-3.6 4-5.4 7.5-5.4s6.3 1.8 7.5 5.4" />
+            </svg>
+            Perfil
+          </Link>
+
+          <button
+            onClick={sair}
+            disabled={saindo}
+            className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[13px] text-dash-bad transition hover:bg-white/[0.06] disabled:opacity-60"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-[17px] w-[17px] shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+            >
+              <path d="M15 4.5h3.5A1.5 1.5 0 0 1 20 6v12a1.5 1.5 0 0 1-1.5 1.5H15" />
+              <path d="M10 16.5 14.5 12 10 7.5M14.5 12H4" />
+            </svg>
+            {saindo ? "Saindo..." : "Sair"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
