@@ -175,47 +175,47 @@ export default function OrganizacoesPage() {
       <Secao titulo="Nova organização">
         <Card>
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label className="flex flex-col gap-1 text-xs text-cyan-100/60">
+            <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
               Nome da organização
               <input
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 placeholder="Ex.: Clínica Vida"
-                className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-cyan-50 outline-none focus:border-cyan-400/40"
+                className="rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
               />
             </label>
-            <label className="flex flex-col gap-1 text-xs text-cyan-100/60">
+            <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
               E-mail do cliente (só ele entra aqui)
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="cliente@dominio.com"
-                className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-cyan-50 outline-none focus:border-cyan-400/40"
+                className="rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
               />
             </label>
-            <label className="flex flex-col gap-1 text-xs text-cyan-100/60">
+            <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
               Organização no CRM (opcional)
               <input
                 value={saasoOrgId}
                 onChange={(e) => setSaasoOrgId(e.target.value)}
                 placeholder="id/uuid da organização no Saaso"
-                className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-cyan-50 outline-none focus:border-cyan-400/40"
+                className="rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
               />
             </label>
-            <label className="flex flex-col gap-1 text-xs text-cyan-100/60">
+            <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
               Credencial de CRM do cliente (opcional)
               <input
                 value={saasoToken}
                 onChange={(e) => setSaasoToken(e.target.value)}
                 placeholder="token dsk_... do CRM daquele cliente"
-                className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-cyan-50 outline-none focus:border-cyan-400/40"
+                className="rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
               />
             </label>
           </div>
           <button
             onClick={criar}
             disabled={salvando}
-            className="mt-4 rounded-lg bg-cyan-500/20 px-5 py-2.5 text-sm font-medium text-cyan-300 transition-all hover:bg-cyan-500/30 disabled:opacity-40"
+            className="mt-4 rounded-[10px] bg-dash-brand px-5 py-2.5 text-[12px] font-semibold text-white transition hover:bg-dash-brandHi disabled:opacity-40"
           >
             {salvando ? "Criando..." : "Criar organização"}
           </button>
@@ -225,9 +225,9 @@ export default function OrganizacoesPage() {
       {/* ─── Lista ────────────────────────────────────────────────── */}
       <Secao titulo="Organizações criadas">
 
-          {carregando && <p className="text-xs text-cyan-100/40">Carregando...</p>}
+          {carregando && <p className="text-[12px] text-dash-dim">Carregando...</p>}
           {!carregando && orgs.length === 0 && (
-            <p className="text-xs text-cyan-100/40">
+            <p className="text-[12px] text-dash-dim">
               Nenhuma organização ainda. Crie a primeira acima e amarre o e-mail do cliente.
             </p>
           )}
@@ -235,41 +235,41 @@ export default function OrganizacoesPage() {
           {orgs.map((org) => (
             <article
               key={org.id}
-              className="rounded-xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm"
+              className="rounded-[24px] border border-white/[0.07] bg-dash-card p-5"
             >
               <div className="flex flex-wrap items-center gap-3">
-                <p className="font-semibold text-cyan-50">{org.nome}</p>
-                <span className="rounded-full border border-cyan-300/20 px-2.5 py-0.5 text-[11px] text-cyan-200/70">
+                <p className="text-[15px] font-semibold text-white">{org.nome}</p>
+                <span className="rounded-full bg-dash-raise px-2.5 py-[3px] text-[11px] text-dash-muted">
                   {org.slug}
                 </span>
                 <span
                   className={`rounded-full border px-2.5 py-0.5 text-[11px] ${
                     org.saaso_token
-                      ? "border-emerald-400/25 text-emerald-300/80"
-                      : "border-white/15 text-cyan-100/40"
+                      ? "border-dash-ok/35 text-dash-ok"
+                      : "border-white/15 text-dash-dim"
                   }`}
                 >
                   {org.saaso_token ? "CRM vinculado" : "sem CRM vinculado"}
                 </span>
               </div>
 
-              <div className="mt-3 flex flex-col gap-2 text-xs text-cyan-100/60">
+              <div className="mt-3 flex flex-col gap-2 text-xs text-dash-muted">
                 <div>
-                  <p className="text-cyan-100/50">Quem entra (só esta empresa):</p>
+                  <p className="text-dash-dim">Quem entra (só esta empresa):</p>
                   {org.membros.length === 0 ? (
-                    <p className="mt-1 text-amber-300/70">ninguém ainda — amarre um e-mail</p>
+                    <p className="mt-1 text-dash-warn">ninguém ainda — amarre um e-mail</p>
                   ) : (
-                    <ul className="mt-1 flex flex-col gap-1">
+                    <ul className="mt-1.5 flex flex-col gap-1.5">
                       {org.membros.map((m) => (
                         <li key={m.email} className="flex flex-wrap items-center gap-2">
-                          <span className="text-cyan-100/90">{m.email}</span>
-                          <span className="rounded-full border border-cyan-300/20 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-cyan-200/60">
+                          <span className="text-white">{m.email}</span>
+                          <span className="rounded-full bg-dash-raise px-2.5 py-[3px] text-[10px] uppercase tracking-[0.14em] text-dash-muted">
                             {m.papel === "admin" ? "admin da empresa" : m.papel === "dono" ? "dono (você)" : "funcionário"}
                           </span>
                           {m.papel !== "dono" && (
                             <button
                               onClick={() => tirarMembro(org, m.email)}
-                              className="text-[10px] uppercase tracking-[0.2em] text-rose-300/70 hover:text-rose-200"
+                              className="text-[10px] uppercase tracking-[0.14em] text-dash-bad/80 hover:text-dash-bad"
                             >
                               tirar
                             </button>
@@ -281,7 +281,7 @@ export default function OrganizacoesPage() {
                 </div>
                 <p>
                   Organização no CRM:{" "}
-                  <span className="text-cyan-100/90">{org.saaso_org_id || "—"}</span>
+                  <span className="text-white">{org.saaso_org_id || "—"}</span>
                 </p>
               </div>
 
@@ -296,11 +296,11 @@ export default function OrganizacoesPage() {
                       (e.target as HTMLInputElement).value = "";
                     }
                   }}
-                  className="rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-cyan-50 outline-none focus:border-cyan-400/40"
+                  className="rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2 text-[12px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
                 />
                 <select
                   defaultValue="membro"
-                  className="rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-cyan-50 outline-none"
+                  className="rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2 text-[12px] text-white outline-none"
                 >
                   <option value="membro">funcionário</option>
                   <option value="admin">admin da empresa</option>
@@ -313,10 +313,10 @@ export default function OrganizacoesPage() {
                       (e.target as HTMLInputElement).value = "";
                     }
                   }}
-                  className="min-w-[280px] flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-cyan-50 outline-none focus:border-cyan-400/40"
+                  className="min-w-[280px] flex-1 rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2 text-[12px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
                 />
               </div>
-              <p className="mt-2 text-[11px] text-cyan-100/35">
+              <p className="mt-2 text-[11px] text-dash-dim">
                 Digite e aperte Enter para salvar. O token do CRM só existe em nome daquela
                 organização.
               </p>
