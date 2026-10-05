@@ -43,8 +43,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
-        <link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg" />
-        <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+        {/* favicon e apple-icon sao gerados automaticamente dos arquivos
+            src/app/{icon.png,favicon.ico,apple-icon.png} — a marca laranja da Mirai */}
         {/* Fontes do padrão Dash (Poppins na interface, Public Sans nos números) */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
