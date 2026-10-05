@@ -78,8 +78,9 @@ export default function LoginPage() {
       <div className="relative grid flex-1 grid-cols-1 lg:grid-cols-[1fr_minmax(380px,480px)]">
         {/* ── ESQUERDA: só a frase e as redes — mais nada escrito ──── */}
         <section className="order-2 flex flex-col justify-center px-7 py-10 sm:px-10 lg:order-1 lg:px-14">
-          <h1 className="max-w-[18ch] text-[34px] font-semibold leading-[1.15] text-white sm:text-[46px]">
-            Confie nos especialistas em tecnologia e IA
+          {/* a frase em "fina" (300) e a palavra parceira em bold — contraste */}
+          <h1 className="max-w-[18ch] text-[34px] font-light leading-[1.15] text-white sm:text-[46px]">
+            Sua <span className="font-bold">parceira</span> na sua viagem para o futuro
           </h1>
 
           <div className="mt-10 flex items-center gap-3">
