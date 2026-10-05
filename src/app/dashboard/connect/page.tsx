@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Nav from "@/components/mirai/Nav";
+import Shell from "@/components/dash/Shell";
+import { Card, Secao, Selo, StatCard } from "@/components/dash/kit";
+import { IconePlug, IconeOrganizacoes, IconeRobo } from "@/components/dash/icons";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -369,108 +371,99 @@ export default function ConnectDashboardPage() {
 
   /* Derive platform statuses */
   const platformConfig = user?.platform_config ?? {};
+  const ligadas = PLATFORMS.filter((p) => p.statusCheck(platformConfig) === "connected");
 
   /* -------- Render -------- */
 
   return (
-    <main className="min-h-dvh overflow-y-auto bg-[#03040d] text-cyan-100">
-      <Nav atual="/dashboard/connect" />
-      {/* Radial gradient overlays */}
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(176,38,255,0.16),transparent_30%),radial-gradient(circle_at_80%_0%,rgba(10,239,255,0.14),transparent_32%)]" />
+    <Shell titulo="Integrações" usuario={user}>
+      {error && (
+        <p className="mb-5 rounded-[16px] border border-dash-bad/30 bg-dash-bad/[0.07] px-5 py-4 text-[13px] text-dash-bad">
+          {error}
+        </p>
+      )}
 
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-8 px-5 py-8">
-        {/* ================================================================ */}
-        {/*  Top Bar                                                          */}
-        {/* ================================================================ */}
-        <header className="flex items-center justify-between border-b border-cyan-300/15 pb-6">
-          <div className="flex items-center gap-4">
-            {/* Avatar circle */}
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-purple-500 text-base font-bold uppercase text-white shadow-lg">
-              {user ? user.name.charAt(0).toUpperCase() : "?"}
-            </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          rotulo="Canais ligados"
+          valor={loading ? "–" : `${ligadas.length}/${PLATFORMS.length}`}
+          nota={ligadas.length ? ligadas.map((p) => p.name).join(" · ") : "nenhum ainda"}
+          tom={ligadas.length ? "ok" : "neutro"}
+          icone={<IconePlug className="h-4 w-4" />}
+        />
+        <StatCard
+          rotulo="CRM (Saaso)"
+          valor={saaso?.conectado ? `${saaso.ferramentas ?? 0}` : "off"}
+          nota={saaso?.conectado ? "ferramentas pelo MCP do produto" : saaso?.erro || "sem credencial vinculada"}
+          tom={saaso?.conectado ? "ok" : "alerta"}
+          icone={<IconeOrganizacoes className="h-4 w-4" />}
+        />
+        <StatCard
+          rotulo="Sua organização"
+          valor={saaso?.organizacao?.nome || "—"}
+          tamanho="medio"
+          nota={saaso?.ehDono ? "dono da plataforma" : saaso?.organizacao ? "só a sua empresa" : "conta sem vínculo"}
+          tom="marca"
+          icone={<IconeRobo className="h-4 w-4" />}
+        />
+        <StatCard
+          rotulo="Produto por MCP"
+          valor={saaso?.conectado ? "ligado" : "–"}
+          tamanho="medio"
+          nota={saaso?.endpoint || "aguardando leitura"}
+          icone={<IconePlug className="h-4 w-4" />}
+        />
+      </div>
 
-            <div>
-              {loading ? (
-                <>
-                  <div className="h-4 w-28 animate-pulse rounded bg-white/10" />
-                  <div className="mt-1 h-3 w-40 animate-pulse rounded bg-white/5" />
-                </>
-              ) : user ? (
-                <>
-                  <p className="text-sm font-semibold text-cyan-50">{user.name}</p>
-                  <p className="text-xs text-cyan-100/50">{user.email}</p>
-                </>
-              ) : null}
-            </div>
-          </div>
-
-          {user && (
-            <button
-              onClick={handleLogout}
-              className="rounded-full border border-red-400/25 px-5 py-2 text-xs uppercase tracking-[0.22em] text-red-300/80 transition-colors hover:border-red-400/40 hover:text-red-200"
-            >
-              Logout
-            </button>
-          )}
-        </header>
-
-        {/* ================================================================ */}
-        {/*  Error                                                            */}
-        {/* ================================================================ */}
-        {error && (
-          <div className="rounded-xl border border-red-400/20 bg-red-950/20 p-4 text-sm text-red-300">
-            {error}
-          </div>
-        )}
-
-        {/* ================================================================ */}
-        {/*  Platform Grid                                                    */}
-        {/* ================================================================ */}
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <Secao
+        titulo="Canais da conta"
+        contagem={`${PLATFORMS.filter((p) => p.statusCheck(platformConfig) === "connected").length} de ${PLATFORMS.length} ligados`}
+        acao={
+          <button
+            onClick={fetchUser}
+            className="rounded-[10px] border border-white/12 px-4 py-2 text-[12px] text-dash-muted transition hover:text-white"
+          >
+            atualizar
+          </button>
+        }
+      >
+        <div className="grid gap-4 md:grid-cols-2">
           {PLATFORMS.map((platform) => {
             const status = platform.statusCheck(platformConfig);
+            const on = status === "connected";
             return (
-              <div
-                key={platform.id}
-                className="flex items-center gap-4 rounded-xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm transition-all hover:border-white/20"
-              >
-                {/* Icon */}
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center text-3xl">
+              <Card key={platform.id} interativo className="flex items-center gap-4 p-5">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] bg-dash-raise text-[20px]">
                   {platform.icon}
                 </span>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="truncate font-semibold text-cyan-50">
-                    {platform.name}
-                  </p>
-                  <p
-                    className={`mt-0.5 text-xs ${getStatusClass(status)}`}
-                  >
-                    {getStatusLabel(status)}
-                  </p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[14px] font-semibold text-white">{platform.name}</p>
+                  <div className="mt-1.5">
+                    <Selo tom={on ? "ok" : status === "pending" ? "alerta" : "info"}>
+                      {on ? "ligado" : status === "pending" ? "pendente" : "não ligado"}
+                    </Selo>
+                  </div>
                 </div>
-
-                {/* Action button */}
-                {status === "connected" ? (
+                {on ? (
                   <button
                     onClick={() => handleDisconnect(platform)}
-                    className="shrink-0 rounded-lg border border-red-400/20 px-3.5 py-1.5 text-xs font-medium text-red-300/80 transition-colors hover:border-red-400/40 hover:text-red-200"
+                    className="shrink-0 rounded-[10px] border border-dash-bad/30 px-4 py-2 text-[12px] text-dash-bad transition hover:bg-dash-bad/10"
                   >
-                    Disconnect
+                    desligar
                   </button>
                 ) : (
                   <button
                     onClick={() => handleConnect(platform)}
-                    className="shrink-0 rounded-lg border border-cyan-400/25 px-3.5 py-1.5 text-xs font-medium text-cyan-300/80 transition-colors hover:border-cyan-400/50 hover:text-cyan-200"
+                    className="shrink-0 rounded-[10px] bg-dash-brand px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-dash-brandHi"
                   >
-                    Connect
+                    ligar
                   </button>
                 )}
-              </div>
+              </Card>
             );
           })}
-        </section>
+        </div>
+      </Secao>
 
         {/* ================================================================ */}
         {/*  Produtos ligados a Mirai (MCP)                                   */}
@@ -562,7 +555,6 @@ export default function ConnectDashboardPage() {
             onSaved={fetchUser}
           />
         )}
-      </div>
-    </main>
+    </Shell>
   );
 }
