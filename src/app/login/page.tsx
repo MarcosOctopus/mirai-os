@@ -1,24 +1,25 @@
 "use client"
 
-// Tela de entrada do MIRAI OS — estrutura da referência (Digixcel), com o
-// pedido do dono por cima:
-//   ESQUERDA: a caixa do formulário de cima até embaixo (painel de vidro,
-//             efeito glass do iOS novo) com Entrar, e-mail, senha, lembrar,
-//             esqueci, botão, divisor e as duas entradas (Google e Mirai).
-//   DIREITA:  só a frase do heading e os ícones das redes — mais nada escrito.
-// Fundo: a foto da capa. Tipografia: Poppins do padrão Dash (medido no render).
+// Tela de entrada do MIRAI OS — referência: Digixcel (replicada item por item).
+// Pedido do dono por cima da referência:
+//   DIREITA: a caixa do formulário de cima até embaixo, em vidro translúcido
+//            (glass do iOS novo): Entrar, e-mail, senha, lembrar de mim,
+//            esqueci, botão, divisor e as duas entradas (Google e Mirai).
+//   ESQUERDA: só a frase do heading e os ícones das redes — mais nada escrito.
+// Fundo: a foto da capa em opacidade CHEIA (sem véu). Tipografia: Poppins do
+// padrão Dash. A logo é pequena e nunca estica (self-start + object-contain).
 import { useState, FormEvent } from "react"
 
 const FONTE = "var(--fonte-poppins), Poppins, system-ui, sans-serif"
 
-// Vidro estilo iOS: desfoque forte + saturação + véu claro + brilho na borda
+// Vidro do iOS: desfoque forte + saturação + véu claro translúcido + aresta viva
 const VIDRO = {
   background:
-    "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.045) 42%, rgba(255,255,255,0.03) 100%)",
-  backdropFilter: "blur(34px) saturate(180%)",
-  WebkitBackdropFilter: "blur(34px) saturate(180%)",
+    "linear-gradient(165deg, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.11) 30%, rgba(255,255,255,0.07) 62%, rgba(255,255,255,0.10) 100%)",
+  backdropFilter: "blur(42px) saturate(185%)",
+  WebkitBackdropFilter: "blur(42px) saturate(185%)",
   boxShadow:
-    "inset 0 1px 0 rgba(255,255,255,0.22), inset 0 0 0 1px rgba(255,255,255,0.06), 0 24px 60px rgba(0,0,0,0.45)",
+    "inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -1px 0 rgba(255,255,255,0.10), inset 0 0 0 1px rgba(255,255,255,0.10), 0 24px 70px rgba(0,0,0,0.40)",
 } as const
 
 const REDES = [
@@ -58,9 +59,9 @@ export default function LoginPage() {
   }
 
   const botaoSocial =
-    "flex w-full items-center justify-center gap-3 rounded-[10px] border border-white/[0.16] bg-white/[0.07] px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-white/[0.14]"
+    "flex w-full items-center justify-center gap-3 rounded-[10px] border border-white/[0.24] bg-white/[0.10] px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-white/[0.18]"
   const campo =
-    "w-full rounded-[10px] border border-white/[0.14] bg-black/25 px-4 py-3 text-[13.5px] text-white outline-none transition placeholder:text-white/45 focus:border-dash-brand/70"
+    "w-full rounded-[10px] border border-white/[0.20] bg-black/20 px-4 py-3 text-[13.5px] text-white outline-none transition placeholder:text-white/60 focus:border-dash-brand/70"
 
   return (
     <main
@@ -72,24 +73,46 @@ export default function LoginPage() {
         backgroundPosition: "center",
       }}
     >
-      <div className="absolute inset-0 bg-black/55" aria-hidden="true" />
+      {/* a foto fica em opacidade CHEIA — nenhum véu por cima */}
 
-      <div className="relative grid flex-1 grid-cols-1 lg:grid-cols-[minmax(360px,460px)_1fr]">
-        {/* ── ESQUERDA: a caixa do formulário, de cima até embaixo ─── */}
+      <div className="relative grid flex-1 grid-cols-1 lg:grid-cols-[1fr_minmax(380px,480px)]">
+        {/* ── ESQUERDA: só a frase e as redes — mais nada escrito ──── */}
+        <section className="order-2 flex flex-col justify-center px-7 py-10 sm:px-10 lg:order-1 lg:px-14">
+          <h1 className="max-w-[18ch] text-[34px] font-semibold leading-[1.15] text-white sm:text-[46px]">
+            Confie nos especialistas em tecnologia e IA
+          </h1>
+
+          <div className="mt-10 flex items-center gap-3">
+            {REDES.map((r) => (
+              <span
+                key={r.nome}
+                title={r.nome}
+                aria-label={r.nome}
+                className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.22] bg-black/25 text-white/85 backdrop-blur-md"
+              >
+                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
+                  <path d={r.d} />
+                </svg>
+              </span>
+            ))}
+          </div>
+        </section>
+
+        {/* ── DIREITA: a caixa do formulário, de cima até embaixo ──── */}
         <section
-          className="flex flex-col justify-center border-white/[0.14] px-7 py-10 sm:px-10 lg:border-r"
+          className="order-1 flex flex-col justify-center border-white/[0.18] px-7 py-10 sm:px-10 lg:order-2 lg:border-l"
           style={VIDRO}
         >
-          {/* marca pequena (nunca esticada) */}
+          {/* a marca da Mirai, maior */}
           <img
             src="/logo-mirai.png"
             alt="MIRAI"
-            className="h-[22px] w-auto max-w-none shrink-0 self-start object-contain"
+            className="h-[32px] w-auto max-w-none shrink-0 self-start object-contain"
           />
 
           <div className="mt-9">
             <h2 className="text-[22px] font-semibold text-white">Entrar</h2>
-            <p className="mt-1.5 text-[12.5px] text-white/55">
+            <p className="mt-1.5 text-[12.5px] text-white/70">
               Ainda não tem conta?{" "}
               <a
                 href="/api/auth/mirai/start?next=%2Fdashboard"
@@ -119,7 +142,7 @@ export default function LoginPage() {
             />
 
             <div className="flex items-center justify-between gap-3">
-              <label className="flex cursor-pointer items-center gap-2 text-[12.5px] text-white/65">
+              <label className="flex cursor-pointer items-center gap-2 text-[12.5px] text-white/80">
                 <input
                   type="checkbox"
                   checked={lembrar}
@@ -130,7 +153,7 @@ export default function LoginPage() {
               </label>
               <a
                 href="/api/auth/mirai/start?next=%2Fdashboard"
-                className="text-[12.5px] text-white/65 hover:text-white"
+                className="text-[12.5px] text-white/80 hover:text-white"
               >
                 Esqueci minha senha
               </a>
@@ -148,14 +171,14 @@ export default function LoginPage() {
           </form>
 
           <div className="my-6 flex items-center gap-3">
-            <span className="h-px flex-1 bg-white/[0.14]" />
-            <span className="text-[11px] uppercase tracking-[0.16em] text-white/40">ou</span>
-            <span className="h-px flex-1 bg-white/[0.14]" />
+            <span className="h-px flex-1 bg-white/[0.22]" />
+            <span className="text-[11px] uppercase tracking-[0.16em] text-white/55">ou</span>
+            <span className="h-px flex-1 bg-white/[0.22]" />
           </div>
 
           <div className="flex flex-col gap-3">
             <a href="/api/auth/google" className={botaoSocial}>
-              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" aria-hidden="true">
+              <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] shrink-0" aria-hidden="true">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
                 <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
@@ -168,32 +191,10 @@ export default function LoginPage() {
               <img
                 src="/logo-mirai-marca.png"
                 alt=""
-                className="h-[18px] w-[18px] shrink-0 object-contain"
+                className="h-[26px] w-[26px] shrink-0 object-contain"
               />
               Entrar com Mirai
             </a>
-          </div>
-        </section>
-
-        {/* ── DIREITA: só a frase e as redes — mais nada escrito ───── */}
-        <section className="flex flex-col justify-center px-7 py-10 sm:px-10 lg:px-14">
-          <h1 className="max-w-[18ch] text-[34px] font-semibold leading-[1.15] text-white sm:text-[44px]">
-            Confie nos especialistas em tecnologia e IA
-          </h1>
-
-          <div className="mt-10 flex items-center gap-3">
-            {REDES.map((r) => (
-              <span
-                key={r.nome}
-                title={r.nome}
-                aria-label={r.nome}
-                className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.16] bg-white/[0.07] text-white/75"
-              >
-                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
-                  <path d={r.d} />
-                </svg>
-              </span>
-            ))}
           </div>
         </section>
       </div>
