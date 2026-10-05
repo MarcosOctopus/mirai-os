@@ -52,12 +52,17 @@ const SECUNDARIO: Item[] = [
 function Marca({ recolhida = false }: { recolhida?: boolean }) {
   return (
     <div className={`flex items-center gap-3 ${recolhida ? "lg:justify-center" : ""}`}>
-      <span className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px] bg-dash-brand text-[15px] font-bold text-white">
-        M
-      </span>
-      <span className={`text-[15px] font-semibold tracking-[0.16em] text-white ${recolhida ? "lg:hidden" : ""}`}>
-        MIRAI OS
-      </span>
+      {/* menu aberto: a logo completa. menu recolhido: só a marca laranja. */}
+      <img
+        src="/logo-mirai.png"
+        alt="MIRAI"
+        className={`h-[26px] w-auto shrink-0 ${recolhida ? "lg:hidden" : ""}`}
+      />
+      <img
+        src="/logo-mirai-marca.png"
+        alt="MIRAI"
+        className={`hidden h-[30px] w-auto shrink-0 ${recolhida ? "lg:block" : ""}`}
+      />
     </div>
   );
 }
