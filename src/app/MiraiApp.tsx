@@ -445,19 +445,10 @@ function MiraiAppCore() {
         >
           <MiraiOrb3D status={status} audioLevel={voice.audioLevel} awake={awake} />
         </div>
+        <p className="mt-6 text-center text-[13px] leading-relaxed text-white/60">
+          Para falar, é só clicar no orb ou dizer: “Hey Mirai”
+        </p>
       </section>
-
-      <ConsoleInput
-        onSend={(text) => void handleSend(text)}
-        onMicClick={() => void handleMic()}
-        onAttach={() => void awaken()}
-        onToggleMode={handleToggleMode}
-        onStopSpeaking={handleStop}
-        chatMode={chatMode}
-        disabled={thinking}
-        isSpeaking={status === "speaking"}
-        placeholder={awake ? "Converse com Mirai..." : "Toque no orb, diga Hey Mirai ou digite..."}
-      />
     </main>
   );
 }
