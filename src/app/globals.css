@@ -27,6 +27,51 @@
 
 * { box-sizing: border-box; }
 
+/* ── Orb DENTRO da casca: o miolo manda, sem mudar a cara que já estava boa ── */
+
+/* 1) A barra de digitar deixa de ser `fixed` (atravessava por baixo da sidebar)
+      e passa a se posicionar dentro do miolo do Orb. Mesmo visual de antes. */
+.dash-root .mirai-os {
+  position: relative !important;
+}
+.dash-root .mirai-os .input-glow {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+}
+
+/* 2) A CONVERSA (as falas que aparecem embaixo) no padrão Dash:
+      superfície de cartão, raio 16, rótulo discreto em caixa alta, texto claro.
+      Só vale dentro do dash — o Orb em tela cheia continua como era. */
+.dash-root .mirai-messages {
+  background: transparent !important;
+}
+.dash-root .mirai-messages .msg {
+  border-radius: 16px !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  background: #161719 !important;
+  padding: 12px 16px !important;
+  backdrop-filter: none !important;
+}
+.dash-root .mirai-messages .msg-user {
+  background: rgba(161, 85, 255, 0.1) !important;
+  border-color: rgba(161, 85, 255, 0.28) !important;
+}
+.dash-root .mirai-messages .msg-label {
+  font-family: var(--fonte-poppins), Poppins, system-ui, sans-serif !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.16em !important;
+  text-transform: uppercase !important;
+  color: #8b9099 !important;
+}
+.dash-root .mirai-messages .msg-text {
+  font-family: var(--fonte-poppins), Poppins, system-ui, sans-serif !important;
+  font-size: 13.5px !important;
+  line-height: 1.65 !important;
+  color: #e8eaed !important;
+}
+
 /* O Orb dentro da casca do padrão: ele deixa de ser tela cheia e passa a viver
    dentro do miolo. Sem isto a raiz dele estica pra viewport inteira e o fundo
    estrelado (position: fixed) vaza por trás da sidebar. Só vale DENTRO do dash:
@@ -34,14 +79,6 @@
 .dash-root .mirai-os {
   height: 100% !important;
   min-height: 0 !important;
-  /* o layout antigo posiciona os irmãos por CSS (absoluto/fixed). Sem virar
-     coluna, a barra de baixo (que agora flui no documento) sobe pro topo. */
-  display: flex !important;
-  flex-direction: column !important;
-}
-/* a barra de digitar (último filho) volta pro rodapé do miolo */
-.dash-root .mirai-os > :last-child {
-  margin-top: auto;
 }
 .dash-root .mirai-os div.fixed,
 .dash-root .mirai-os .fixed {
