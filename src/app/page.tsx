@@ -35,9 +35,9 @@ export default function Page() {
   }, []);
 
   return (
-    <Shell titulo="Orb" usuario={conta} recolhidaInicial>
-      {/* altura emprestada da casca: o Orb preenche o miolo e rola se precisar */}
-      <div className="h-[calc(100dvh-150px)] min-h-[520px] overflow-hidden rounded-[24px] border border-white/[0.07] bg-dash-card">
+    <Shell titulo="Orb" usuario={conta} recolhidaInicial cheio>
+      {/* tela cheia: sem caixa e sem margem nas laterais; altura explícita do miolo */}
+      <div className="-mx-5 -mb-5 h-[calc(100dvh-100px)] min-h-[420px] overflow-hidden bg-dash-bg sm:-mx-8 lg:-mx-[44px]">
         <MiraiApp />
       </div>
     </Shell>

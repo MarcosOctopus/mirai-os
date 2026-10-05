@@ -104,12 +104,16 @@ export default function Shell({
   usuario,
   children,
   recolhidaInicial = false,
+  cheio = false,
 }: {
   titulo: string;
   usuario?: { nome?: string; email?: string; ehDono?: boolean } | null;
   children: React.ReactNode;
   /** abre já com a lateral recolhida (ex.: a tela do Orb, que é visual) */
   recolhidaInicial?: boolean;
+  /** conteúdo em tela cheia: sem margem, sem largura máxima, ocupa o miolo todo
+      (usado pela tela do Orb, que é visual e pede a área inteira) */
+  cheio?: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
   const [recolhida, setRecolhida] = useState(recolhidaInicial);
@@ -200,8 +204,18 @@ export default function Shell({
         </div>
       </aside>
 
-      <main className={`min-h-dvh transition-all ${recolhida ? "lg:ml-[84px]" : "lg:ml-[320px]"}`}>
-        <div className="mx-auto max-w-[1145px] px-5 pb-16 pt-5 sm:px-8 lg:px-[44px] lg:pt-10">
+      <main
+        className={`transition-all ${recolhida ? "lg:ml-[84px]" : "lg:ml-[320px]"} ${
+          cheio ? "flex h-dvh flex-col overflow-hidden" : "min-h-dvh"
+        }`}
+      >
+        <div
+          className={
+            cheio
+              ? "mx-auto flex h-full min-h-0 w-full max-w-none flex-col px-5 pb-0 pt-5 sm:px-8 lg:px-[44px] lg:pt-10"
+              : "mx-auto max-w-[1145px] px-5 pb-16 pt-5 sm:px-8 lg:px-[44px] lg:pt-10"
+          }
+        >
           <header className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-4">
               <button
