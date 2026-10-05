@@ -399,8 +399,8 @@ function MiraiAppCore() {
       </div>
       <div className="mirai-status-halo" />
 
-      {/* Saída do modo conversa: sem isto, quem entra no orb fica sem menu. */}
-      <Nav atual="/" flutuante />
+      {/* O antigo menu flutuante saiu daqui: quem navega agora é a sidebar da casca.
+          (deixado de fora para não sobrepor a tela do Orb) */}
 
       {(micWarning || wakeState === "error") && (
         <div className="mirai-mic-warning" role="status">
