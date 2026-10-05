@@ -26,6 +26,19 @@
 }
 
 * { box-sizing: border-box; }
+
+/* O Orb dentro da casca do padrão: ele deixa de ser tela cheia e passa a viver
+   dentro do miolo. Sem isto a raiz dele estica pra viewport inteira e o fundo
+   estrelado (position: fixed) vaza por trás da sidebar. Só vale DENTRO do dash:
+   o Orb em tela cheia continua exatamente como era. */
+.dash-root .mirai-os {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+.dash-root .mirai-os div.fixed,
+.dash-root .mirai-os .fixed {
+  position: absolute !important;
+}
 html, body {
   margin: 0;
   padding: 0;
