@@ -76,8 +76,8 @@
   backdrop-filter: none !important;
 }
 .dash-root .mirai-messages .msg-user {
-  background: rgba(161, 85, 255, 0.1) !important;
-  border-color: rgba(161, 85, 255, 0.28) !important;
+  background: rgba(255, 117, 31, 0.1) !important;
+  border-color: rgba(255, 117, 31, 0.28) !important;
 }
 .dash-root .mirai-messages .msg-label {
   font-family: var(--fonte-poppins), Poppins, system-ui, sans-serif !important;

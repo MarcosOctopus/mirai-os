@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/arca": {},
+    "/api/admin/organizacoes": {},
+    "/api/config": {},
+    "/api/auth/sync": {},
+    "/api/media-factory/channels/[id]/dashboard": {},
+    "/api/media-factory/channels/[id]/pipeline": {},
+    "/api/integracoes/saaso": {},
+    "/api/media-factory/channels/[id]/videos": {},
+    "/api/media-factory/channels": {},
+    "/api/media-factory/videos/[id]/stage": {},
+    "/api/media-factory/webhook": {},
+    "/api/pipeline/status": {},
+    "/api/pipeline/trigger": {},
+    "/api/minha-organizacao": {},
+    "/api/tts": {},
+    "/api/system": {},
+    "/api/stt": {
+      "maxDuration": 30
+    },
+    "/api/chat": {}
+  }
+}
