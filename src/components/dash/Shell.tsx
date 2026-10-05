@@ -300,7 +300,7 @@ function MenuDaConta({
       </button>
 
       {aberto && (
-        <div className="absolute right-0 top-[42px] z-50 w-[236px] rounded-[16px] border border-white/[0.10] bg-dash-surface p-1.5 shadow-2xl">
+        <div className="absolute right-0 top-[42px] z-50 w-[236px] rounded-[16px] border border-dash-line bg-dash-card p-1.5 shadow-2xl">
           <div className="px-3 py-2.5">
             <p className="truncate text-[12.5px] font-semibold text-white">
               {usuario?.nome || "Sua conta"}
