@@ -103,13 +103,16 @@ export default function Shell({
   titulo,
   usuario,
   children,
+  recolhidaInicial = false,
 }: {
   titulo: string;
   usuario?: { nome?: string; email?: string; ehDono?: boolean } | null;
   children: React.ReactNode;
+  /** abre já com a lateral recolhida (ex.: a tela do Orb, que é visual) */
+  recolhidaInicial?: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
-  const [recolhida, setRecolhida] = useState(false);
+  const [recolhida, setRecolhida] = useState(recolhidaInicial);
   const caminho = usePathname();
   const inicial = (usuario?.nome || usuario?.email || "?").trim().charAt(0).toUpperCase();
   const visiveis = (lista: Item[]) => lista.filter((i) => !i.soDono || usuario?.ehDono);

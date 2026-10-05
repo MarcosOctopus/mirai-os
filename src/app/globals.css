@@ -34,6 +34,14 @@
 .dash-root .mirai-os {
   height: 100% !important;
   min-height: 0 !important;
+  /* o layout antigo posiciona os irmãos por CSS (absoluto/fixed). Sem virar
+     coluna, a barra de baixo (que agora flui no documento) sobe pro topo. */
+  display: flex !important;
+  flex-direction: column !important;
+}
+/* a barra de digitar (último filho) volta pro rodapé do miolo */
+.dash-root .mirai-os > :last-child {
+  margin-top: auto;
 }
 .dash-root .mirai-os div.fixed,
 .dash-root .mirai-os .fixed {
