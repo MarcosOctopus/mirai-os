@@ -1,0 +1,212 @@
+"use client";
+
+/* Shell do padrão Dash — casca de TODAS as páginas internas.
+   Estrutura do template ArtDash: sidebar fixa (off-canvas no celular), topbar com
+   título/notificações/avatar e conteúdo em coluna centrada. */
+
+import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  IconeAgentes,
+  IconeBackup,
+  IconeChat,
+  IconeFechar,
+  IconeInfra,
+  IconeMenu,
+  IconeOrb,
+  IconeOrganizacoes,
+  IconePainel,
+  IconePlug,
+  IconeProdutos,
+  IconeSino,
+  IconeSistema,
+} from "./icons";
+
+type Item = {
+  label: string;
+  href?: string;
+  icone: React.ReactNode;
+  soDono?: boolean;
+  emBreve?: boolean;
+  selo?: string;
+};
+
+const PRIMARIO: Item[] = [
+  { label: "Painel", href: "/dashboard", icone: <IconePainel /> },
+  { label: "Agentes", icone: <IconeAgentes />, emBreve: true },
+  { label: "Produtos", icone: <IconeProdutos />, emBreve: true },
+  { label: "Infra", icone: <IconeInfra />, emBreve: true },
+  { label: "Integrações", href: "/dashboard/connect", icone: <IconePlug /> },
+  { label: "Chat", href: "/chat", icone: <IconeChat /> },
+];
+
+const SECUNDARIO: Item[] = [
+  { label: "Orb (voz)", href: "/", icone: <IconeOrb /> },
+  { label: "Organizações", href: "/admin/organizacoes", icone: <IconeOrganizacoes />, soDono: true },
+  { label: "Sistema", href: "/system", icone: <IconeSistema />, soDono: true },
+  { label: "Backups", icone: <IconeBackup />, emBreve: true },
+];
+
+function Marca() {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="grid h-[30px] w-[30px] place-items-center rounded-[9px] bg-dash-brand font-popping text-[15px] font-bold text-white">
+        M
+      </span>
+      <span className="text-[15px] font-semibold tracking-[0.16em] text-white">MIRAI OS</span>
+    </div>
+  );
+}
+
+function ItemMenu({
+  item,
+  ativo,
+  onNavegar,
+}: {
+  item: Item;
+  ativo: boolean;
+  onNavegar: () => void;
+}) {
+  const base =
+    "flex w-full items-center gap-4 rounded-[12px] px-4 py-3 text-left text-[14px] transition";
+  const cor = ativo ? "bg-dash-brand/12 text-dash-brand" : "text-dash-muted hover:bg-white/[0.04] hover:text-white";
+
+  if (!item.href || item.emBreve) {
+    return (
+      <div className={`${base} ${cor} cursor-default`} title={item.emBreve ? "ainda não existe" : undefined}>
+        {item.icone}
+        <span className="truncate">{item.label}</span>
+        {item.emBreve && (
+          <span className="ml-auto rounded-full bg-dash-raise px-2 py-[3px] text-[10px] text-dash-dim">
+            em breve
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <Link href={item.href} onClick={onNavegar} className={`${base} ${cor}`}>
+      {item.icone}
+      <span className="truncate">{item.label}</span>
+      {item.selo && (
+        <span className="ml-auto rounded-full bg-dash-ok px-2 py-[2px] text-[10px] font-semibold text-dash-side">
+          {item.selo}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+export default function Shell({
+  titulo,
+  usuario,
+  children,
+}: {
+  titulo: string;
+  usuario?: { nome?: string; email?: string; ehDono?: boolean } | null;
+  children: React.ReactNode;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const caminho = usePathname();
+  const inicial = (usuario?.nome || usuario?.email || "?").trim().charAt(0).toUpperCase();
+  const visiveis = (lista: Item[]) => lista.filter((i) => !i.soDono || usuario?.ehDono);
+
+  return (
+    <div className="dash-root min-h-dvh bg-dash-bg text-white">
+      {/* overlay do menu no celular */}
+      {aberto && (
+        <button
+          aria-label="Fechar menu"
+          onClick={() => setAberto(false)}
+          className="fixed inset-0 z-30 bg-black/60 lg:hidden"
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col overflow-y-auto bg-dash-side px-5 pb-8 pt-6 transition-transform lg:w-[320px] lg:translate-x-0 ${
+          aberto ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <Marca />
+          <button
+            aria-label="Fechar menu"
+            onClick={() => setAberto(false)}
+            className="grid h-9 w-9 place-items-center rounded-[10px] bg-dash-raise text-dash-muted lg:hidden"
+          >
+            <IconeFechar />
+          </button>
+        </div>
+
+        <nav className="mt-9 space-y-1.5">
+          {visiveis(PRIMARIO).map((i) => (
+            <ItemMenu
+              key={i.label}
+              item={i}
+              ativo={!!i.href && caminho === i.href}
+              onNavegar={() => setAberto(false)}
+            />
+          ))}
+        </nav>
+
+        <div className="my-6 border-t border-white/[0.07]" />
+
+        <nav className="space-y-1.5">
+          {visiveis(SECUNDARIO).map((i) => (
+            <ItemMenu
+              key={i.label}
+              item={i}
+              ativo={!!i.href && caminho === i.href}
+              onNavegar={() => setAberto(false)}
+            />
+          ))}
+        </nav>
+
+        <div className="mt-auto pt-8">
+          <div className="rounded-[20px] bg-dash-raise/70 p-5">
+            <p className="text-[13px] font-semibold text-white">Mirai está de pé</p>
+            <p className="mt-2 text-[12px] leading-[1.5] text-dash-muted">
+              Para conversar por voz, é no Orb: toque, desperte e fale.
+            </p>
+            <Link
+              href="/"
+              onClick={() => setAberto(false)}
+              className="mt-4 inline-flex rounded-[10px] bg-dash-brand px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-dash-brandHi"
+            >
+              Ir para o Orb
+            </Link>
+          </div>
+        </div>
+      </aside>
+
+      <main className="min-h-dvh lg:ml-[320px]">
+        <div className="mx-auto max-w-[1145px] px-5 pb-16 pt-5 sm:px-8 lg:px-[44px] lg:pt-10">
+          <header className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <button
+                aria-label="Abrir menu"
+                onClick={() => setAberto(true)}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-dash-side text-dash-muted lg:hidden"
+              >
+                <IconeMenu />
+              </button>
+              <h1 className="truncate text-[20px] text-white">{titulo}</h1>
+            </div>
+            <div className="flex shrink-0 items-center gap-4">
+              <span className="relative grid h-[34px] w-[34px] place-items-center rounded-full bg-dash-side text-dash-muted">
+                <IconeSino />
+              </span>
+              <span className="grid h-[34px] w-[34px] place-items-center rounded-full border border-white/15 bg-dash-raise text-[13px] text-white">
+                {inicial}
+              </span>
+            </div>
+          </header>
+
+          <div className="mt-8">{children}</div>
+        </div>
+      </main>
+    </div>
+  );
+}

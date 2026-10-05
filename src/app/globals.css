@@ -3,12 +3,20 @@
 @tailwind utilities;
 
 :root {
+  --fonte-poppins: "Poppins", system-ui, sans-serif;
+  --fonte-public: "Public Sans", system-ui, sans-serif;
   --cyan: #0aefff;
   --purple: #b026ff;
   --green: #00ff87;
   --pink: #ff2d78;
   --orange: #ff6b35;
   --bg-deep: #03040d;
+}
+
+/* Padrão Dash — tipografia das páginas internas (o Orb continua com a dele) */
+.dash-root {
+  font-family: var(--fonte-poppins);
+  -webkit-font-smoothing: antialiased;
 }
 
 * { box-sizing: border-box; }

@@ -6,6 +6,22 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        /* Padrão Dash (base ArtDash) — o tema de TODAS as páginas internas */
+        dash: {
+          bg: "#121416",
+          side: "#181c1f",
+          card: "#161719",
+          raise: "#32393e",
+          line: "#25292c",
+          line2: "#24272a",
+          muted: "#888b93",
+          dim: "#555a5f",
+          brand: "#a155ff",
+          brandHi: "#b574ff",
+          ok: "#8effa2",
+          warn: "#ffdd9d",
+          bad: "#ff96a0",
+        },
         mirai: {
           50: "#e0f7ff",
           100: "#b3eeff",
@@ -18,6 +34,10 @@ module.exports = {
           800: "#006885",
           900: "#00485c",
         },
+      },
+      fontFamily: {
+        poppins: ["var(--fonte-poppins)", "Poppins", "system-ui", "sans-serif"],
+        public: ["var(--fonte-public)", "Public Sans", "system-ui", "sans-serif"],
       },
       animation: {
         "pulse-glow": "pulse-glow 3s ease-in-out infinite",

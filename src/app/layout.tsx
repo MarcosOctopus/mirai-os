@@ -45,6 +45,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg" />
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+        {/* Fontes do padrão Dash (Poppins na interface, Public Sans nos números) */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+        />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="x-build" content={buildNoAr()} />
         <script
