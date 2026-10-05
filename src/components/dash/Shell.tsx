@@ -206,7 +206,7 @@ export default function Shell({
 
       <main
         className={`transition-all ${recolhida ? "lg:ml-[84px]" : "lg:ml-[320px]"} ${
-          cheio ? "flex h-dvh flex-col overflow-hidden" : "min-h-dvh"
+          cheio ? "dash-cheio flex h-dvh flex-col overflow-hidden" : "min-h-dvh"
         }`}
       >
         <div

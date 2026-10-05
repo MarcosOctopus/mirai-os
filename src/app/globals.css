@@ -27,6 +27,28 @@
 
 * { box-sizing: border-box; }
 
+/* Modo tela cheia (a tela do Orb): o topo da casca — a barra com o título — sai
+   de cena e o miolo perde todo o espaçamento: o conteúdo é a tela inteira.
+   Só vale com a marca `dash-cheio`. */
+.dash-cheio > div {
+  padding: 0 !important;
+}
+.dash-cheio > div > header {
+  display: none !important;
+}
+.dash-cheio {
+  position: relative !important;
+}
+/* a tela do Orb não depende de nenhum espaçamento da casca: ela mesma se
+   posiciona e mede a tela — assim não sobra degrau em cima nem corta embaixo */
+.orb-cheio {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 100dvh !important;
+}
+
 /* ── Orb DENTRO da casca: o miolo manda, sem mudar a cara que já estava boa ── */
 
 /* 1) A barra de digitar deixa de ser `fixed` (atravessava por baixo da sidebar)
