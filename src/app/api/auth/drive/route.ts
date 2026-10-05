@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+
+import { basePublica } from "@/lib/base-publica";
 import { getUserById, verifyToken } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
@@ -19,12 +21,8 @@ export async function GET(request: NextRequest) {
   }
 
   // ─── Build dynamic callback URL ──────────────────────────────────
-  const host =
-    request.headers.get("x-forwarded-host") ||
-    request.headers.get("host") ||
-    "localhost:3333";
-  const proto = request.headers.get("x-forwarded-proto") || "http";
-  const baseUrl = `${proto}://${host}`;
+  // endereco publico: nunca localhost (ver src/lib/base-publica.ts)
+  const baseUrl = basePublica(request);
   const redirectUri = `${baseUrl}/api/auth/drive/callback`;
 
   // ─── State param: return to original page after auth ─────────────

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+
+import { basePublica } from "@/lib/base-publica";
 import bcrypt from "bcryptjs";
 import {
   createUser,
@@ -15,12 +17,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=no_code", request.url));
   }
 
-  const host =
-    request.headers.get("x-forwarded-host") ||
-    request.headers.get("host") ||
-    "localhost:3333";
-  const proto = request.headers.get("x-forwarded-proto") || "http";
-  const baseUrl = `${proto}://${host}`;
+  // endereco publico: o visitante nunca esta no localhost do servidor
+  const baseUrl = basePublica(request);
   const redirectUri = `${baseUrl}/api/auth/google/callback`;
 
   // ─── Exchange authorization code for tokens ───────────────────────

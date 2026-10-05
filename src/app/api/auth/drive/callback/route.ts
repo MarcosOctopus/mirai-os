@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+
+import { basePublica } from "@/lib/base-publica";
 import { getUserById, updateUserPlatformConfig, verifyToken } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
@@ -41,12 +43,8 @@ export async function GET(request: NextRequest) {
   }
 
   // ─── Build callback URL for token exchange ───────────────────────
-  const host =
-    request.headers.get("x-forwarded-host") ||
-    request.headers.get("host") ||
-    "localhost:3333";
-  const proto = request.headers.get("x-forwarded-proto") || "http";
-  const baseUrl = `${proto}://${host}`;
+  // endereco publico: o visitante nunca esta no localhost do servidor
+  const baseUrl = basePublica(request);
   const redirectUri = `${baseUrl}/api/auth/drive/callback`;
 
   // ─── Exchange authorization code for tokens ──────────────────────
