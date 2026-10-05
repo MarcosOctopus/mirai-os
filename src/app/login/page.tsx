@@ -68,7 +68,7 @@ export default function LoginPage() {
       className="relative flex min-h-[100dvh] flex-col"
       style={{
         fontFamily: FONTE,
-        backgroundImage: "url('/login-capa.png')",
+        backgroundImage: "url('/login-capa.jpg')",
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}
