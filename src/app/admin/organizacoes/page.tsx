@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Nav from "@/components/mirai/Nav";
+import Shell from "@/components/dash/Shell";
+import { Card, Secao } from "@/components/dash/kit";
 
 /* ------------------------------------------------------------------ */
 /*  Tipos                                                              */
@@ -152,34 +153,27 @@ export default function OrganizacoesPage() {
   );
 
   return (
-    <main className="min-h-dvh overflow-y-auto bg-[#03040d] text-cyan-100">
-      <Nav atual="/admin/organizacoes" />
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(176,38,255,0.16),transparent_30%),radial-gradient(circle_at_80%_0%,rgba(10,239,255,0.14),transparent_32%)]" />
+    <Shell titulo="Organizações" usuario={{ ehDono: true }}>
+      <p className="max-w-2xl text-[13px] leading-[1.65] text-dash-muted">
+        Cada organização é um cliente (white-label). O e-mail que você amarrar aqui entra{" "}
+        <span className="text-white">só nela</span> — não vê as outras organizações, nem as áreas
+        internas da plataforma.
+      </p>
 
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-8 px-5 py-8">
-        <header className="border-b border-cyan-300/15 pb-6">
-          <h1 className="text-lg font-semibold text-cyan-50">Organizações</h1>
-          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-cyan-100/50">
-            Cada organização é um cliente (white-label). O e-mail que você amarrar aqui entra
-            <span className="text-cyan-200"> só nela</span> — não vê as outras organizações, nem as
-            áreas internas da plataforma.
-          </p>
-        </header>
+      {erro && (
+        <p className="mt-5 rounded-[16px] border border-dash-bad/30 bg-dash-bad/[0.07] px-5 py-4 text-[13px] text-dash-bad">
+          {erro}
+        </p>
+      )}
+      {aviso && (
+        <p className="mt-5 rounded-[16px] border border-dash-ok/30 bg-dash-ok/[0.06] px-5 py-4 text-[13px] text-dash-ok">
+          {aviso}
+        </p>
+      )}
 
-        {erro && (
-          <div className="rounded-xl border border-red-400/20 bg-red-950/20 p-4 text-sm text-red-300">
-            {erro}
-          </div>
-        )}
-        {aviso && (
-          <div className="rounded-xl border border-emerald-400/20 bg-emerald-950/20 p-4 text-sm text-emerald-300">
-            {aviso}
-          </div>
-        )}
-
-        {/* ─── Nova organização ─────────────────────────────────────── */}
-        <section className="rounded-xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-          <h2 className="text-xs uppercase tracking-[0.28em] text-cyan-100/50">Nova organização</h2>
+      {/* ─── Nova organização ─────────────────────────────────────── */}
+      <Secao titulo="Nova organização">
+        <Card>
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
             <label className="flex flex-col gap-1 text-xs text-cyan-100/60">
               Nome da organização
@@ -225,13 +219,11 @@ export default function OrganizacoesPage() {
           >
             {salvando ? "Criando..." : "Criar organização"}
           </button>
-        </section>
+        </Card>
+      </Secao>
 
-        {/* ─── Lista ────────────────────────────────────────────────── */}
-        <section className="flex flex-col gap-4">
-          <h2 className="text-xs uppercase tracking-[0.28em] text-cyan-100/50">
-            Organizações criadas
-          </h2>
+      {/* ─── Lista ────────────────────────────────────────────────── */}
+      <Secao titulo="Organizações criadas">
 
           {carregando && <p className="text-xs text-cyan-100/40">Carregando...</p>}
           {!carregando && orgs.length === 0 && (
@@ -330,8 +322,7 @@ export default function OrganizacoesPage() {
               </p>
             </article>
           ))}
-        </section>
-      </div>
-    </main>
+      </Secao>
+    </Shell>
   );
 }
