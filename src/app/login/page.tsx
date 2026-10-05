@@ -187,15 +187,6 @@ export default function LoginPage() {
               </svg>
               Entrar com Google
             </a>
-
-            <a href="/api/auth/mirai/start?next=%2Fdashboard" className={botaoSocial}>
-              <img
-                src="/logo-mirai-marca.png"
-                alt=""
-                className="h-[26px] w-[26px] shrink-0 object-contain"
-              />
-              Entrar com Mirai
-            </a>
           </div>
         </section>
       </div>
