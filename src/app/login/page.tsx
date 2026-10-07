@@ -10,17 +10,11 @@
 // padrão Dash. A logo é pequena e nunca estica (self-start + object-contain).
 import { useState, FormEvent } from "react"
 
-const FONTE = "var(--fonte-poppins), Poppins, system-ui, sans-serif"
+// O VIDRO do MIRAI OS mora num módulo só (src/lib/vidro.ts): login e popup do
+// produto usam o MESMO objeto — nunca um segundo vidro "parecido".
+import { VIDRO } from "@/lib/vidro"
 
-// Vidro do iOS: desfoque forte + saturação + véu claro translúcido + aresta viva
-const VIDRO = {
-  background:
-    "linear-gradient(165deg, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.11) 30%, rgba(255,255,255,0.07) 62%, rgba(255,255,255,0.10) 100%)",
-  backdropFilter: "blur(42px) saturate(185%)",
-  WebkitBackdropFilter: "blur(42px) saturate(185%)",
-  boxShadow:
-    "inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -1px 0 rgba(255,255,255,0.10), inset 0 0 0 1px rgba(255,255,255,0.10), 0 24px 70px rgba(0,0,0,0.40)",
-} as const
+const FONTE = "var(--fonte-poppins), Poppins, system-ui, sans-serif"
 
 const REDES = [
   { nome: "Instagram", d: "M12 2.2c3.2 0 3.6 0 4.9.07 1.2.06 1.8.25 2.2.42.6.23 1 .5 1.4.94.44.44.71.84.94 1.4.17.4.36 1 .42 2.2.06 1.3.07 1.7.07 4.9s0 3.6-.07 4.9c-.06 1.2-.25 1.8-.42 2.2-.23.6-.5 1-.94 1.4-.44.44-.84.71-1.4.94-.4.17-1 .36-2.2.42-1.3.06-1.7.07-4.9.07s-3.6 0-4.9-.07c-1.2-.06-1.8-.25-2.2-.42-.6-.23-1-.5-1.4-.94-.44-.44-.71-.84-.94-1.4-.17-.4-.36-1-.42-2.2C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9c.06-1.2.25-1.8.42-2.2.23-.6.5-1 .94-1.4.44-.44.84-.71 1.4-.94.4-.17 1-.36 2.2-.42C8.4 2.2 8.8 2.2 12 2.2Zm0 5.1a4.7 4.7 0 1 0 0 9.4 4.7 4.7 0 0 0 0-9.4Zm0 7.75a3.05 3.05 0 1 1 0-6.1 3.05 3.05 0 0 1 0 6.1Zm6-7.94a1.1 1.1 0 1 1-2.2 0 1.1 1.1 0 0 1 2.2 0Z" },
@@ -115,11 +109,14 @@ export default function LoginPage() {
             <h2 className="text-[22px] font-semibold text-white">Entrar</h2>
             <p className="mt-1.5 text-[12.5px] text-white/70">
               Ainda não tem conta?{" "}
+              {/* Não existe cadastro próprio neste app (a /register é stub):
+                  quem cria a conta é o Google, na primeira entrada. O link leva
+                  para lá em vez de prometer um cadastro que não existe. */}
               <a
-                href="/api/auth/mirai/start?next=%2Fdashboard"
+                href="/api/auth/google"
                 className="font-semibold text-dash-brand hover:text-dash-brandHi"
               >
-                Criar conta
+                Entrar com o Google
               </a>
             </p>
           </div>
@@ -152,12 +149,11 @@ export default function LoginPage() {
                 />
                 Lembrar de mim
               </label>
-              <a
-                href="/api/auth/mirai/start?next=%2Fdashboard"
-                className="text-[12.5px] text-white/80 hover:text-white"
-              >
-                Esqueci minha senha
-              </a>
+              {/* Sem link falso: a entrada deste app é conta própria + Google.
+                  Não existe fluxo de recuperação por e-mail ainda — o antigo
+                  apontava para o login da Conta Mirai, que saiu desta porta
+                  (decisão do dono, 07/out/2026). */}
+              <span className="text-[12.5px] text-white/45">Esqueci minha senha</span>
             </div>
 
             {erro && <p className="text-[12.5px] text-dash-bad">{erro}</p>}
