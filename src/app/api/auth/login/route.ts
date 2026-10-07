@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserByEmail, comparePassword, signToken } from "@/lib/auth";
+import { vincularContaMirai } from "@/lib/vinculo-conta-mirai";
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,6 +30,17 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
+
+    // ── Vínculo com a Conta Mirai (idempotente) ───────────────────
+    // Já vinculado, isto é uma leitura local e volta na hora. Ainda não
+    // vinculado, aproveita a senha que a pessoa acabou de digitar para
+    // definir a credencial dela também na Conta Mirai.
+    await vincularContaMirai({
+      userId: user.id,
+      email: user.email,
+      nome: user.name,
+      senha: password,
+    });
 
     // ── Sign JWT and set cookie ───────────────────────────────────
     const token = await signToken({

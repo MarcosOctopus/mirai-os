@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createUser, getUserByEmail, hashPassword, signToken, updateUserPlatformConfig } from "@/lib/auth";
 import { ensureMfUser } from "@/lib/mf-bridge";
+import { vincularContaMirai } from "@/lib/vinculo-conta-mirai";
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,6 +52,17 @@ export async function POST(req: NextRequest) {
     } catch (mfErr) {
       console.warn("MF sync failed (non-fatal):", mfErr);
     }
+
+    // ── Vínculo com a Conta Mirai (plano de controle) ─────────────
+    // Cria/acha a casa da pessoa no produto `mirai` e grava o vínculo
+    // conta↔produto. Não é fatal: se o plano de controle piscar, a conta
+    // local existe igual e o vínculo se completa no próximo login.
+    await vincularContaMirai({
+      userId: user.id as number,
+      email: user.email,
+      nome: name,
+      senha: password,
+    });
 
     // ── Sign JWT and set cookie ───────────────────────────────────
     const token = await signToken({
