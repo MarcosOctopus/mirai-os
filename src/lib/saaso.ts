@@ -128,6 +128,40 @@ export async function saasoFerramentas(token: string, timeoutMs = 8000): Promise
     .filter((n) => n.length > 0);
 }
 
+/**
+ * Ferramentas COMPLETAS — nome + descrição + esquema de entrada.
+ *
+ * `saasoFerramentas` devolve só os nomes (serve para contagem/status). Para o
+ * modelo CHAMAR uma ferramenta ele precisa do `inputSchema`: sem o esquema, o
+ * modelo chuta os argumentos. O esquema vem do MCP (`tools/list`), nunca é
+ * escrito à mão aqui — se o CRM mudar a ferramenta, isto acompanha.
+ */
+export type FerramentaMcp = {
+  nome: string;
+  descricao: string;
+  esquema: Record<string, unknown>;
+};
+
+export async function saasoFerramentasCompletas(
+  token: string,
+  timeoutMs = 8000,
+): Promise<FerramentaMcp[]> {
+  const r = await rpc(token, "tools/list", {}, timeoutMs);
+  const res = r.result as
+    | { tools?: { name?: string; description?: string; inputSchema?: Record<string, unknown> }[] }
+    | undefined;
+  return (res?.tools || [])
+    .filter((t) => (t.name || "").length > 0)
+    .map((t) => ({
+      nome: t.name as string,
+      descricao: t.description || "",
+      esquema:
+        t.inputSchema && typeof t.inputSchema === "object"
+          ? (t.inputSchema as Record<string, unknown>)
+          : { type: "object", properties: {} },
+    }));
+}
+
 /** Chama uma ferramenta do CRM e devolve o texto da resposta. */
 export async function saasoChamar(
   token: string,
@@ -180,32 +214,24 @@ function encurtar(texto: string, limite: number): string {
  * Quatro leituras em paralelo. Se o CRM estiver vazio, o resumo diz isso
  * (dado real: zero) em vez de inventar numero.
  */
-export async function saasoContexto(token: string): Promise<string> {
+export async function saasoContexto(token: string, timeoutMs = 8000): Promise<string> {
   if (!saasoConfigurado(token)) return "";
 
-  const [funil, fila, leads, conversas, ferramentas] = await Promise.all([
-    saasoChamar(token, "crm_list_pipelines"),
-    saasoChamar(token, "crm_get_queue_status"),
-    saasoChamar(token, "crm_list_leads"),
-    saasoChamar(token, "crm_list_conversations"),
-    saasoFerramentas(token),
+  // A lista de ferramentas do CRM NÃO entra no contexto: este chat é
+  // superfície de cliente e não deve citar nomes de métodos nem de integração.
+  const [funil, fila, leads, conversas] = await Promise.all([
+    saasoChamar(token, "crm_list_pipelines", {}, timeoutMs),
+    saasoChamar(token, "crm_get_queue_status", {}, timeoutMs),
+    saasoChamar(token, "crm_list_leads", {}, timeoutMs),
+    saasoChamar(token, "crm_list_conversations", {}, timeoutMs),
   ]);
 
   const linhas: string[] = [];
-  linhas.push("## Dados do CRM (Saaso) — leitura ao vivo pelo MCP do produto");
+  linhas.push("## Dados do CRM (Saaso) — leitura ao vivo da sua conta");
   linhas.push(`Funil: ${encurtar(funil, 500)}`);
   linhas.push(`Fila de atendimento: ${encurtar(fila, 200)}`);
   linhas.push(`Leads: ${encurtar(leads, 400)}`);
   linhas.push(`Conversas: ${encurtar(conversas, 400)}`);
-  if (ferramentas.length > 0) {
-    const amostra = ferramentas
-      .filter((n) => n.startsWith("crm_"))
-      .slice(0, 14)
-      .join(", ");
-    linhas.push(
-      `O MCP do CRM expoe ${ferramentas.length} ferramentas (ex.: ${amostra}).`,
-    );
-  }
   linhas.push(
     "Regra: use SOMENTE estes dados. Se o que a pessoa pediu nao estiver aqui, diga que consulta o CRM na proxima mensagem — nunca invente numero, nome ou data.",
   );
