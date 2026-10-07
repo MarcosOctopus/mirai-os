@@ -109,14 +109,15 @@ export default function LoginPage() {
             <h2 className="text-[22px] font-semibold text-white">Entrar</h2>
             <p className="mt-1.5 text-[12.5px] text-white/70">
               Ainda não tem conta?{" "}
-              {/* Não existe cadastro próprio neste app (a /register é stub):
-                  quem cria a conta é o Google, na primeira entrada. O link leva
-                  para lá em vez de prometer um cadastro que não existe. */}
+              {/* Agora existe cadastro próprio (tela /register, criada em
+                  07/out/2026): os DOIS caminhos — conta com e-mail/senha e
+                  Google. O que NÃO existe aqui é "Entrar com Conta Mirai":
+                  esta é a porta da própria conta. */}
               <a
-                href="/api/auth/google"
+                href="/register"
                 className="font-semibold text-dash-brand hover:text-dash-brandHi"
               >
-                Entrar com o Google
+                Criar conta
               </a>
             </p>
           </div>
