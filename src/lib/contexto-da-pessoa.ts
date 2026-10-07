@@ -33,6 +33,7 @@
 
 import type { Conta } from "./orgs";
 import { credencialSaasoDaConta } from "./orgs";
+import { integracoesDaPessoa, integracoesDaOrganizacao } from "./integracoes";
 
 export type FerramentaDoConector = {
   /** Nome técnico do método. NUNCA é falado à pessoa (ver regra anti-vazamento). */
@@ -45,11 +46,17 @@ export type Conector = {
   id: string;
   /** Nome que a pessoa entende ("CRM", "Agenda"). */
   nome: string;
+  /** DE QUEM é esta integração — é isto que a resolução por pessoa expõe. */
+  origem: "pessoa" | "organizacao";
+  /** Rótulo que a pessoa deu na integração ("meu CRM", "CRM da loja"). */
+  rotulo: string;
   pronto: boolean;
   ferramentas: FerramentaDoConector[];
   /** Resumo curto do que já está ligado — vira contexto do modelo. */
   contexto: string;
   erro?: string;
+  /** SEGREDO. Nunca é serializado, nunca entra no prompt: só executarFerramenta lê. */
+  credencial?: string;
 };
 
 export type CamadaDeMemoria = {
@@ -130,6 +137,48 @@ function camadasDeMemoria(conta: Conta): CamadaDeMemoria[] {
 }
 
 /**
+ * Monta o conector de CRM a partir de UMA credencial — da pessoa ou da empresa.
+ * O token nunca sai daqui: entra no conector e só `executarFerramenta` o lê.
+ */
+async function montarConectorDeCrm(opts: {
+  id: string;
+  nome: string;
+  origem: "pessoa" | "organizacao";
+  rotulo: string;
+  token: string;
+  timeoutMs: number;
+}): Promise<Conector> {
+  const conector: Conector = {
+    id: opts.id,
+    nome: opts.nome,
+    origem: opts.origem,
+    rotulo: opts.rotulo,
+    pronto: false,
+    ferramentas: [],
+    contexto: "",
+    credencial: opts.token,
+  };
+  try {
+    const { saasoFerramentasCompletas, saasoContexto, saasoConfigurado } = await import("./saaso");
+    if (!saasoConfigurado(opts.token)) {
+      conector.erro = "credencial do CRM em formato inválido";
+    } else {
+      const [ferramentas, contexto] = await Promise.all([
+        saasoFerramentasCompletas(opts.token, opts.timeoutMs),
+        saasoContexto(opts.token, opts.timeoutMs),
+      ]);
+      conector.ferramentas = ferramentas;
+      conector.contexto = contexto;
+      conector.pronto = ferramentas.length > 0;
+      if (!conector.pronto) conector.erro = "o CRM não devolveu a lista de ferramentas";
+    }
+  } catch (e) {
+    conector.erro = e instanceof Error ? e.message : "falha ao falar com o CRM";
+  }
+  return conector;
+}
+
+/**
  * Resolve TUDO o que a pessoa pode a partir da conta.
  *
  * Nunca lança: porta que não responde vira `pronto: false` com o motivo. Chat
@@ -143,38 +192,71 @@ export async function montarContextoDaPessoa(
   const avisos: string[] = [];
   const conectores: Conector[] = [];
 
-  // ── Conector: CRM (o MCP do produto Saaso) ──────────────────────
-  // A credencial é da ORGANIZAÇÃO da conta. Sem vínculo, sem token, sem dado.
-  const cred = credencialSaasoDaConta(conta);
-  if (!cred) {
-    avisos.push("esta conta não tem CRM vinculado (sem credencial da organização)");
+  // ── Conectores: primeiro o que é DESTA PESSOA ───────────────────
+  //
+  // Correção do dono (07/out/2026): a credencial vinha sempre da ORGANIZAÇÃO —
+  // a integração de um servia para todos. Agora a ordem é: integrações DA
+  // PESSOA; as da EMPRESA entram como apoio e o contexto diz que são da
+  // empresa. Quando a pessoa não plugou nada, o CRM da empresa continua
+  // valendo (nada quebra) — mas nunca no lugar do que é dela.
+  let minhas: { tipo: string; rotulo: string; credencial: string | null; id: number }[] = [];
+  let daEmpresa: typeof minhas = [];
+  try {
+    minhas = integracoesDaPessoa(conta.id);
+    daEmpresa = conta.org ? integracoesDaOrganizacao(conta.org.id) : [];
+  } catch (e) {
+    avisos.push(`não consegui ler as integrações: ${e instanceof Error ? e.message : "?"}`);
+  }
+
+  const crmDaPessoa = minhas.find((i) => i.tipo === "crm" && i.credencial);
+  const crmDaEmpresa = daEmpresa.find((i) => i.tipo === "crm" && i.credencial);
+  const crm = crmDaPessoa || crmDaEmpresa || null;
+
+  if (!crm) {
+    // Compatibilidade: se ninguém plugou nada e a empresa tem a credencial só
+    // na tabela antiga, ela continua valendo — declarada como da empresa.
+    const legado = credencialSaasoDaConta(conta);
+    if (legado) {
+      conectores.push(
+        await montarConectorDeCrm({
+          id: "crm",
+          nome: "CRM",
+          origem: "organizacao",
+          rotulo: "CRM da empresa",
+          token: legado.token,
+          timeoutMs,
+        }),
+      );
+    } else {
+      avisos.push("esta pessoa não tem CRM plugado (e a empresa também não)");
+    }
   } else {
-    const conector: Conector = {
-      id: "saaso",
-      nome: "CRM",
+    conectores.push(
+      await montarConectorDeCrm({
+        id: "crm",
+        nome: "CRM",
+        origem: crmDaPessoa ? "pessoa" : "organizacao",
+        rotulo: crm.rotulo || (crmDaPessoa ? "meu CRM" : "CRM da empresa"),
+        token: crm.credencial as string,
+        timeoutMs,
+      }),
+    );
+  }
+
+  // Outros tipos que a pessoa plugou: declarados, não ignorados. Porta que
+  // ainda não existe é dita como pendente — nunca fingida ligada.
+  for (const i of minhas) {
+    if (i.tipo === "crm") continue;
+    conectores.push({
+      id: i.tipo,
+      nome: i.tipo.charAt(0).toUpperCase() + i.tipo.slice(1),
+      origem: "pessoa",
+      rotulo: i.rotulo || i.tipo,
       pronto: false,
       ferramentas: [],
       contexto: "",
-    };
-    try {
-      const { saasoFerramentasCompletas, saasoContexto, saasoConfigurado } = await import("./saaso");
-      if (!saasoConfigurado(cred.token)) {
-        conector.erro = "credencial do CRM em formato inválido";
-      } else {
-        const [ferramentas, contexto] = await Promise.all([
-          saasoFerramentasCompletas(cred.token, timeoutMs),
-          saasoContexto(cred.token, timeoutMs),
-        ]);
-        conector.ferramentas = ferramentas;
-        conector.contexto = contexto;
-        conector.pronto = ferramentas.length > 0;
-        if (!conector.pronto) conector.erro = "o CRM não devolveu a lista de ferramentas";
-      }
-    } catch (e) {
-      conector.erro = e instanceof Error ? e.message : "falha ao falar com o CRM";
-    }
-    if (conector.erro) avisos.push(`CRM: ${conector.erro}`);
-    conectores.push(conector);
+      erro: "plugado por você, mas esta porta ainda não fala com ele",
+    });
   }
 
   // ── Memória ─────────────────────────────────────────────────────
@@ -224,19 +306,30 @@ export async function montarContextoDaPessoa(
 export function blocoDeContexto(ctx: ContextoDaPessoa): string {
   const linhas: string[] = [];
 
-  const crm = ctx.conectores.find((c) => c.id === "saaso");
+  const crm = ctx.conectores.find((c) => c.id === "crm");
+  const deQuem = crm?.origem === "pessoa" ? "plugado pela própria pessoa" : "da empresa";
   if (crm?.pronto) {
     linhas.push(crm.contexto);
     linhas.push(
-      "Você PODE agir no CRM desta conta pelas ferramentas dela (consultar e também marcar, cadastrar, atualizar e enviar). Antes de qualquer ação que mude dados, confirme com a pessoa. Nunca cite o nome do método, só o resultado.",
+      `Este CRM é ${deQuem} (${crm.rotulo}). Você PODE agir nele pelas ferramentas dele (consultar e também marcar, cadastrar, atualizar e enviar). Antes de qualquer ação que mude dados, confirme com a pessoa. Nunca cite o nome do método, só o resultado.`,
     );
   } else if (crm) {
     linhas.push(
-      "O CRM desta conta está vinculado mas não respondeu agora. Diga que vai consultar de novo na próxima mensagem — nunca invente número, nome ou data.",
+      `O CRM desta conta (${deQuem}) está vinculado mas não respondeu agora. Diga que vai consultar de novo na próxima mensagem — nunca invente número, nome ou data.`,
     );
   } else {
     linhas.push(
-      "Esta conta ainda não tem CRM vinculado. Se pedirem dados de CRM, diga que falta vincular a conta.",
+      "Esta pessoa ainda não tem CRM plugado. Se pedirem dados de CRM, diga que falta ela plugar a integração dela.",
+    );
+  }
+
+  // Integrações plugadas que ainda não têm porta: ditas como pendentes.
+  const pendentes = ctx.conectores.filter((c) => !c.pronto && c.erro && c.id !== "crm");
+  if (pendentes.length) {
+    linhas.push(
+      `Integrações que a pessoa já plugou e ainda não estão ligadas nesta porta: ${pendentes
+        .map((p) => p.rotulo)
+        .join(", ")}. Se ela pedir algo disso, diga que está plugado mas ainda não ligado — não invente dado.`,
     );
   }
 
@@ -295,11 +388,13 @@ export async function executarFerramenta(
 ): Promise<string> {
   const dono = ctx.conectores.find((c) => c.ferramentas.some((f) => f.nome === nome));
   if (!dono) return `erro: ferramenta não disponível para esta conta (${nome})`;
-  if (dono.id === "saaso") {
-    const cred = credencialSaasoDaConta(conta);
-    if (!cred) return "erro: conta sem credencial de CRM";
+  if (dono.id === "crm" || dono.id === "saaso") {
+    const token = dono.credencial || credencialSaasoDaConta(conta)?.token;
+    if (!token) return "erro: integração sem credencial";
     const { saasoChamar } = await import("./saaso");
-    return saasoChamar(cred.token, nome, args);
+    // Registra QUAL integração executou — sem despejar o segredo.
+    console.log(`[conhecimento] executando em integração ${dono.origem}:${dono.rotulo}`);
+    return saasoChamar(token, nome, args);
   }
   return `erro: conector desconhecido (${dono.id})`;
 }
