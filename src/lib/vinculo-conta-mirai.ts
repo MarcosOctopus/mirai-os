@@ -56,7 +56,14 @@ async function provisionar(email: string, nome?: string): Promise<Sessao | null>
   const r = await fetch(`${ID}/v1/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-mirai-bootstrap": BOOTSTRAP },
-    body: JSON.stringify({ email, display_name: nome || email.split("@")[0] }),
+    body: JSON.stringify({
+      email,
+      display_name: nome || email.split("@")[0],
+      // Diz QUAL produto está provisionando. Sem isto o token sai com o
+      // primeiro membership da pessoa e o vínculo do segundo produto é
+      // recusado (medido: conta com CRM + MIRAI OS).
+      product_id: PRODUTO,
+    }),
   })
   if (!r.ok) return null
   const d = await r.json()

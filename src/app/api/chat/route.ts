@@ -26,6 +26,8 @@ const GOOGLE_API_KEY  = loadEnv("GOOGLE_API_KEY");
 const OPENROUTER_KEY  = loadEnv("OPENROUTER_API_KEY");
 const VERBOO_API_KEY  = loadEnv("VERBOO_API_KEY");
 
+import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
+
 const VERBOO_BASE     = "https://code.verboo.ai/router/v1";
 const VERBOO_MODEL    = "deepseek-v4.1-flash";      // V4.1 (principal do ecossistema)
 const VERBOO_MODEL_40 = "deepseek-v4-flash";        // V4.0 (reserva imediata)
@@ -441,7 +443,20 @@ async function conversarComFerramentas(opts: {
   if (!ferramentas.length || !executor) return null;
 
   const msgs: unknown[] = buildMsgs(messages, system);
-  const chamar = (comFerramentas: boolean) =>
+
+  // Conta vinculada age pelo gateway DELA (plano + medição por conta). Sem
+  // vínculo — ou se o gateway recusar — vale exatamente o que já existia:
+  // a chave do próprio app, no mesmo corpo de antes.
+  const gw = gatewayDaConta(apoio?.ctxPessoa?.identidade?.contaId ?? 0);
+  const corpoDe = (comFerramentas: boolean) => ({
+    model: modelo,
+    messages: msgs,
+    ...(comFerramentas ? { tools: ferramentas, tool_choice: "auto" } : {}),
+    max_tokens: 4096,
+    temperature: 0.4,
+  });
+
+  const chamarDireto = (comFerramentas: boolean) =>
     fetch(`${VERBOO_BASE}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${VERBOO_API_KEY}` },
@@ -453,6 +468,25 @@ async function conversarComFerramentas(opts: {
         temperature: 0.4,
       }),
     });
+
+  // Conta vinculada tenta o gateway DELA; se ele recusar ou cair, o mesmo
+  // corpo (com as ferramentas) vai pelo provedor direto — a pessoa não perde
+  // o CRM porque o gateway piscou.
+  const chamar = async (comFerramentas: boolean) => {
+    if (gw) {
+      try {
+        const r = await gw.chamar(corpoDe(comFerramentas));
+        if (r.ok) return r;
+        console.error("Laço: gateway da conta recusou, indo pelo provedor direto:", r.status);
+      } catch (e) {
+        console.error(
+          "Laço: gateway da conta fora do ar, indo pelo provedor direto:",
+          e instanceof Error ? e.message : e
+        );
+      }
+    }
+    return chamarDireto(comFerramentas);
+  };
 
   let ultimoTexto = "";
   for (let rodada = 0; rodada < MAX_RODADAS_DE_FERRAMENTA; rodada++) {
@@ -657,6 +691,31 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
   if (comFerramentas) return comFerramentas;
 
   const msgs = buildMsgs(messages, system);
+
+  // Mesma regra do laço: conta vinculada responde pelo gateway dela, com
+  // stream (o gateway devolve SSE igual ao provedor, então o resto do chat não
+  // muda). Se ele recusar ou cair, o caminho de sempre assume logo abaixo.
+  const gw = gatewayDaConta(apoio?.ctxPessoa?.identidade?.contaId ?? 0);
+  if (gw) {
+    try {
+      const r = await gw.chamar({
+        model: modelo || MODELO_DA_CONTA,
+        messages: msgs,
+        max_tokens: 4096,
+        stream: true,
+        temperature: 0.6,
+        stream_options: { include_usage: true },
+      });
+      if (r.ok && r.body) {
+        console.log(`Conta ${gw.tenant}: respondendo pelo gateway da conta`);
+        return streamOpenAIResponse(r, { provedor: "conta", modelo, proteger: !ehDono });
+      }
+      const erro = await r.text().catch(() => "");
+      console.error("Gateway da conta recusou:", r.status, erro.slice(0, 200));
+    } catch (e) {
+      console.error("Gateway da conta — rede:", e instanceof Error ? e.message : e);
+    }
+  }
 
   let resp: Response;
   try {

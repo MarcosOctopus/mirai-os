@@ -34,6 +34,7 @@
 import type { Conta } from "./orgs";
 import { credencialSaasoDaConta } from "./orgs";
 import { integracoesDaPessoa, integracoesDaOrganizacao } from "./integracoes";
+import { lerVinculo } from "./vinculo-conta-mirai";
 
 export type FerramentaDoConector = {
   /** Nome técnico do método. NUNCA é falado à pessoa (ver regra anti-vazamento). */
@@ -82,6 +83,8 @@ export type ContextoDaPessoa = {
   ia: {
     via: "gateway-da-conta" | "propria";
     motivo: string;
+    /** Presente quando a via é o gateway: a conta (tenant) que responde. */
+    tenant?: string;
   };
   /** O que dissemos ao modelo sobre o que existe e o que não existe. */
   avisos: string[];
@@ -263,16 +266,22 @@ export async function montarContextoDaPessoa(
   const camadas = camadasDeMemoria(conta);
 
   // ── IA ──────────────────────────────────────────────────────────
-  // Nesta porta a inteligência ainda responde pelas chaves do próprio app.
-  // O caminho da conta (gateway, com plano e medição por tenant) depende do
-  // vínculo do usuário com o plano de controle — está declarado assim porque é
-  // o que é verdade hoje; quando o vínculo existir, muda aqui e vale para todas
-  // as portas de uma vez.
-  const ia = {
-    via: "propria" as const,
-    motivo:
-      "a resposta ainda usa a inteligência do próprio app; o vínculo da conta com o gateway (plano + medição por conta) é o próximo passo",
-  };
+  // Com vínculo fechado, a resposta sai pela inteligência da PRÓPRIA conta
+  // (gateway: plano e medição por tenant). Sem vínculo, continua pelas chaves
+  // deste app — e o motivo diz isso, em vez de prometer o que não acontece.
+  const vinculoDaConta = lerVinculo(conta.id);
+  const ia = vinculoDaConta?.tenant_id
+    ? {
+        via: "gateway-da-conta" as const,
+        tenant: vinculoDaConta.tenant_id,
+        motivo:
+          "a resposta sai pela inteligência da própria conta (plano e medição dela)",
+      }
+    : {
+        via: "propria" as const,
+        motivo:
+          "esta conta ainda não está vinculada à Conta Mirai: a resposta sai pela inteligência do próprio app",
+      };
 
   const papel: ContextoDaPessoa["identidade"]["papel"] = conta.ehDono
     ? "dono"
