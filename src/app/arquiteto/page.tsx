@@ -684,6 +684,45 @@ function Arquiteto() {
   // do título. Nada de inventar estado na tela: quem sabe é o servidor.
   const [menuConfig, setMenuConfig] = useState(false);
   const [abaConfig, setAbaConfig] = useState<"dominios" | "fontes" | "integracoes">("dominios");
+  // AS INTEGRAÇÕES DA CONTA dentro do Arquiteto (dono, 09/10/2026): ele quer ver,
+  // no projeto, o que já está plugado (GitHub, Supabase, Google…) e poder usar.
+  // Integração é da CONTA; o projeto só enxerga e usa.
+  const [integracoes, setIntegracoes] = useState<
+    Array<{ id: string; tipo: string; rotulo?: string; status?: string }>
+  >([]);
+  const [carregandoInteg, setCarregandoInteg] = useState(false);
+
+  // Lê as integrações da CONTA na primeira vez que a aba abre (não antes: não
+  // gasta requisição à toa). A rota já filtra por pessoa — o projeto não vê o
+  // que não é de quem está falando.
+  useEffect(() => {
+    if (abaConfig !== "integracoes") return;
+    let vivo = true;
+    setCarregandoInteg(true);
+    fetch("/api/integracoes")
+      .then((r) => (r.ok ? r.json() : { minhas: [] }))
+      .then((j) => {
+        if (!vivo) return;
+        const lista = Array.isArray(j?.minhas) ? j.minhas : [];
+        setIntegracoes(
+          lista.map((i: { id?: string; tipo?: string; rotulo?: string; status?: string }) => ({
+            id: String(i.id ?? ""),
+            tipo: String(i.tipo ?? ""),
+            rotulo: i.rotulo,
+            status: i.status,
+          })),
+        );
+      })
+      .catch(() => {
+        /* sem drama: a aba diz que não leu */
+      })
+      .finally(() => {
+        if (vivo) setCarregandoInteg(false);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [abaConfig]);
   const [endSlug, setEndSlug] = useState<string | null>(null);
   const [endSugerido, setEndSugerido] = useState("");
   const [endTexto, setEndTexto] = useState("");
@@ -4159,13 +4198,64 @@ function Arquiteto() {
               )}
 
               {abaConfig === "integracoes" && (
-                <p
-                  data-arquiteto-config-integracoes
-                  className="px-1 py-1 text-[11.5px] leading-[1.6] text-dash-dim"
-                >
-                  Ainda não por projeto. As integrações de hoje são da sua CONTA (catálogo em Conexões).
-                  A primeira que faz sentido aqui é o GitHub.
-                </p>
+                <div data-arquiteto-config-integracoes className="flex flex-col gap-2.5">
+                  {/* GITHUB — o primeiro que faz sentido AQUI (dono, 09/10/2026):
+                      editar um projeto que já vive num repositório. O botão leva ao
+                      manifesto: ele clica UMA vez no GitHub, escolhe os repositórios,
+                      e a chave privada chega direto no nosso servidor (cifrada). */}
+                  <div className="rounded-[8px] border border-white/[0.09] bg-black/20 px-2.5 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-white/85">GitHub</span>
+                      <span className="hidden text-[10px] text-dash-dim sm:inline">editar projeto que já existe</span>
+                    </div>
+                    <a
+                      href="/api/oauth/github/manifesto"
+                      data-arquiteto-config-github
+                      className="mt-1.5 inline-flex w-fit items-center gap-1.5 rounded-full bg-dash-raise px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-white"
+                    >
+                      criar o app e escolher os repositórios
+                    </a>
+                    <p className="mt-1.5 text-[10px] leading-[1.5] text-dash-dim">
+                      Abre o GitHub, você clica uma vez e marca quais repositórios liberar. Sem copiar chave: ela
+                      chega direto aqui, cifrada.
+                    </p>
+                  </div>
+
+                  {/* AS INTEGRAÇÕES DA CONTA: o que ele JÁ tem e pode usar neste projeto.
+                      Integração é da CONTA (por pessoa); o projeto só enxerga e usa. */}
+                  <div className="rounded-[8px] border border-white/[0.09] bg-black/20 px-2.5 py-2">
+                    <p className="text-[11px] text-white/85">As suas integrações</p>
+                    {carregandoInteg ? (
+                      <p className="mt-1 text-[10px] text-dash-dim">lendo…</p>
+                    ) : integracoes.length ? (
+                      <ul className="mt-1.5 flex flex-col gap-1">
+                        {integracoes.map((i) => (
+                          <li key={i.id} className="flex items-center justify-between gap-2 text-[10.5px]">
+                            <span className="truncate text-dash-muted">{i.rotulo || i.tipo}</span>
+                            <span className="shrink-0 text-dash-ok">{i.status || "conectado"}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-1 text-[10px] leading-[1.5] text-dash-dim">
+                        Nenhuma plugada ainda.{" "}
+                        <a href="/dashboard/connect" className="underline hover:text-white">
+                          conectar em Conexões
+                        </a>
+                        .
+                      </p>
+                    )}
+                    <p className="mt-1.5 text-[10px] leading-[1.5] text-dash-dim">
+                      Integração é da sua conta — aqui é o que este projeto pode usar.
+                    </p>
+                  </div>
+
+                  {/* FREIO DE HONESTIDADE: o que ainda NÃO existe, dito com todas as letras. */}
+                  <p className="px-1 text-[10px] leading-[1.5] text-dash-dim">
+                    Ainda não existe: marcar integração por projeto e a app gerada receber as chaves. Isso depende
+                    de uma decisão sua — como o segredo entra no código que a IA escreve.
+                  </p>
+                </div>
               )}
             </div>
           )}

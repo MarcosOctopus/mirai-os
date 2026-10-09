@@ -22,6 +22,7 @@
 import { createHash, randomBytes } from "crypto";
 
 import { basePublica } from "./base-publica";
+import { lerConfig } from "./plataforma-config";
 
 export const GH_AUTORIZAR = "https://github.com/login/oauth/authorize";
 export const GH_TOKEN = "https://github.com/login/oauth/access_token";
@@ -30,18 +31,39 @@ export const GH_API = "https://api.github.com";
 /** Escopo pedido no consentimento: repositórios + leitura do perfil. */
 export const GH_ESCOPO = "repo read:user";
 
-/** O client id do nosso app no GitHub (não é segredo). */
+/**
+ * O client id do nosso app no GitHub (não é segredo).
+ *
+ * Ordem de confiança (dono, 09/10/2026 — FLUXO DE MANIFESTO): se a variável de
+ * ambiente existir, ela manda (o fluxo antigo continua funcionando igual). Sem
+ * env, cai para a CONFIG DO BANCO — que é onde o app criado pelo manifesto
+ * guarda o `client_id`. Assim o fluxo novo passa a funcionar sozinho, sem o dono
+ * colar nada.
+ */
 export function clientId(): string {
   // Acesso por COLCHETE de propósito: assim o Next NÃO embute o valor no build
   // (com `process.env.X` ele congela em tempo de compilação) — dá para ligar o
   // GitHub depois, só reiniciando o app, sem rebuild.
-  return process.env["GITHUB_OAUTH_CLIENT_ID"] || "";
+  const env = process.env["GITHUB_OAUTH_CLIENT_ID"];
+  if (env) return env;
+  try {
+    return lerConfig("github_app_client_id") || "";
+  } catch {
+    return "";
+  }
 }
 
 /** O client secret do nosso app no GitHub (SEGREDO — só o servidor usa). */
 export function clientSecret(): string {
-  // Mesma razão do `clientId`: colchete para não congelar no build.
-  return process.env["GITHUB_OAUTH_CLIENT_SECRET"] || "";
+  // Mesma razão do `clientId`: colchete para não congelar no build; e mesma
+  // queda para a config do banco quando a env está vazia.
+  const env = process.env["GITHUB_OAUTH_CLIENT_SECRET"];
+  if (env) return env;
+  try {
+    return lerConfig("github_app_client_secret") || "";
+  } catch {
+    return "";
+  }
 }
 
 /**
