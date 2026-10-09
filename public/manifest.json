@@ -1,18 +1,27 @@
 {
-  "name": "Mirai App",
+  "id": "/",
+  "name": "MIRAI OS",
   "short_name": "Mirai",
-  "description": "Assistente inteligente com memória, voz e visão",
+  "description": "Seu sistema operacional cognitivo — chat, voz, visão e o Arquiteto que constrói seus projetos.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0a0a1a",
-  "theme_color": "#00f0ff",
-  "orientation": "portrait",
-  "icons": [
-    { "src": "/icons/icon-192.svg", "type": "image/svg+xml", "sizes": "192x192", "purpose": "any maskable" },
-    { "src": "/icons/icon-512.svg", "type": "image/svg+xml", "sizes": "512x512", "purpose": "any maskable" }
-  ],
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#080812",
+  "theme_color": "#080812",
   "categories": ["productivity", "utilities"],
   "lang": "pt-BR",
-  "scope": "/",
-  "id": "/"
+  "dir": "ltr",
+  "icons": [
+    { "src": "/icons/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" },
+    { "src": "/icons/icon-192.svg", "type": "image/svg+xml", "sizes": "192x192" },
+    { "src": "/icons/icon-512.svg", "type": "image/svg+xml", "sizes": "512x512" }
+  ],
+  "shortcuts": [
+    { "name": "Arquiteto (construir)", "short_name": "Arquiteto", "url": "/arquiteto" },
+    { "name": "Conversar", "short_name": "Conversa", "url": "/" }
+  ]
 }
