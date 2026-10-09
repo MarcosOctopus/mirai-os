@@ -1,0 +1,9 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Group 2">
+<circle id="Ellipse 6" cx="14.5" cy="14.5" r="14.5" fill="#2A2B2D"/>
+<g id="Group">
+<path id="Vector" d="M15 10C15.8752 10 16.7146 10.3477 17.3335 10.9665C17.9523 11.5854 18.3 12.4248 18.3 13.3C18.3 16.9692 19.6385 17.6923 20 17.6923H10C10.3692 17.6923 11.7 16.9615 11.7 13.3C11.7 12.4248 12.0477 11.5854 12.6665 10.9665C13.2854 10.3477 14.1248 10 15 10V10Z" stroke="##ff751f" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector_2" d="M13.8461 19.1C13.9126 19.3554 14.062 19.5815 14.2708 19.7429C14.4796 19.9043 14.7361 19.9919 15 19.9919C15.2639 19.9919 15.5204 19.9043 15.7292 19.7429C15.938 19.5815 16.0873 19.3554 16.1538 19.1" stroke="##ff751f" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</g>
+</svg>

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { existsSync, readFileSync } from "fs";
 import { registrarUsoTokens } from "@/lib/telemetria-tokens";
 import type { ContextoDaPessoa } from "@/lib/contexto-da-pessoa";
+import { prepararTurno, envolverComHistorico } from "@/lib/conversas";
 
 // ─── Carregar chaves dos providers ──────────────────────────────
 function loadEnv(name: string): string {
@@ -66,16 +67,25 @@ export const dynamic = "force-dynamic";
 const REGRA_NAO_VAZAR = `
 
 ## ASSUNTO INTERNO — NUNCA FALAR
-- NUNCA fale de como você funciona por dentro: nada de pastas, caminhos,
+- NUNCA fale da INFRAESTRUTURA interna da Mirai: nada de pastas, caminhos,
   servidores, portas, bancos de dados, arquivos, containers ou rede.
 - NUNCA cite nomes de modelos de IA, provedores, APIs ou serviços internos.
-- NUNCA cite ferramentas, agentes ou sistemas internos da Mirai.
-- Se perguntarem qualquer coisa disso — inclusive "qual sua base", "que modelo
-  você usa", "onde você roda", "quem te criou tecnicamente" — responda neste
-  espírito, curto e sem rodeio: "Isso é a parte interna da Mirai, não consigo
-  detalhar por aqui." Depois siga a conversa normalmente.
-- Não confirme, não negue e não dê pistas: nem "uso um modelo X", nem "não uso
-  o Y". Deflexão educada e assunto encerrado.
+- NUNCA cite ferramentas, agentes ou sistemas de INFRAESTRUTURA internos da
+  Mirai (o que roda por trás do app: o mapa interno, a memória interna, a
+  engenharia que sustenta o sistema).
+- ISTO NÃO É ASSUNTO INTERNO: as integrações que ESTA CONTA conectou são DELA e
+  PODEM ser nomeadas e usadas — CRM, Saaso, Google Drive, Telegram e afins.
+  Quando a conta tem uma integração conectada, isso é FATO desta conta e você
+  fala dela normalmente (o nome, o que ela faz, o que ela responde). Nome da
+  marca pública e dado da própria conta não são segredo. O que não pode é
+  descrever a INFRAESTRUTURA por trás dessas integrações.
+- Se perguntarem qualquer coisa de infraestrutura interna — inclusive "qual sua
+  base", "que modelo você usa", "onde você roda", "quem te criou tecnicamente" —
+  responda neste espírito, curto e sem rodeio: "Isso é a parte interna da Mirai,
+  não consigo detalhar por aqui." Depois siga a conversa normalmente.
+- Não confirme, não negue e não dê pistas sobre infraestrutura nem sobre
+  modelo: nem "uso um modelo X", nem "não uso o Y". Deflexão educada e assunto
+  encerrado.
 - Se perguntarem quem te criou, a resposta é curta e pública: "Fui criada pelo
   time do ecossistema Mirai." Sem nomes de pessoas, de cargos ou de empresas
   internas.
@@ -242,7 +252,15 @@ const SYSTEM_PROMPT = `Você é Mirai, uma assistente inteligente do ecossistema
 - Se não souber algo, seja honesta — não invente
 - Responda de forma NATURAL, sem parecer robótica
 - NUNCA use emojis, markdown, asteriscos ou formatação especial
-- Apenas texto limpo e direto`;
+- Apenas texto limpo e direto
+- O que ESTA CONTA tem conectado é FATO desta conta: as integrações dela
+  (CRM/Saaso, Google Drive, Telegram e afins) e um resumo do estado delas vêm
+  no bloco de contexto da conta, logo abaixo. Se o contexto diz que tem, tem:
+  você NUNCA nega uma integração que existe e NUNCA diz que ela vai
+  sincronizar depois. Se o contexto diz que não há nada conectado, diga só
+  isso — que não vê nenhuma integração nesta conta — e indique como conectar
+  (em Integrações, no painel). Nunca invente conexão nem prometa que ela
+  aparece sozinha.`;
 
 // ─── Modo Arquiteto: respostas técnicas e detalhadas ────────────
 const ARQUITETO_PROMPT = `Você é Mirai, uma assistente inteligente do ecossistema Mirai.
@@ -281,7 +299,13 @@ const ARQUITETO_PROMPT = `Você é Mirai, uma assistente inteligente do ecossist
 - Se não souber algo, seja honesta — não invente
 - Responda de forma técnica e direta
 - Pode usar listas, tabelas, blocos de código quando apropriado
-- Preferência por respostas completas e bem estruturadas`;
+- Preferência por respostas completas e bem estruturadas
+- O que ESTA CONTA tem conectado é FATO desta conta: as integrações dela
+  (CRM/Saaso, Google Drive, Telegram e afins) e o estado delas vêm no bloco de
+  contexto da conta, logo abaixo. Se o contexto diz que tem, tem: nunca negue
+  uma integração que existe e nunca diga que ela vai sincronizar depois. Se não
+  há nada conectado, diga só isso — que não vê nenhuma integração nesta conta —
+  e indique como conectar (em Integrações, no painel).`;
 
 async function queryArca(msg: string): Promise<string> {
   try {
@@ -572,10 +596,21 @@ async function conversarComFerramentas(opts: {
 // ─── POST /api/chat ──────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    let { messages, prompt, useClaude, mode } = await req.json();
+    let { messages, prompt, useClaude, mode, conversaId } = await req.json();
     if (!messages || !Array.isArray(messages)) {
       messages = prompt ? [{ role: "user", content: prompt }] : [];
     }
+
+    // Última mensagem do usuário COMO O CLIENTE DIGITOU (antes de os anexos
+    // virarem texto para o modelo): é o que se guarda no histórico e o que
+    // batiza a conversa. Vazio quando o turno é só anexo.
+    const textoUsuarioNovo = (() => {
+      const lista = messages as { role?: string; content?: string }[];
+      for (let i = lista.length - 1; i >= 0; i--) {
+        if (lista[i]?.role === "user") return String(lista[i]?.content || "");
+      }
+      return "";
+    })();
 
     // Quem é a conta (para posse dos anexos + CRM). Uma vez só.
     let conta: import("@/lib/orgs").Conta | null = null;
@@ -640,30 +675,40 @@ export async function POST(req: NextRequest) {
     // entra no contexto. Falha fechado de propósito.
     const ehDono = conta?.ehDono === true;
 
+    let resposta: Response;
     if (useClaude || wantsClaude(lastMsg)) {
       // Tenta OpenRouter Claude primeiro
       if (OPENROUTER_KEY) {
-        return await callOpenRouter(messages, lastMsg, chatMode, apoio, ehDono);
+        resposta = await callOpenRouter(messages, lastMsg, chatMode, apoio, ehDono);
+      } else if (GOOGLE_API_KEY) {
+        // Fallback: Gemini
+        resposta = await callGemini(messages, lastMsg, chatMode, apoio, ehDono);
+      } else {
+        return Response.json({ error: "Nenhum provider configurado" }, { status: 500 });
       }
-      // Fallback: Gemini
-      if (GOOGLE_API_KEY) {
-        return await callGemini(messages, lastMsg, chatMode, apoio, ehDono);
-      }
+    } else if (VERBOO_API_KEY) {
+      // Padrão: DeepSeek V4.1 (Verboo) -> V4.0 -> Gemini -> Claude
+      resposta = await callVerboo(messages, lastMsg, chatMode, VERBOO_MODEL, apoio, ehDono);
+    } else if (GOOGLE_API_KEY) {
+      resposta = await callGemini(messages, lastMsg, chatMode, apoio, ehDono);
+    } else if (OPENROUTER_KEY) {
+      // Fallback: OpenRouter
+      resposta = await callOpenRouter(messages, lastMsg, chatMode, apoio, ehDono);
+    } else {
       return Response.json({ error: "Nenhum provider configurado" }, { status: 500 });
     }
 
-    // Padrão: DeepSeek V4.1 (Verboo) -> V4.0 -> Gemini -> Claude
-    if (VERBOO_API_KEY) {
-      return await callVerboo(messages, lastMsg, chatMode, VERBOO_MODEL, apoio, ehDono);
-    }
-    if (GOOGLE_API_KEY) {
-      return await callGemini(messages, lastMsg, chatMode, apoio, ehDono);
-    }
-    // Fallback: OpenRouter
-    if (OPENROUTER_KEY) {
-      return await callOpenRouter(messages, lastMsg, chatMode, apoio, ehDono);
-    }
-    return Response.json({ error: "Nenhum provider configurado" }, { status: 500 });
+    // ── HISTÓRICO: a pergunta e a resposta viram uma conversa de verdade. ──
+    // A rota já é fechada pela middleware (conta sempre resolvida aqui). O id
+    // volta no header `x-conversa-id`, para o cliente adotar quando ainda não
+    // tinha um. Nada muda no que a tela recebe: o corpo passa idêntico.
+    const userId = typeof conta?.id === "number" ? conta.id : null;
+    const idConversa = userId ? prepararTurno(userId, conversaId, textoUsuarioNovo) : "";
+    return envolverComHistorico(resposta, {
+      userId,
+      conversaId: idConversa,
+      textoUsuario: textoUsuarioNovo,
+    });
   } catch (err: any) {
     console.error("Chat API error:", err);
     return Response.json({ error: err.message || "Unknown" }, { status: 500 });

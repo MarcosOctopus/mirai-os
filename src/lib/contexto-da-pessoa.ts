@@ -319,16 +319,19 @@ export function blocoDeContexto(ctx: ContextoDaPessoa): string {
   const deQuem = crm?.origem === "pessoa" ? "plugado pela própria pessoa" : "da empresa";
   if (crm?.pronto) {
     linhas.push(crm.contexto);
+    // FATO ASSERTADO: a integração DESTA conta está conectada e responde agora.
+    // Vem daqui — o MESMO resolutor que entrega as ferramentas ao modelo — para
+    // que o que a Mirai fala e o que ela consegue executar nunca se contradigam.
     linhas.push(
-      `Este CRM é ${deQuem} (${crm.rotulo}). Você PODE agir nele pelas ferramentas dele (consultar e também marcar, cadastrar, atualizar e enviar). Antes de qualquer ação que mude dados, confirme com a pessoa. Nunca cite o nome do método, só o resultado.`,
+      `FATO DESTA CONTA: o CRM (rótulo "${crm.rotulo}") ESTÁ CONECTADO — é ${deQuem} — e responde agora. Trate como fato consumado: esta conta TEM o CRM integrado. NUNCA diga que não está integrado e NUNCA diga que "vai sincronizar depois" nem que está "aguardando sincronização" — já está ligado e sendo lido ao vivo. Você PODE agir nele pelas ferramentas dele (consultar e também marcar, cadastrar, atualizar e enviar). Antes de qualquer ação que mude dados, confirme com a pessoa. Nunca cite o nome do método, só o resultado.`,
     );
   } else if (crm) {
     linhas.push(
-      `O CRM desta conta (${deQuem}) está vinculado mas não respondeu agora. Diga que vai consultar de novo na próxima mensagem — nunca invente número, nome ou data.`,
+      `FATO DESTA CONTA: o CRM (rótulo "${crm.rotulo}", ${deQuem}) ESTÁ CONECTADO, mas não respondeu neste instante. Diga que ele está conectado e que você consulta de novo na próxima mensagem — nunca diga que não está integrado e nunca invente número, nome ou data.`,
     );
   } else {
     linhas.push(
-      "Esta pessoa ainda não tem CRM plugado. Se pedirem dados de CRM, diga que falta ela plugar a integração dela.",
+      'FATO DESTA CONTA: não vejo NENHUMA integração conectada nesta conta. Se pedirem algo que dependa de um sistema externo (CRM, Drive, Telegram e afins), diga exatamente e só isto: que não vê nenhuma integração nesta conta, e mostre como conectar (em Integrações, no painel). NUNCA finja que existe algo, NUNCA adivinhe e NUNCA diga que vai sincronizar sozinho ou que os dados aparecem depois — sem integração, nada aparece por conta própria.',
     );
   }
 

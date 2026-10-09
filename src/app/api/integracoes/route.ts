@@ -12,7 +12,10 @@
  *   - o segredo NUNCA volta em claro: a resposta traz só o rótulo e a
  *     impressão digital;
  *   - integração da empresa aparece na lista como leitura (é apoio), e não é
- *     alterável por aqui.
+ *     alterável por aqui;
+ *   - o CRM (tipo 'crm') é VALIDADO AO VIVO antes de gravar: credencial que o
+ *     CRM não confirma não é salva — nunca se guarda um token não testado, e
+ *     nunca se diz "conectado" sem o CRM ter respondido.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -26,9 +29,36 @@ import {
   integracoesDaPessoa,
   semSegredo,
 } from "@/lib/integracoes";
+import { CATALOGO } from "@/lib/integracoes/catalogo";
+import { saasoValidarCredencial } from "@/lib/saaso";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * O que está PRONTO para conectar nesta instalação — decidido NO SERVIDOR,
+ * porque depende de variável de ambiente que o navegador não enxerga. É isto
+ * que impede o botão mentir: a tela só mostra "conectar" onde há caminho real;
+ * onde não há, mostra "indisponível" com o motivo. Nunca um clique vazio.
+ */
+function prontidao(): Record<string, { pronta: boolean; motivo?: string }> {
+  const google = Boolean(
+    (process.env.GOOGLE_CLIENT_ID || "").trim() && (process.env.GOOGLE_CLIENT_SECRET || "").trim(),
+  );
+  const mapa: Record<string, { pronta: boolean; motivo?: string }> = {};
+  for (const i of CATALOGO) {
+    if (i.oauthPath === "/api/auth/drive" || i.oauthPath === "/api/auth/youtube") {
+      mapa[i.id] = google
+        ? { pronta: true }
+        : { pronta: false, motivo: "a conexão com o Google ainda não está configurada neste servidor" };
+    } else if (i.tipo === "mcp" && !i.site) {
+      mapa[i.id] = { pronta: false, motivo: "roda dentro do MIRAI OS — ainda sem site próprio" };
+    } else {
+      mapa[i.id] = { pronta: true };
+    }
+  }
+  return mapa;
+}
 
 export async function GET(req: NextRequest) {
   const r = await exigirConta(req);
@@ -46,6 +76,7 @@ export async function GET(req: NextRequest) {
     minhas,
     daEmpresa,
     tipos: TIPOS_SUPORTADOS,
+    prontidao: prontidao(),
   });
 }
 
@@ -71,6 +102,16 @@ export async function POST(req: NextRequest) {
   const credencial = (corpo.credencial || "").trim();
   if (!credencial) {
     return NextResponse.json({ error: "credencial é obrigatória" }, { status: 400 });
+  }
+
+  // O CRM é o único tipo que se confirma AO VIVO antes de gravar. A validação
+  // roda aqui (não só na tela) de propósito: assim nenhum caminho — nem um
+  // cliente direto na rota — consegue guardar uma credencial não testada.
+  if (tipo === "crm") {
+    const v = await saasoValidarCredencial(credencial);
+    if (!v.valida) {
+      return NextResponse.json({ error: v.erro, motivo: v.motivo }, { status: 400 });
+    }
   }
 
   // SEMPRE da pessoa que está falando. Não existe caminho para escrever na

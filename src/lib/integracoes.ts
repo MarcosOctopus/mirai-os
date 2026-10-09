@@ -205,3 +205,127 @@ export function desligarIntegracao(
     c.close();
   }
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * VÍNCULOS PENDENTES — a ponte para quem conectou o CRM ANTES de existir aqui.
+ *
+ * O problema medido: o cliente conecta o CRM DENTRO do próprio CRM (a aba
+ * "Integrar com Mirai" / a tela de chaves de API). A conexão existe, a
+ * credencial `dsk_…` existe — mas a pessoa ainda NÃO tem conta neste app, então
+ * não há `dono_id` para gravar a integração. Antes disto o app ficava cego: a
+ * linha de `integracoes` só nascia quando a conexão era feita PELA tela do app.
+ *
+ * A solução: guardar o vínculo por E-MAIL (`vinculos_pendentes`) e consumi-lo no
+ * PRIMEIRO login daquela pessoa — aí o `dono_id` existe. O consumo é de USO
+ * ÚNICO: a linha pendente morre ao ser ligada, nunca vira uma segunda
+ * integração fantasma.
+ *
+ * O isolamento continua sendo o mesmo das outras operações: a integração só é
+ * gravada com `dono_tipo='pessoa'` e `dono_id` = id de quem acabou de entrar.
+ * Ninguém escreve (nem lê) integração de outra pessoa por este caminho.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Normaliza o e-mail para a chave do vínculo (a mesma régua dos dois lados). */
+export function normalizaEmail(email: string): string {
+  return (email || "").trim().toLowerCase();
+}
+
+/** Garante a tabela dos vínculos pendentes. Idempotente, roda no primeiro uso. */
+export function garantirVinculosPendentes(): void {
+  const c = db();
+  try {
+    c.exec(`
+      CREATE TABLE IF NOT EXISTS vinculos_pendentes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        rotulo TEXT NOT NULL DEFAULT '',
+        credencial TEXT,
+        criado_em TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS vinculos_pendentes_unico
+        ON vinculos_pendentes (email, tipo, rotulo);
+      CREATE INDEX IF NOT EXISTS vinculos_pendentes_email
+        ON vinculos_pendentes (email);
+    `);
+  } catch (e) {
+    console.error("Vínculos pendentes: falha ao garantir tabela:", e instanceof Error ? e.message : e);
+  } finally {
+    c.close();
+  }
+}
+
+/**
+ * Guarda um vínculo pendente para quando a pessoa existir aqui.
+ * Idempotente por (email, tipo, rotulo): reconectar ATUALIZA a credencial em vez
+ * de empilhar linhas — a pessoa tem UMA conexão daquele tipo, não N.
+ */
+export function guardarVinculoPendente(dados: {
+  email: string;
+  tipo: string;
+  rotulo?: string;
+  credencial: string;
+}): void {
+  garantirVinculosPendentes();
+  const c = db();
+  try {
+    c.prepare(
+      `INSERT INTO vinculos_pendentes (email, tipo, rotulo, credencial, criado_em)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (email, tipo, rotulo) DO UPDATE SET
+         credencial=excluded.credencial, criado_em=excluded.criado_em`,
+    ).run(
+      normalizaEmail(dados.email),
+      dados.tipo,
+      (dados.rotulo || "").trim(),
+      dados.credencial,
+      new Date().toISOString(),
+    );
+  } finally {
+    c.close();
+  }
+}
+
+/**
+ * Liga (uma vez) os vínculos pendentes do e-mail à pessoa que acabou de entrar.
+ * Devolve quantos foram ligados. NUNCA lança para o chamador: o login não pode
+ * cair porque uma integração tropeçou — quem chama ainda envolve em try, por
+ * disciplina, mas a função já degrada em silêncio.
+ */
+export function consumirVinculosPendentes(userId: number, email: string): number {
+  const e = normalizaEmail(email);
+  if (!e) return 0;
+  try {
+    garantirVinculosPendentes();
+    const c = db();
+    try {
+      const pendentes = c
+        .prepare(`SELECT id, tipo, rotulo, credencial FROM vinculos_pendentes WHERE email=?`)
+        .all(e) as { id: number; tipo: string; rotulo: string; credencial: string | null }[];
+      if (pendentes.length === 0) return 0;
+
+      let ligados = 0;
+      for (const p of pendentes) {
+        if (p.credencial && p.credencial.trim()) {
+          criarIntegracao({
+            dono_tipo: "pessoa",
+            dono_id: String(userId),
+            tipo: p.tipo,
+            rotulo: p.rotulo || p.tipo,
+            credencial: p.credencial,
+          });
+          ligados++;
+        }
+        // Consumo de USO ÚNICO: sai da fila tenha ligado ou não (sem credencial
+        // não há o que ligar; manter a linha só a faria reaparecer para sempre).
+        c.prepare(`DELETE FROM vinculos_pendentes WHERE id=?`).run(p.id);
+      }
+      return ligados;
+    } finally {
+      c.close();
+    }
+  } catch (erro) {
+    console.warn("Vínculos pendentes: consumo falhou (não fatal):", erro instanceof Error ? erro.message : erro);
+    return 0;
+  }
+}

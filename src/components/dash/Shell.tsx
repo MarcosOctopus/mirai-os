@@ -6,22 +6,26 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
-  IconeAgentes,
-  IconeBackup,
+  carregarLista,
+  definirAberta,
+  novaConversa,
+  useConversas,
+} from "@/lib/conversas-cliente";
+import {
+  IconeBusca,
   IconeChat,
   IconeFechar,
-  IconeInfra,
+  IconeMais,
   IconeMenu,
-  IconeOrb,
   IconeOrganizacoes,
-  IconePainel,
-  IconePlug,
   IconeProdutos,
+  IconeRobo,
   IconeSeta,
   IconeSino,
   IconeSistema,
+  IconeSynapse,
 } from "./icons";
 
 type Item = {
@@ -31,22 +35,39 @@ type Item = {
   soDono?: boolean;
   emBreve?: boolean;
   selo?: string;
+  /** ação primária do menu: fica visualmente um degrau acima das demais */
+  destaque?: boolean;
+  /** item que não navega: dispara uma ação (ex.: abrir conversa nova) */
+  acao?: "nova";
 };
 
+// "+ novo" NÃO é um link para a tela inicial: precisa ABRIR uma conversa nova
+// de verdade (cria a linha no servidor, muda o foco para ela). Por isso é ação,
+// não href.
 const PRIMARIO: Item[] = [
-  { label: "Painel", href: "/dashboard", icone: <IconePainel /> },
-  { label: "Agentes", icone: <IconeAgentes />, emBreve: true },
-  { label: "Produtos", icone: <IconeProdutos />, emBreve: true },
-  { label: "Infra", icone: <IconeInfra />, emBreve: true },
-  { label: "Integrações", href: "/dashboard/connect", icone: <IconePlug /> },
-  { label: "Chat", href: "/chat", icone: <IconeChat /> },
+  { label: "Novo", acao: "nova", icone: <IconeMais />, destaque: true },
+  { label: "Projetos", href: "/projetos", icone: <IconeProdutos /> },
+  // Synapse (08/10/2026): a antiga entrada "Integrações" mudou de NOME e de
+  // ÍCONE (dois nós ligados por um elo), mas a URL continua a MESMA
+  // (/dashboard/connect) — nenhum link quebra. Lá dentro a tela tem duas
+  // seções (Integrações e Skills), trocadas pelo seletor do topo.
+  { label: "Synapse", href: "/dashboard/connect", icone: <IconeSynapse /> },
+  { label: "Arquiteto", href: "/arquiteto", icone: <IconeRobo /> },
+  // A entrada "Skills" saiu do menu (dono, 08/10/2026): "Essa página do menu
+  // esquerdo chamada skill tem que sumir. Só existir da Synapse junto com essa do
+  // botão de explorar todas as skills." A vitrine vive na aba Skills da Synapse
+  // e na grade (/dashboard/skills, destino do "Ver todas as skills"). /skills só
+  // redireciona para a Synapse.
 ];
 
+// Grupo secundário: ele NÃO fica mais na lateral. No desktop vive no menu do
+// PERFIL (topo à direita, como ChatGPT/Claude); no celular, dentro da gaveta.
+// A ORDEM é a que o dono ditou: Organizações, e só então Explorar; Sistema
+// fecha. O corte por `soDono` é o que muda conforme quem entrou.
 const SECUNDARIO: Item[] = [
-  { label: "Orb (voz)", href: "/", icone: <IconeOrb /> },
   { label: "Organizações", href: "/admin/organizacoes", icone: <IconeOrganizacoes />, soDono: true },
+  { label: "Explorar", href: "/explorar", icone: <IconeBusca /> },
   { label: "Sistema", href: "/system", icone: <IconeSistema />, soDono: true },
-  { label: "Backups", icone: <IconeBackup />, emBreve: true },
 ];
 
 function Marca({ recolhida = false }: { recolhida?: boolean }) {
@@ -71,19 +92,35 @@ function ItemMenu({
   item,
   ativo,
   onNavegar,
+  onAcionar,
   recolhida = false,
 }: {
   item: Item;
   ativo: boolean;
   onNavegar: () => void;
+  onAcionar?: () => void;
   recolhida?: boolean;
 }) {
   const base = `flex w-full items-center gap-4 rounded-[12px] px-4 py-3 text-left text-[14px] transition ${
     recolhida ? "lg:justify-center lg:px-0 lg:gap-0" : ""
   }`;
-  const cor = ativo ? "bg-dash-brand/12 text-dash-brand" : "text-dash-muted hover:bg-white/[0.04] hover:text-white";
+  const cor = ativo
+    ? "bg-dash-brand/12 text-dash-brand"
+    : item.destaque
+      ? "bg-dash-brand/15 font-semibold text-dash-brand ring-1 ring-dash-brand/25 hover:bg-dash-brand/25"
+      : "text-dash-muted hover:bg-white/[0.04] hover:text-white";
   const rotulo = `truncate ${recolhida ? "lg:hidden" : ""}`;
   const selo = `ml-auto rounded-full px-2 py-[3px] text-[10px] ${recolhida ? "lg:hidden" : ""}`;
+
+  // Item de AÇÃO ("+ novo"): não navega sozinho, dispara a criação da conversa.
+  if (item.acao) {
+    return (
+      <button type="button" onClick={onAcionar} className={`${base} ${cor}`} title={item.label}>
+        {item.icone}
+        <span className={rotulo}>{item.label}</span>
+      </button>
+    );
+  }
 
   if (!item.href || item.emBreve) {
     return (
@@ -110,6 +147,7 @@ export default function Shell({
   children,
   recolhidaInicial = false,
   cheio = false,
+  cabecalhoDireita,
 }: {
   titulo: string;
   usuario?: { nome?: string; email?: string; ehDono?: boolean } | null;
@@ -119,12 +157,34 @@ export default function Shell({
   /** conteúdo em tela cheia: sem margem, sem largura máxima, ocupa o miolo todo
       (usado pela tela do Orb, que é visual e pede a área inteira) */
   cheio?: boolean;
+  /** peça opcional encaixada à DIREITA do cabeçalho (ex.: o seletor
+      Integrações/Skills da Synapse). Sem ela, o cabeçalho é o de sempre. */
+  cabecalhoDireita?: React.ReactNode;
 }) {
   const [aberto, setAberto] = useState(false);
   const [recolhida, setRecolhida] = useState(recolhidaInicial);
   const caminho = usePathname();
+  const router = useRouter();
+  const { lista, aberta } = useConversas();
   const inicial = (usuario?.nome || usuario?.email || "?").trim().charAt(0).toUpperCase();
   const visiveis = (lista: Item[]) => lista.filter((i) => !i.soDono || usuario?.ehDono);
+
+  // Histórico: a MESMA lista do chat (módulo compartilhado). Carrega uma vez.
+  useEffect(() => {
+    void carregarLista();
+  }, []);
+
+  async function abrirNova() {
+    setAberto(false);
+    await novaConversa();
+    if (caminho !== "/") router.push("/");
+  }
+
+  function abrirConversa(id: string) {
+    setAberto(false);
+    definirAberta(id);
+    if (caminho !== "/") router.push("/");
+  }
 
   return (
     <div className="dash-root min-h-dvh bg-dash-bg text-white">
@@ -172,14 +232,51 @@ export default function Shell({
               item={i}
               ativo={!!i.href && caminho === i.href}
               onNavegar={() => setAberto(false)}
+              onAcionar={() => void abrirNova()}
               recolhida={recolhida}
             />
           ))}
         </nav>
 
-        <div className="my-6 border-t border-white/[0.07]" />
+        {/* Histórico — SOBE para o lugar que o grupo secundário deixou, logo
+            abaixo de "+ novo/Projetos/Integrações/Arquiteto" (como ChatGPT).
+            Mesma linguagem do resto da lateral; recolhida no desktop quando o
+            menu fecha (`lg:hidden` mantém a lista viva no drawer do celular).
+            A lista rola por conta própria (max-h + overflow) para que muitas
+            conversas não empurrem nem os itens nem o rodapé para fora. */}
+        <div className={`mt-7 min-h-0 ${recolhida ? "lg:hidden" : ""}`}>
+          <p className="px-4 text-[11px] uppercase tracking-[0.18em] text-dash-dim">Recentes</p>
+          <div className="mt-2 max-h-[38vh] space-y-0.5 overflow-y-auto pr-1">
+            {lista.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => abrirConversa(c.id)}
+                title={c.titulo}
+                className={`flex w-full items-center rounded-[10px] px-4 py-2 text-left text-[13px] transition ${
+                  c.id === aberta
+                    ? "bg-dash-brand/12 text-white"
+                    : "text-dash-muted hover:bg-white/[0.04] hover:text-white"
+                }`}
+              >
+                <span className="truncate">{c.titulo}</span>
+              </button>
+            ))}
+            {!lista.length && (
+              <p className="px-4 pb-1 text-[12px] leading-[1.5] text-dash-dim">
+                Suas conversas aparecem aqui.
+              </p>
+            )}
+          </div>
+        </div>
 
-        <nav className="space-y-1.5">
+        {/* No CELULAR o grupo secundário ainda precisa de um caminho pela
+            gaveta (no desktop ele vive no menu do PERFIL, topo à direita). Fica
+            abaixo das Recentes e escondido em tela larga: nada some no telefone
+            e nada duplica na lateral do desktop. */}
+        <div className="my-6 border-t border-white/[0.07] lg:hidden" />
+
+        <nav className="space-y-1.5 lg:hidden">
           {visiveis(SECUNDARIO).map((i) => (
             <ItemMenu
               key={i.label}
@@ -195,14 +292,14 @@ export default function Shell({
           <div className="rounded-[20px] bg-dash-raise/70 p-5">
             <p className="text-[13px] font-semibold text-white">Mirai está de pé</p>
             <p className="mt-2 text-[12px] leading-[1.5] text-dash-muted">
-              Para conversar por voz, é no Orb: toque, desperte e fale.
+              Para conversar, é na tela inicial: escrita ou voz, no mesmo lugar.
             </p>
             <Link
               href="/"
               onClick={() => setAberto(false)}
               className="mt-4 inline-flex rounded-[10px] bg-dash-brand px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-dash-brandHi"
             >
-              Ir para o Orb
+              Abrir a Mirai
             </Link>
           </div>
         </div>
@@ -232,10 +329,11 @@ export default function Shell({
               <h1 className="truncate text-[20px] text-white">{titulo}</h1>
             </div>
             <div className="flex shrink-0 items-center gap-4">
+              {cabecalhoDireita}
               <span className="relative grid h-[34px] w-[34px] place-items-center rounded-full bg-dash-side text-dash-muted">
                 <IconeSino />
               </span>
-              <MenuDaConta inicial={inicial} usuario={usuario} />
+              <MenuDaConta inicial={inicial} usuario={usuario} caminho={caminho} />
             </div>
           </header>
 
@@ -246,18 +344,24 @@ export default function Shell({
   );
 }
 
-/* Canto superior direito do Shell: clicar na bolinha abre o menu da conta.
-   Perfil e saída — sair chama o /api/auth/logout que já existe no app. */
+/* Canto superior direito do Shell: clicar na bolinha abre o menu da conta —
+   agora também o lugar do grupo secundário que saiu da lateral (Organizações,
+   Explorar, Sistema), como ChatGPT/Claude. Perfil e saída seguem aqui; sair
+   chama o /api/auth/logout que já existe no app. */
 function MenuDaConta({
   inicial,
   usuario,
+  caminho,
 }: {
   inicial: string;
   usuario?: { nome?: string; email?: string; ehDono?: boolean } | null;
+  caminho: string;
 }) {
   const [aberto, setAberto] = useState(false);
   const [saindo, setSaindo] = useState(false);
   const caixa = useRef<HTMLDivElement | null>(null);
+  // Mesmo corte por dono do resto do menu (a trava real segue no servidor).
+  const itens = SECUNDARIO.filter((i) => !i.soDono || usuario?.ehDono);
 
   useEffect(() => {
     if (!aberto) return;
@@ -309,6 +413,29 @@ function MenuDaConta({
               <p className="truncate text-[11.5px] text-dash-muted">{usuario.email}</p>
             )}
           </div>
+
+          <div className="my-1 h-px bg-white/[0.08]" />
+
+          {/* O grupo que saiu da lateral. Mesma ordem e mesmo corte por dono;
+              a pílula de ativo segue a rota atual, como no menu antigo. */}
+          <nav className="space-y-0.5">
+            {itens.map((i) => (
+              <Link
+                key={i.label}
+                href={i.href ?? "#"}
+                onClick={() => setAberto(false)}
+                title={i.label}
+                className={`flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] transition ${
+                  i.href === caminho
+                    ? "bg-dash-brand/12 text-dash-brand"
+                    : "text-white/85 hover:bg-white/[0.06] hover:text-white"
+                }`}
+              >
+                <span className="shrink-0">{i.icone}</span>
+                {i.label}
+              </Link>
+            ))}
+          </nav>
 
           <div className="my-1 h-px bg-white/[0.08]" />
 

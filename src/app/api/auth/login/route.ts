@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserByEmail, comparePassword, signToken } from "@/lib/auth";
 import { vincularContaMirai } from "@/lib/vinculo-conta-mirai";
+import { consumirVinculosPendentes } from "@/lib/integracoes";
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,6 +42,15 @@ export async function POST(req: NextRequest) {
       nome: user.name,
       senha: password,
     });
+
+    // ── PONTE: o que o cliente conectou DENTRO do CRM, agora que ele existe ──
+    // O vínculo pendente é por e-mail e é consumido UMA vez. Não é fatal: se a
+    // leitura do arquivo de integrações falhar, o login segue igual.
+    try {
+      consumirVinculosPendentes(user.id, user.email);
+    } catch (e) {
+      console.warn("Ponte: vínculo pendente não consumido (não fatal):", e);
+    }
 
     // ── Sign JWT and set cookie ───────────────────────────────────
     const token = await signToken({

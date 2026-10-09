@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { credencialSaasoDaConta, exigirConta } from "@/lib/orgs";
+import { integracoesDaOrganizacao, integracoesDaPessoa } from "@/lib/integracoes";
 import { saasoChamar, saasoStatus } from "@/lib/saaso";
 
 export const runtime = "nodejs";
@@ -9,10 +10,18 @@ export const dynamic = "force-dynamic";
 /**
  * Estado da integracao com o Saaso (produto ligado por MCP).
  *
- * A credencial e a da ORGANIZACAO da conta logada:
- *  - cliente: so a organizacao dele (memberships -> organizations.saaso_token);
- *  - dono da plataforma: a credencial da propria conta (SAASO_MCP_TOKEN);
- *  - sem vinculo: `vinculado: false` e NADA e consultado.
+ * A credencial e resolvida na MESMA ordem do resolutor unico do Mirai OS
+ * (src/lib/contexto-da-pessoa.ts) — e a mesma que o chat usa hoje:
+ *
+ *   1. a integracao DA PESSOA (linha 'crm' com credencial),
+ *   2. a da EMPRESA, como apoio,
+ *   3. o token legado da organizacao (organizations.saaso_token),
+ *   4. so o dono da plataforma: a credencial do proprio app (SAASO_MCP_TOKEN).
+ *
+ * Antes disto esta rota lia SO a credencial da organizacao: a tela podia
+ * mostrar "ligada" pelo token da empresa e "nao conectada" pela linha da
+ * pessoa — a mesma integracao com dois estados. Agora ha uma so resolucao, a
+ * mesma que o chat enxerga.
  *
  * Le ao vivo pelo MCP do produto — nao ha valor em cache nem "fachada":
  * se o MCP cair, `conectado: false` e o motivo aparece em `erro`.
@@ -22,9 +31,36 @@ export async function GET(req: NextRequest) {
   if (!r.ok) return r.resposta;
   const conta = r.conta;
 
-  const doVinculo = credencialSaasoDaConta(conta)?.token;
+  let minhas: { tipo: string; credencial: string | null }[] = [];
+  let daEmpresa: { tipo: string; credencial: string | null }[] = [];
+  try {
+    minhas = integracoesDaPessoa(conta.id);
+    daEmpresa = conta.org ? integracoesDaOrganizacao(conta.org.id) : [];
+  } catch {
+    /* sem linhas legiveis: cai no token legado / do dono abaixo */
+  }
+
+  const crmDaPessoa = minhas.find((i) => i.tipo === "crm" && i.credencial);
+  const crmDaEmpresa = daEmpresa.find((i) => i.tipo === "crm" && i.credencial);
+  const legado = credencialSaasoDaConta(conta)?.token;
   const doDono = conta.ehDono ? (process.env.SAASO_MCP_TOKEN || "").trim() : "";
-  const token = (doVinculo || doDono || "").trim();
+
+  let token = "";
+  let origem: "pessoa" | "organizacao" | "dono" | null = null;
+  if (crmDaPessoa?.credencial) {
+    token = crmDaPessoa.credencial;
+    origem = "pessoa";
+  } else if (crmDaEmpresa?.credencial) {
+    token = crmDaEmpresa.credencial;
+    origem = "organizacao";
+  } else if (legado) {
+    token = legado;
+    origem = "organizacao";
+  } else if (doDono) {
+    token = doDono;
+    origem = "dono";
+  }
+  token = (token || "").trim();
 
   const status = token
     ? await saasoStatus(token)
@@ -52,6 +88,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ...status,
     vinculado: Boolean(token),
+    origem,
     ehDono: conta.ehDono,
     papel: conta.ehDono ? "dono" : conta.org ? "cliente" : "sem-organizacao",
     organizacao: conta.org

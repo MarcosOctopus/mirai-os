@@ -12,6 +12,9 @@ data/*.sqlite-*
 public/music/
 public/thumbs/
 
+# Anexos do chat (conteudo dos usuarios — nunca versionar)
+data/uploads/
+
 # Environment
 .env
 .env.local
@@ -40,3 +43,19 @@ data/*.db-wal
 *.bak
 *.bak-*
 *.backup
+
+# ── NUNCA versionar: backups de .env e cofres locais (têm segredo/dado de gente) ──
+.env*.pre-*
+.env*.pos-*
+data/*.db
+data/*.db-*
+data/tokens.db
+*.tok
+
+# cópias de build antigas (.next-pre-*, .next-bom-*): lixo, nunca versionar
+.next-*
+
+# cópias de segurança de arquivo (.pre-*/.pos-*) e bancos locais: o git JÁ é o backup
+*.pre-*
+*.pos-*
+data/*.db*

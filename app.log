@@ -1,0 +1,813 @@
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 643ms
+ ⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::3333
+    at <unknown> (Error: listen EADDRINUSE: address already in use :::3333)
+    at new Promise (<anonymous>) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3333
+}
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 610ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 618ms
+Laço: gateway da conta recusou, indo pelo provedor direto: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 615ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 634ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 618ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 619ms
+Verboo respondeu OK com o modelo: deepseek-v4.1-flash
+Verboo respondeu OK com o modelo: deepseek-v4.1-flash
+Verboo respondeu OK com o modelo: deepseek-v4.1-flash
+Verboo respondeu OK com o modelo: deepseek-v4.1-flash
+Verboo respondeu OK com o modelo: deepseek-v4.1-flash
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 615ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 615ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 584ms
+Laço: gateway da conta recusou, indo pelo provedor direto: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 614ms
+Laço: gateway da conta recusou, indo pelo provedor direto: 400
+Laço: gateway da conta recusou, indo pelo provedor direto: 400
+Laço: gateway da conta recusou, indo pelo provedor direto: 400
+Laço: gateway da conta recusou, indo pelo provedor direto: 400
+Laço: gateway da conta recusou, indo pelo provedor direto: 400
+[chat] ferramenta da conta: crm_list_pipelines
+[conhecimento] executando em integração pessoa:meu CRM
+[chat] ferramenta da conta: crm_list_event_types
+[conhecimento] executando em integração pessoa:meu CRM
+[chat] ferramenta da conta: crm_list_team_members
+[conhecimento] executando em integração pessoa:meu CRM
+Laço: gateway da conta recusou, indo pelo provedor direto: 400
+Verboo respondeu OK com o modelo: deepseek-v4.1-flash
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 641ms
+Laço: gateway da conta recusou, indo pelo provedor direto: 400
+Verboo respondeu OK com o modelo: deepseek-v4.1-flash
+Verboo respondeu OK com o modelo: deepseek-v4.1-flash
+Verboo respondeu OK com o modelo: deepseek-v4.1-flash
+Verboo respondeu OK com o modelo: deepseek-v4.1-flash
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 619ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 588ms
+Laço: gateway da conta recusou, indo pelo provedor direto: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 619ms
+Arquiteto: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 632ms
+Arquiteto: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 629ms
+Arquiteto: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 606ms
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Gemini: 403
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 621ms
+Arquiteto: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 642ms
+Arquiteto: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 610ms
+Arquiteto: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 587ms
+Arquiteto: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 602ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 619ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 610ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 608ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 641ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 611ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 604ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 615ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 613ms
+Arquiteto: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 636ms
+Arquiteto: gateway da conta recusou: 400
+Laço: gateway da conta recusou, indo pelo provedor direto: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 626ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 610ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 646ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 628ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 618ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 616ms
+Arquiteto plano: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 606ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 622ms
+Arquiteto plano: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 616ms
+Arquiteto plano: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 639ms
+Arquiteto: gateway da conta recusou: 400
+Arquiteto plano: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 633ms
+Arquiteto: gateway da conta recusou: 400
+Arquiteto plano: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 630ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 618ms
+ ⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::3333
+    at <unknown> (Error: listen EADDRINUSE: address already in use :::3333)
+    at new Promise (<anonymous>) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3333
+}
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 608ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 608ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 608ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 619ms
+Arquiteto: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 645ms
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 607ms
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto plano: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+Arquiteto: gateway da conta recusou: 400
+Arquiteto Verboo rede: The operation was aborted due to timeout
+Arquiteto Verboo deepseek-v4-flash: 404 {"error":"model not available in any of your groups"}
+
+Arquiteto Gemini: 403
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 612ms
+Arquiteto: gateway da conta recusou: 400
+Arquiteto: gateway da conta recusou: 400
+Arquiteto plano: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 611ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 625ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 607ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 591ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 620ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 601ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 612ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 641ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 617ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 675ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 609ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 612ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 615ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 604ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 594ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 629ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 655ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 617ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 601ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 620ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 623ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 620ms
+Arquiteto: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 627ms
+Arquiteto: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 608ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 614ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 612ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 619ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 623ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 605ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 623ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 611ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 617ms
+Arquiteto: gateway da conta recusou: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 614ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 620ms
+Laço: gateway da conta recusou, indo pelo provedor direto: 400
+Laço: gateway da conta recusou, indo pelo provedor direto: 400
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 630ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 620ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 601ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 610ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 619ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 609ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 620ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 593ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 629ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 593ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 617ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 623ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 613ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 636ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 629ms
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3333
+   - Network:      http://172.20.6.2:3333
+
+ ✓ Starting...
+ ✓ Ready in 645ms

@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
         { name: "Arca API", endpoint: "arca.miraitohope.com:8080", online: await checkPort(8080), type: "api" },
         { name: "PostgreSQL", endpoint: "127.0.0.1:5433", online: await checkPort(5433), type: "database" },
         { name: "Whisper STT", endpoint: "127.0.0.1:8765", online: await checkPort(8765), type: "service" },
-        { name: "Hermes Agent", endpoint: "next-server", online: checkPid("next-server"), type: "agent" },
+        { name: "Agente Mirai", endpoint: "next-server", online: checkPid("next-server"), type: "agent" },
         { name: "Caddy Proxy", endpoint: "porta 80/443", online: checkPid("caddy"), type: "proxy" },
       ];
       return Response.json({ status: "ok", services });

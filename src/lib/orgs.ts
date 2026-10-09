@@ -20,6 +20,16 @@ export const OWNER_EMAIL = (
   process.env.MIRAI_OWNER_EMAIL || "marcospaulonascimentoguimaraes@gmail.com"
 ).toLowerCase();
 
+/**
+ * Quem pode MUDAR PRECO / escrever plano.
+ *
+ * Constante explicita de proposito (contrato PLANOS-CONTRATO.md): trocar o dono
+ * da plataforma (`OWNER_EMAIL`) no futuro nao pode dar carona para mexer em
+ * preco. Escrita de plano (criar, editar preco/intervalo/ativo, trocar o
+ * conjunto de capacidades, conceder/revogar add-on) exige ESTE e-mail.
+ */
+export const EMAIL_QUE_MUDA_PRECO = "marcospaulonascimentoguimaraes@gmail.com";
+
 export type Organizacao = {
   id: string;
   nome: string;

@@ -27,6 +27,9 @@ export type SaasoStatus = {
   ferramentas: number;
   endpoint: string;
   erro?: string;
+  /** HTTP da resposta do MCP (0 quando nem houve resposta). Serve para separar
+   *  "credencial recusada" de "CRM não respondeu" — nunca é mostrado à pessoa. */
+  httpStatus?: number;
 };
 
 export function saasoConfigurado(token?: string | null): boolean {
@@ -182,6 +185,7 @@ export async function saasoStatus(token: string): Promise<SaasoStatus> {
       ferramentas: 0,
       endpoint: SAASO_MCP_URL,
       erro: "organizacao sem credencial de CRM vinculada",
+      httpStatus: 0,
     };
   }
   const r = await rpc(token, "tools/list", {}, 8000);
@@ -192,6 +196,7 @@ export async function saasoStatus(token: string): Promise<SaasoStatus> {
       ferramentas: 0,
       endpoint: SAASO_MCP_URL,
       erro: r.error.message || "sem resposta do MCP",
+      httpStatus: r.httpStatus,
     };
   }
   const res = r.result as { tools?: unknown[] } | undefined;
@@ -200,6 +205,59 @@ export async function saasoStatus(token: string): Promise<SaasoStatus> {
     conectado: true,
     ferramentas: (res?.tools || []).length,
     endpoint: SAASO_MCP_URL,
+    httpStatus: r.httpStatus,
+  };
+}
+
+/**
+ * VALIDA uma credencial de CRM AO VIVO, antes de qualquer gravação.
+ *
+ * É a mesma leitura do `saasoStatus` (tools/list pelo MCP), só que com o
+ * MOTIVO separado — porque "token errado" e "CRM fora do ar" pedem respostas
+ * diferentes para a pessoa (e a segunda não pode ser confundida com a
+ * primeira: uma acusa a credencial, a outra acusa o CRM).
+ *
+ *   ok           -> o CRM respondeu e devolveu ferramentas; pode salvar;
+ *   formato      -> nem começou com `dsk_`: recusa sem chamar o CRM;
+ *   recusada     -> o CRM respondeu recusando (HTTP 4xx): credencial inválida;
+ *   sem-resposta -> o CRM não respondeu (rede, timeout ou 5xx): tentar de novo.
+ */
+export type SaasoValidacao = {
+  valida: boolean;
+  motivo: "ok" | "formato" | "recusada" | "sem-resposta";
+  erro: string;
+  ferramentas: number;
+};
+
+export async function saasoValidarCredencial(token: string): Promise<SaasoValidacao> {
+  const s = await saasoStatus((token || "").trim());
+  if (!s.configurado) {
+    return {
+      valida: false,
+      motivo: "formato",
+      erro: "A credencial do CRM precisa começar com dsk_.",
+      ferramentas: 0,
+    };
+  }
+  if (s.conectado) {
+    return { valida: true, motivo: "ok", erro: "", ferramentas: s.ferramentas };
+  }
+  const st = s.httpStatus ?? 0;
+  // 0/undefined = nem houve resposta; 5xx = o CRM respondeu torto. Os dois são
+  // "o CRM não respondeu agora" — nunca "sua credencial está errada".
+  if (st === 0 || st >= 500) {
+    return {
+      valida: false,
+      motivo: "sem-resposta",
+      erro: "O CRM não respondeu agora. Tente de novo em instantes — nada foi salvo.",
+      ferramentas: 0,
+    };
+  }
+  return {
+    valida: false,
+    motivo: "recusada",
+    erro: "O CRM recusou esta credencial. Confira o token (dsk_…) e tente de novo.",
+    ferramentas: 0,
   };
 }
 

@@ -8,6 +8,7 @@ import {
   getUserByGoogleId,
   signToken,
 } from "@/lib/auth";
+import { consumirVinculosPendentes } from "@/lib/integracoes";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -66,6 +67,14 @@ export async function GET(request: NextRequest) {
   if (!user) {
     const randomHash = bcrypt.hashSync(Math.random().toString(36), 10);
     user = createUser(name, email, randomHash, googleId, picture);
+  }
+
+  // ─── PONTE: liga o que o cliente conectou DENTRO do CRM ──────────
+  // Vínculo pendente por e-mail, consumido UMA vez. Não é fatal.
+  try {
+    consumirVinculosPendentes(user.id, user.email);
+  } catch (ponteErr) {
+    console.warn("Ponte: vínculo pendente não consumido (não fatal):", ponteErr);
   }
 
   // ─── Sign JWT ────────────────────────────────────────────────────

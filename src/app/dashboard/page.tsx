@@ -63,7 +63,7 @@ const INTEGRACOES: { id: string; nome: string; conectado: (c: Record<string, unk
 
 const ESPACOS = [
   { nome: "Agentes", texto: "Os 8 agentes do ecossistema, com estado e o que cada um toca.", icone: <IconeAgentes /> },
-  { nome: "Produtos", texto: "Saaso, Media Factory, Mapa Paper, Pathfinder, Dark Matter, campanha.", icone: <IconeProdutos /> },
+  { nome: "Produtos", texto: "Saaso, conteúdo e campanha — o que esta conta usa.", icone: <IconeProdutos /> },
   { nome: "Infra", texto: "Serviços, portas, certificados, disco e backups num só lugar.", icone: <IconeInfra /> },
   { nome: "Backups", texto: "Local, Drive e snapshot — com data e tamanho de cada um.", icone: <IconeBackup /> },
 ];

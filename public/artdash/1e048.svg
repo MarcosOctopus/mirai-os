@@ -1,0 +1,11 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="153" height="159" viewBox="0 0 153 159" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Mask group">
+<mask id="mask0_0_80" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="153" height="159">
+<path id="Subtract" fill-rule="evenodd" clip-rule="evenodd" d="M20 21C8.9543 21 0 29.9543 0 41L0 139C0 150.046 8.9543 159 20 159H133C144.046 159 153 150.046 153 139V20C153 8.95431 144.046 0 133 0L67.5 0C61.701 0 57 4.70101 57 10.5C57 16.299 52.299 21 46.5 21H20Z" fill="#181C1F"/>
+</mask>
+<g mask="url(#mask0_0_80)">
+<rect id="Image" width="153" height="159" fill="#C4C4C4"/>
+<rect id="Rectangle 210" y="98" width="153" height="61" fill="#181C1F"/>
+</g>
+</g>
+</svg>

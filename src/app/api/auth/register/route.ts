@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createUser, getUserByEmail, hashPassword, signToken, updateUserPlatformConfig } from "@/lib/auth";
 import { ensureMfUser } from "@/lib/mf-bridge";
 import { vincularContaMirai } from "@/lib/vinculo-conta-mirai";
+import { consumirVinculosPendentes } from "@/lib/integracoes";
 
 export async function POST(req: NextRequest) {
   try {
@@ -63,6 +64,14 @@ export async function POST(req: NextRequest) {
       nome: name,
       senha: password,
     });
+
+    // ── PONTE: o que o cliente conectou DENTRO do CRM, agora que ele existe ──
+    // O vínculo pendente é por e-mail e é consumido UMA vez. Não é fatal.
+    try {
+      consumirVinculosPendentes(user.id as number, user.email);
+    } catch (ponteErr) {
+      console.warn("Ponte: vínculo pendente não consumido (não fatal):", ponteErr);
+    }
 
     // ── Sign JWT and set cookie ───────────────────────────────────
     const token = await signToken({

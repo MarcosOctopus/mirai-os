@@ -13,15 +13,26 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 
-type ItemMenu = { href: string; label: string; desc: string; donoOnly?: boolean };
+type ItemMenu = { href: string; label: string; desc: string; donoOnly?: boolean; destaque?: boolean };
 
-const ITENS: ItemMenu[] = [
-  { href: "/dashboard", label: "Painel", desc: "Conta, integrações e CRM" },
-  { href: "/dashboard/connect", label: "Integrações", desc: "Conectar as ferramentas" },
-  { href: "/chat", label: "Chat", desc: "Conversar por escrito" },
-  { href: "/", label: "Conversa", desc: "Falar com a Mirai (orb)" },
-  // Só o dono: clientes não veem as áreas internas (a trava real é no servidor)
+// Mesmo corte de grupos da casca (Shell.tsx): o PRIMARIO sustenta o uso diário;
+// o SECUNDARIO é o grupo que saiu da lateral e vive no menu do perfil. Aqui
+// (nav de /system e do orb) os dois seguem visíveis, só que separados — assim
+// nenhum menu diverge do outro.
+const PRIMARIO: ItemMenu[] = [
+  // A AÇÃO primária do menu: começar uma conversa nova (a tela inicial, `/`).
+  // Fica no topo e destacada porque é o caminho que a pessoa mais usa.
+  { href: "/", label: "Novo", desc: "Começar uma conversa", destaque: true },
+  { href: "/projetos", label: "Projetos", desc: "O que está sendo construído" },
+  // Synapse: mesmo destino de antes (/dashboard/connect) — só o nome mudou.
+  { href: "/dashboard/connect", label: "Synapse", desc: "Integrações e skills" },
+  { href: "/arquiteto", label: "Arquiteto", desc: "Modo técnico de construção" },
+];
+
+// Só o dono vê as áreas internas (a trava real é no servidor).
+const SECUNDARIO: ItemMenu[] = [
   { href: "/admin/organizacoes", label: "Organizações", desc: "Clientes e acessos", donoOnly: true },
+  { href: "/explorar", label: "Explorar", desc: "Descobrir o que a Mirai faz" },
   { href: "/system", label: "Sistema", desc: "Estado da plataforma", donoOnly: true },
 ];
 
@@ -79,7 +90,9 @@ export default function Nav({
       vivo = false;
     };
   }, []);
-  const itens = ITENS.filter((i) => !i.donoOnly || ehDono);
+  const filtrar = (lista: ItemMenu[]) => lista.filter((i) => !i.donoOnly || ehDono);
+  const primarios = filtrar(PRIMARIO);
+  const secundarios = filtrar(SECUNDARIO);
   // A gaveta vai para o <body> por PORTAL. Motivo medido: dentro da <nav>, que
   // tem backdrop-blur, o filtro vira "referencia de posicionamento" e o
   // `fixed inset-0` passa a valer so a altura da barrinha (62px) -> a gaveta
@@ -93,11 +106,13 @@ export default function Nav({
     window.location.href = "/login";
   }
 
-  const itemClasse = (href: string) =>
+  const itemClasse = (i: ItemMenu) =>
     `rounded-lg px-3 py-2 text-sm transition-colors ${
-      href === atual
-        ? "bg-cyan-500/15 text-cyan-200"
-        : "text-white/60 hover:bg-white/5 hover:text-white"
+      i.destaque
+        ? "bg-cyan-500/15 font-semibold text-cyan-100 hover:bg-cyan-500/25"
+        : i.href === atual
+          ? "bg-cyan-500/15 text-cyan-200"
+          : "text-white/60 hover:bg-white/5 hover:text-white"
     }`;
 
   const gaveta = aberto && montado
@@ -121,7 +136,30 @@ export default function Nav({
       </div>
 
       <div className="flex flex-col gap-2 overflow-y-auto">
-        {itens.map((i) => (
+        {primarios.map((i) => (
+          <Link
+            key={i.href}
+            href={i.href}
+            onClick={() => setAberto(false)}
+            className={`rounded-xl border px-4 py-4 transition-colors ${
+              i.destaque
+                ? "border-cyan-400/50 bg-cyan-500/10"
+                : i.href === atual
+                  ? "border-cyan-400/40 bg-cyan-500/10"
+                  : "border-white/10 hover:bg-white/5"
+            }`}
+          >
+            <span className={`block text-base ${i.destaque ? "font-semibold text-cyan-100" : "text-white"}`}>
+              {i.label}
+            </span>
+            <span className="mt-0.5 block text-xs text-white/40">{i.desc}</span>
+          </Link>
+        ))}
+
+        {/* Mesma separação da lateral: o secundário é um grupo à parte. */}
+        {secundarios.length > 0 && <div className="my-1 h-px bg-white/10" />}
+
+        {secundarios.map((i) => (
           <Link
             key={i.href}
             href={i.href}
@@ -196,8 +234,16 @@ export default function Nav({
         <span className="mr-4 text-sm font-semibold tracking-[0.2em] text-cyan-200">
           MIRAI OS
         </span>
-        {itens.map((i) => (
-          <Link key={i.href} href={i.href} className={itemClasse(i.href)}>
+        {primarios.map((i) => (
+          <Link key={i.href} href={i.href} className={itemClasse(i)}>
+            {i.label}
+          </Link>
+        ))}
+
+        {secundarios.length > 0 && <div className="mx-1.5 h-5 w-px bg-white/10" />}
+
+        {secundarios.map((i) => (
+          <Link key={i.href} href={i.href} className={itemClasse(i)}>
             {i.label}
           </Link>
         ))}

@@ -1,586 +1,1310 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import Shell from "@/components/dash/Shell";
-import { Card, Secao, Selo, StatCard } from "@/components/dash/kit";
-import {
-  IconeBusca,
-  IconeCamera,
-  IconeEnviar,
-  IconeFilme,
-  IconeImagem,
-  IconeMusica,
-  IconeNuvem,
-  IconeOrganizacoes,
-  IconePlay,
-  IconePlug,
-  IconeRobo,
-} from "@/components/dash/icons";
+/* /dashboard/connect — a aba INTEGRAÇÕES do MIRAI OS.
+ *
+ * PORTE FIEL do template ArtDash. O markup é o de
+ * /opt/data/cache/scratch/artdash/src/App.tsx (a referência que o Marcos
+ * mandou no print), copiado COMO ESTÁ: as MESMAS artes do zip, nas MESMAS
+ * posições. Nada foi redesenhado:
+ *   • o hero usa a arte real 474f3.svg (a imagem que preenche o banner) e o
+ *     botão de canto é o 771d4.svg do zip;
+ *   • o card de saldo usa os ícones reais d6b22.svg / c9864.svg / 7618a.svg e
+ *     o gráfico b7da2.svg exatamente na posição original
+ *     (bottom-[45px] right-[19px] h-[62px] w-[282px] + img h-[283px] w-[62px] rotate-90);
+ *   • a lista lateral usa o avatar 4a796.svg do zip;
+ *   • cada card de integração usa um card de leilão do zip como MOLDURA; o
+ *     LOGO da integração vai DENTRO da área da imagem do card (o lugar da
+ *     foto) e o NOME aparece UMA única vez, na faixa de baixo — não existe
+ *     marca colada na lateral do nome;
+ *   • a tabela mantém a arte do zip (6d39f.svg) e as setas bf424/8348b.svg.
+ *
+ * Os assets vivem em /public/artdash/ (cópias idênticas dos arquivos do zip).
+ *
+ * ═══ REGRA ÚNICA DE ESTADO (fonte da verdade DESTA tela) ══════════════════
+ *
+ * "Conectada" / "não conectada" é decidido em UM ÚNICO lugar:
+ * `estaConectadaDaConta()` (mais abaixo). Os Destaques, os cards do catálogo, o
+ * popup do produto e a tabela "Minhas integrações" chamam TODOS ela. Nenhuma
+ * seção decide sozinha — por isso é impossível a MESMA integração aparecer
+ * "ligada" numa seção e "não conectada" em outra (era o defeito de antes: o
+ * catálogo lia uma coisa e os Destaques/tabela liam outra).
+ *
+ * De onde o estado sai, nessa ordem:
+ *   1. as LINHAS de integração DESTA CONTA — GET /api/integracoes: `minhas`
+ *      (as da pessoa) primeiro, `daEmpresa` como apoio. É o MESMO dado que o
+ *      chat usa pelo resolutor único (src/lib/contexto-da-pessoa.ts);
+ *   2. para o CRM, a confirmação AO VIVO — GET /api/integracoes/saaso, que
+ *      resolve a credencial na MESMA ordem (pessoa -> empresa -> legado -> dono)
+ *      e fala com o MCP do produto. Sem resposta do CRM, ele NÃO aparece
+ *      conectado: nunca se finge conexão;
+ *   3. por fim, o cofre DESTA CONTA (platform_config), onde OAuth (Drive,
+ *      YouTube) e chaves de API ainda gravam. Entra na MESMA função para não
+ *      abrir um segundo estado ao lado do primeiro.
+ *
+ * O clique no CARD abre o POPUP DO PRODUTO (logo, informações e a ação).
+ * Só a ação leva adiante, com o comportamento de sempre: tipo mcp abre o
+ * site; api com OAuth abre a rota; api com campos abre o popup de chave
+ * (ModalApi) e salva por POST /api/auth/connect. E o CRM tem fluxo PRÓPRIO
+ * (ModalCrm): pede a credencial dsk_…, o SERVIDOR valida ao vivo e só então
+ * grava a linha DA PESSOA (POST /api/integracoes, tipo 'crm').
+ * O popup reusa o MESMO vidro do login (src/lib/vidro.ts).
+ *
+ * NENHUM botão desta tela é decorativo: onde não há caminho real (o Google
+ * ainda não está configurado neste servidor, por exemplo), o botão aparece
+ * como "indisponível" com o motivo — nunca um clique vazio.
+ */
 
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
+/* eslint-disable @next/next/no-img-element */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+
+import Shell from "@/components/dash/Shell";
+import SeletorModo from "@/components/dash/SeletorModo";
+import SkillsEspelho from "@/components/dash/SkillsEspelho";
+import { Vazio } from "@/components/dash/kit";
+import { IconeCadeado, IconeFechar, IconePlug } from "@/components/dash/icons";
+import { VIDRO } from "@/lib/vidro";
+import {
+  CATALOGO,
+  CATEGORIAS,
+  COR_PADRAO_CARD,
+  quandoLigou,
+  type Integracao,
+} from "@/lib/integracoes/catalogo";
+import {
+  ehCrm,
+  estaConectadaNaConta,
+  linhaDaContaEm,
+  type LinhaIntegracao,
+  type LinhasDaConta,
+} from "@/lib/integracoes/estado-da-conta";
+import { A, ARTES_CARD, CardIntegracao, Figura, Logo } from "@/components/dash/integracao-cards";
+
+/* Quantos cartões o catálogo de integrações mostra DE CARA — mesmo número e
+   mesmo padrão do lado Skills (espelho). O resto sai no botão "Ver todas as
+   integrações". NENHUM cartão foi removido: os 21 continuam no catálogo e
+   aparecem inteiros na visão completa, com o estado de cada um intacto. */
+const LIMITE_CATALOGO = 10;
+
+/* O CRM_ID, o `ehCrm`, o TIPO_DA_LINHA e a FONTE ÚNICA de estado agora vivem
+   em `@/lib/integracoes/estado-da-conta`: esta tela e a grade
+   `/dashboard/integracoes` chamam as MESMAS funções — não existe uma segunda
+   regra de "o que está conectado". */
+
+/* ── Tipos das nossas fontes reais ───────────────────────────────────── */
 
 interface User {
-  id: string;
+  id: string | number;
   name: string;
   email: string;
-  avatar_url?: string;
   tenant_id?: string;
   platform_config?: Record<string, unknown>;
-}
-
-type PlatformId =
-  | "drive"
-  | "youtube"
-  | "higgsfield"
-  | "suno"
-  | "telegram"
-  | "magnific"
-  | "instagram"
-  | "kling";
-
-type ConnectionMethod = "oauth" | "apikey" | "token";
-
-interface PlatformDef {
-  id: PlatformId;
-  name: string;
-  icon: string;
-  method: ConnectionMethod;
-  oauthPath?: string;
-  // how to read platform_config to decide status
-  statusCheck: (cfg: Record<string, unknown>) => "connected" | "pending" | "disconnected";
-}
-
-/* ------------------------------------------------------------------ */
-/*  Produtos ligados a Mirai por MCP (regra "MCP por produto")         */
-/* ------------------------------------------------------------------ */
-
-interface ProdutoMcp {
-  nome: string;
-  descricao: string;
-  configurado: boolean;
-  conectado: boolean;
-  ferramentas: number;
-  endpoint: string;
-  erro?: string;
-  funil?: string;
-  fila?: string;
-  vinculado?: boolean;
   ehDono?: boolean;
-  papel?: string;
-  organizacao?: { id: string; nome: string; slug: string } | null;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Platform definitions                                                */
-/* ------------------------------------------------------------------ */
+/* Uma linha de integração desta conta e o par minhas/daEmpresa vêm de
+   `@/lib/integracoes/estado-da-conta` (importados acima). */
 
-const PLATFORMS: PlatformDef[] = [
-  {
-    id: "drive",
-    name: "Google Drive",
-    icon: "🗂️",
-    method: "oauth",
-    oauthPath: "/api/auth/drive",
-    statusCheck: (cfg) => (cfg.drive ? "connected" : "disconnected"),
-  },
-  {
-    id: "youtube",
-    name: "YouTube",
-    icon: "📺",
-    method: "oauth",
-    oauthPath: "/api/auth/youtube",
-    statusCheck: (cfg) => {
-      const yt = cfg.youtube as Record<string, unknown> | undefined;
-      return yt?.channel ? "connected" : "disconnected";
-    },
-  },
-  {
-    id: "higgsfield",
-    name: "Higgsfield",
-    icon: "🎨",
-    method: "apikey",
-    statusCheck: (cfg) => (cfg.higgsfield ? "connected" : "disconnected"),
-  },
-  {
-    id: "suno",
-    name: "Suno",
-    icon: "🎵",
-    method: "apikey",
-    statusCheck: (cfg) => (cfg.suno ? "connected" : "disconnected"),
-  },
-  {
-    id: "telegram",
-    name: "Telegram",
-    icon: "✈️",
-    method: "token",
-    statusCheck: (cfg) => (cfg.telegram ? "connected" : "disconnected"),
-  },
-  {
-    id: "magnific",
-    name: "Magnific",
-    icon: "🔍",
-    method: "apikey",
-    statusCheck: (cfg) => (cfg.magnific ? "connected" : "disconnected"),
-  },
-  {
-    id: "instagram",
-    name: "Instagram",
-    icon: "📱",
-    method: "oauth",
-    oauthPath: "/api/auth/instagram",
-    statusCheck: (cfg) => (cfg.instagram ? "connected" : "disconnected"),
-  },
-  {
-    id: "kling",
-    name: "Kling",
-    icon: "🤖",
-    method: "apikey",
-    statusCheck: (cfg) => (cfg.kling ? "connected" : "disconnected"),
-  },
-];
+type Prontidao = Record<string, { pronta: boolean; motivo?: string }>;
 
-/* Um traço só, sem cor própria (herda currentColor): o ícone de cada canal. */
-const ICONE_CANAL: Record<PlatformId, React.ReactNode> = {
-  drive: <IconeNuvem />,
-  youtube: <IconePlay />,
-  higgsfield: <IconeImagem />,
-  suno: <IconeMusica />,
-  telegram: <IconeEnviar />,
-  magnific: <IconeBusca />,
-  instagram: <IconeCamera />,
-  kling: <IconeFilme />,
+interface LinhaUso {
+  provedor: string;
+  modelo?: string;
+  tokens_entrada: number;
+  tokens_saida: number;
+  tokens_total: number;
+  chamadas: number;
+  custo: number | null;
+}
+
+interface ResumoUso {
+  tokens_entrada: number;
+  tokens_saida: number;
+  tokens_total: number;
+  chamadas: number;
+  custo: number | null;
+  por_provedor: LinhaUso[];
+  por_modelo: LinhaUso[];
+  medido: boolean;
+  aviso: string | null;
+  gerado_em: string;
+  mes_corrente: { tokens_total: number; chamadas: number };
+}
+
+interface SaasoStatus {
+  conectado?: boolean;
+  ferramentas?: number;
+  vinculado?: boolean;
+  origem?: "pessoa" | "organizacao" | "dono" | null;
+  erro?: string;
+}
+
+type Promocao = {
+  titulo: string;
+  texto: string;
+  botaoPrimario: { label: string; href: string; externo?: boolean };
+  botaoSecundario: { label: string; href: string; externo?: boolean };
 };
 
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                             */
-/* ------------------------------------------------------------------ */
+/* Promoções reais entram aqui. Vazio = banner convida a explorar o catálogo. */
+const PROMOCOES: Promocao[] = [];
 
-function getStatusLabel(
-  status: "connected" | "pending" | "disconnected",
-): string {
-  switch (status) {
-    case "connected":
-      return "🟢 Connected";
-    case "pending":
-      return "🟡 Pending";
-    case "disconnected":
-      return "⚪ Not connected";
-  }
+/* ── util ────────────────────────────────────────────────────────────── */
+
+function numero(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}M`;
+  if (n >= 1_000) return `${(n / 1_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}k`;
+  return n.toLocaleString("pt-BR");
 }
 
-function getStatusClass(status: "connected" | "pending" | "disconnected"): string {
-  switch (status) {
-    case "connected":
-      return "text-green-400";
-    case "pending":
-      return "text-yellow-400";
-    case "disconnected":
-      return "text-gray-500";
-  }
+function dataCurta(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR");
 }
 
-/* ------------------------------------------------------------------ */
-/*  API Key Modal                                                       */
-/* ------------------------------------------------------------------ */
+/* As duas seções da Synapse (esta página): Integrações (o catálogo/estado de
+   sempre, intacto) e Skills (o catálogo real do ecossistema, explicado). O
+   seletor do cabeçalho troca entre as duas sem sair da rota. */
+type SynapseAba = "integracoes" | "skills";
 
-interface ApiKeyModalProps {
-  platform: PlatformDef;
-  onClose: () => void;
-  onSaved: () => void;
-}
+/* Logo, Figura e CardIntegracao saíram daqui para
+   `@/components/dash/integracao-cards` (importados no topo): a grade
+   `/dashboard/integracoes` desenha O MESMO card. Nada foi redesenhado. */
 
-function ApiKeyModal({ platform, onClose, onSaved }: ApiKeyModalProps) {
-  const [key, setKey] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const overlayRef = useRef<HTMLDivElement>(null);
+/* ── Banner (o hero da referência: a arte 474f3.svg preenchendo o bloco) ─ */
 
-  const handleOverlayClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === overlayRef.current) onClose();
-    },
-    [onClose],
-  );
+const BANNER_PADRAO: Promocao = {
+  titulo: "Suas integrações, no comando",
+  texto:
+    "Ligue as APIs e os MCPs que a Mirai usa no seu trabalho. Cada chave entra no cofre da sua conta e vale só para você — nada compartilhado entre organizações.",
+  botaoPrimario: { label: "Explorar catálogo", href: "#catalogo" },
+  botaoSecundario: { label: "Falar com a Mirai", href: "/chat" },
+};
 
-  const handleSave = useCallback(async () => {
-    if (!key.trim()) return;
-    setSaving(true);
-    setError("");
-    try {
-      const res = await fetch("/api/auth/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform: platform.id, key: key.trim() }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error((data as { error?: string }).error ?? "Failed to save");
-      }
-      onSaved();
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setSaving(false);
-    }
-  }, [key, platform.id, onSaved, onClose]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") handleSave();
-      if (e.key === "Escape") onClose();
-    },
-    [handleSave, onClose],
-  );
+function Banner({ promocao }: { promocao: Promocao }) {
+  /* mesma forma do h2 da referência: um trecho em negrito, um em itálico */
+  const palavras = promocao.titulo.trim().split(/\s+/);
+  const negrito = palavras.slice(0, 2).join(" ");
+  const italico = palavras.length > 2 ? palavras[palavras.length - 1] : "";
+  const meio = palavras.length > 3 ? palavras.slice(2, -1).join(" ") : "";
 
   return (
-    <div
-      ref={overlayRef}
-      onClick={handleOverlayClick}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-    >
-      <div className="relative w-full max-w-sm rounded-xl border border-white/10 bg-[#0a0b1a] p-6 shadow-2xl">
-        {/* Close X */}
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 text-gray-500 transition-colors hover:text-white"
-          aria-label="Close"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fillRule="evenodd"
-              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </button>
+    <section className="relative h-[240px]">
+      {/* a arte do hero do template (474f3.svg), no lugar exato */}
+      <img src={`${A}/474f3.svg`} alt="" className="absolute inset-0 h-full w-full" />
 
-        {/* Header */}
-        <div className="mb-5 flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-[12px] bg-dash-raise text-dash-muted">
-            {ICONE_CANAL[platform.id]}
-          </span>
-          <h2 className="text-[16px] font-semibold text-white">
-            {platform.name}
-          </h2>
+      <div className="relative z-10 px-[51px] py-[25px]">
+        <h2 className="max-w-[320px] text-[36px] leading-[1.35] text-white">
+          <span className="font-bold">{negrito}</span>
+          {meio && <> {meio} </>}
+          {italico && <span className="font-italic">{italico}</span>}
+        </h2>
+        <div className="mt-[18px] flex gap-5">
+          <a
+            href={promocao.botaoPrimario.href}
+            target={promocao.botaoPrimario.externo ? "_blank" : undefined}
+            rel={promocao.botaoPrimario.externo ? "noreferrer" : undefined}
+            className="rounded-[10px] bg-[#ff751f] px-5 py-2.5 text-[12px] font-semibold text-white transition hover:bg-[#ff2d55]"
+          >
+            {promocao.botaoPrimario.label}
+          </a>
+          <a
+            href={promocao.botaoSecundario.href}
+            target={promocao.botaoSecundario.externo ? "_blank" : undefined}
+            rel={promocao.botaoSecundario.externo ? "noreferrer" : undefined}
+            className="rounded-[10px] border border-[#181c1f] px-5 py-2.5 text-[12px] text-white transition hover:bg-black/10"
+          >
+            {promocao.botaoSecundario.label}
+          </a>
+        </div>
+      </div>
+
+      {/* o botão de canto é a arte do template (771d4.svg) */}
+      <img src={`${A}/771d4.svg`} alt="" className="absolute bottom-0 right-0 h-[42px] w-[42px]" />
+    </section>
+  );
+}
+
+/* ── Uso de tokens (o "Your Balance" da referência, mesma caixa) ─────── */
+
+function UsoTokens({
+  resumo,
+  carregando,
+  falhou,
+  recarregar,
+}: {
+  resumo: ResumoUso | null;
+  carregando: boolean;
+  falhou: boolean;
+  recarregar: () => void;
+}) {
+  const medido = Boolean(resumo?.medido) && (resumo?.tokens_total ?? 0) > 0;
+
+  return (
+    <section className="relative h-[240px] overflow-hidden rounded-[30px] border border-white/70 bg-[#161719] text-white">
+      {/* os blobs do saldo: eram roxos no template, agora o laranja da marca */}
+      <div className="absolute -right-8 -top-12 h-44 w-64 rounded-full bg-[#ff751f] blur-[34px]" />
+      <div className="absolute right-24 top-10 h-20 w-32 rounded-full bg-[#ff2d55] blur-[25px]" />
+      <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-transparent mix-blend-overlay" />
+
+      <div className="relative z-10 px-[19px] py-[24px]">
+        <div className="flex items-center gap-2">
+          <img src={`${A}/d6b22.svg`} alt="" className="h-[14px] w-3" />
+          <span className="text-[14px]">Uso de tokens</span>
+          <button
+            onClick={recarregar}
+            aria-label="Atualizar a medição de tokens"
+            className="ml-auto text-[#888b93] transition hover:text-white"
+          >
+            <img src={`${A}/c9864.svg`} alt="" className="h-[14px] w-[4px]" />
+          </button>
         </div>
 
-        {/* Input */}
-        <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-gray-400">
-          API Key
-        </label>
-        <input
-          type="password"
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Paste your API key here..."
-          className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-cyan-100 placeholder-gray-500 outline-none transition-colors focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/30"
-          autoFocus
-        />
+        <p className="mt-3 public-sans text-[24px] font-medium">
+          {carregando && !resumo ? (
+            <span className="text-[#888b93]">—</span>
+          ) : medido ? (
+            numero(resumo?.tokens_total ?? 0)
+          ) : (
+            <span className="text-[15px] text-[#888b93]">sem medição ainda</span>
+          )}
+        </p>
+      </div>
 
-        {/* Error */}
-        {error && (
-          <p className="mt-2 text-xs text-red-400">{error}</p>
-        )}
+      {/* o gráfico decorativo do template (b7da2.svg), na posição ORIGINAL */}
+      <div className="absolute bottom-[45px] right-[19px] flex h-[62px] w-[282px] items-center justify-center overflow-hidden">
+        <img src={`${A}/b7da2.svg`} alt="" className="h-[283px] w-[62px] rotate-90" />
+      </div>
 
-        {/* Save button */}
-        <button
-          onClick={handleSave}
-          disabled={!key.trim() || saving}
-          className="mt-4 w-full rounded-lg bg-cyan-500/20 py-2.5 text-sm font-medium text-cyan-300 transition-all hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {saving ? "Saving..." : "Save"}
-        </button>
+      <div className="absolute bottom-[18px] left-[18px] flex items-center gap-2.5 text-[12px]">
+        <img src={`${A}/7618a.svg`} alt="" className="h-[14px] w-[11px]" />
+        <span className="public-sans">{medido ? `${numero(resumo?.chamadas ?? 0)} chamadas` : "—"}</span>
+        {medido && resumo?.custo ? (
+          <span className="public-sans text-[#ffdd9d]">US$ {resumo.custo.toFixed(2)}</span>
+        ) : null}
+      </div>
+
+      <div className="absolute bottom-[17px] right-5 flex -space-x-2">
+        <span className="h-[26px] w-[26px] rounded-full border border-white/50 bg-gradient-to-b from-white/40 to-transparent" />
+        <span className="h-[26px] w-[26px] rounded-full border border-white/50 bg-gradient-to-b from-white/40 to-transparent" />
+      </div>
+
+      {/* a tela nunca inventa número: quando não há medição, ela diz isso */}
+      {!medido && (falhou || (!carregando && !resumo)) && (
+        <p className="absolute bottom-[18px] left-[18px] right-[120px] text-[10px] leading-[1.4] text-[#555a5f]">
+          Não consegui ler a medição agora.
+        </p>
+      )}
+    </section>
+  );
+}
+
+/* ── Destaques (o "Top Creator" da referência, mesma grade + avatar 4a796) ─ */
+
+function Destaques({
+  itens,
+  conectada,
+  pronta,
+  onAbrir,
+  onConectarCrm,
+}: {
+  itens: Integracao[];
+  conectada: (i: Integracao) => boolean;
+  pronta: (i: Integracao) => { pronta: boolean; motivo?: string };
+  onAbrir: (i: Integracao) => void;
+  onConectarCrm: () => void;
+}) {
+  return (
+    <section className="min-w-0 pt-2 text-white">
+      <header className="mb-[14px] flex items-center justify-between">
+        <h2 className="text-[14px] font-bold">Destaques</h2>
+        <a href="#catalogo" className="text-[11px] text-[#888b93] hover:text-white">
+          ver todas
+        </a>
+      </header>
+      <div className="space-y-[10px]">
+        {/* a referência mostra 4 linhas (cabem nos 240px da coluna ao lado) */}
+        {itens.slice(0, 4).map((i) => {
+          /* o MESMO estado do resto da tela (uma fonte, uma regra) */
+          const on = conectada(i);
+          const semDestino = i.tipo === "mcp" && !i.site;
+          const p = pronta(i);
+          return (
+            <div key={i.id} className="grid grid-cols-[43px_1fr_auto] items-center gap-[9px]">
+              {/* o avatar do template (4a796.svg) */}
+              <img src={`${A}/4a796.svg`} alt="" className="h-[43px] w-[43px]" />
+              <div className="min-w-0">
+                <p className="truncate text-[12px]">{i.nome}</p>
+                <p className="truncate text-[10px] text-[#555a5f]">{i.empresa}</p>
+              </div>
+              {semDestino ? (
+                <span className="rounded-full bg-[#32393e] px-2.5 py-[5px] text-[10px] text-[#888b93]">
+                  interna
+                </span>
+              ) : on ? (
+                <button
+                  onClick={() => onAbrir(i)}
+                  className="rounded-full bg-[#32393e] px-2.5 py-[5px] text-[10px] text-[#888b93] transition hover:text-white"
+                >
+                  ligada
+                </button>
+              ) : !p.pronta ? (
+                /* sem caminho real: diz-se "indisponível" COM o motivo — nunca
+                   um botão que não faz nada */
+                <span
+                  title={p.motivo}
+                  aria-label={p.motivo}
+                  className="cursor-not-allowed rounded-full bg-[#32393e] px-2.5 py-[5px] text-[10px] text-[#555a5f]"
+                >
+                  indisponível
+                </span>
+              ) : ehCrm(i) ? (
+                <button
+                  onClick={onConectarCrm}
+                  className="rounded-full bg-[#ff751f] px-2.5 py-[5px] text-[10px] text-white transition hover:bg-[#ff2d55]"
+                >
+                  conectar
+                </button>
+              ) : (
+                <button
+                  onClick={() => onAbrir(i)}
+                  className="rounded-full bg-[#ff751f] px-2.5 py-[5px] text-[10px] text-white transition hover:bg-[#ff2d55]"
+                >
+                  {i.tipo === "mcp" ? "abrir" : "conectar"}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/* ── Card de integração (o AuctionCard da referência) ────────────────── */
+
+/* Logo, Figura e CardIntegracao saíram daqui para
+   `@/components/dash/integracao-cards` (importados no topo): a grade
+   `/dashboard/integracoes` desenha O MESMO card. Nada foi redesenhado. */
+
+/* ── Minhas integrações (a HistoryTable da referência) ───────────────── */
+
+function TabelaIntegracoes({
+  ligadas,
+  desde,
+  onAbrir,
+}: {
+  ligadas: Integracao[];
+  desde: (i: Integracao) => string;
+  onAbrir: (i: Integracao) => void;
+}) {
+  const grade = "grid grid-cols-[74px_112px_1.7fr_1.35fr_90px_75px_90px]";
+
+  return (
+    <div className="overflow-x-auto rounded-t-[20px] bg-[#181c1f]">
+      <div className="min-w-[880px]">
+        <div className={`${grade} gap-8 border-b border-[#303438] px-[30px] py-[18px] text-[12px] text-[#888b93]`}>
+          {["", "Nome", "Empresa", "Tipo", "Estado", "Desde", "Ação"].map((rotulo, idx) => (
+            <span key={idx}>{rotulo}</span>
+          ))}
+        </div>
+
+        {ligadas.map((i) => (
+          <div
+            key={i.id}
+            className={`${grade} items-center gap-8 px-[30px] py-[17px] text-[12px] text-[#888b93]`}
+          >
+            {/* a moldura do "Object" da referência, com a arte do zip (6d39f.svg) */}
+            <div className="h-14 w-14 overflow-hidden rounded-[10px] bg-[#c4c4c4]">
+              <img src={`${A}/6d39f.svg`} alt="" className="h-full w-full" />
+            </div>
+            <span className="truncate text-white">{i.nome}</span>
+            <span className="truncate">{i.empresa}</span>
+            <span className="uppercase">{i.tipo}</span>
+            <span className="flex items-center gap-[7px]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#8effa2]" />
+              ativa
+            </span>
+            <span className="whitespace-nowrap">{desde(i)}</span>
+            <span>
+              {i.tipo === "mcp" && !i.site ? (
+                <span className="text-[11px] text-[#555a5f]">interna</span>
+              ) : (
+                <button
+                  onClick={() => onAbrir(i)}
+                  className="rounded-full bg-[#32393e] px-2.5 py-[5px] text-[10px] text-[#888b93] transition hover:text-white"
+                >
+                  {i.tipo === "mcp" || i.oauthPath ? "abrir" : "gerenciar"}
+                </button>
+              )}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Connect Dashboard Page                                              */
-/* ------------------------------------------------------------------ */
+/* ── Popup de API key (comportamento preservado) ─────────────────────── */
 
-export default function ConnectDashboardPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [apiKeyPlatform, setApiKeyPlatform] = useState<PlatformDef | null>(null);
-  const [saaso, setSaaso] = useState<ProdutoMcp | null>(null);
-  const [saasoErro, setSaasoErro] = useState("");
-
-  /* Fetch user on mount */
-  const fetchUser = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch("/api/auth/me");
-      if (!res.ok) throw new Error("Failed to fetch user");
-      const data = (await res.json()) as { user: User };
-      setUser(data.user);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
-
-  /* Produto Saaso: estado lido ao vivo pelo MCP dele */
-  const fetchSaaso = useCallback(async () => {
-    try {
-      const res = await fetch("/api/integracoes/saaso");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const d = (await res.json()) as Omit<ProdutoMcp, "nome" | "descricao">;
-      setSaaso({
-        nome: "Saaso",
-        descricao: d.organizacao
-          ? `CRM de ${d.organizacao.nome} — o dado vem pelo MCP do produto`
-          : "CRM multi-whitelabel (WhatsApp) — o dado vem pelo MCP do produto",
-        ...d,
-      });
-      setSaasoErro("");
-    } catch (err) {
-      setSaasoErro(err instanceof Error ? err.message : "falha ao ler o MCP do Saaso");
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchSaaso();
-  }, [fetchSaaso]);
-
-  /* Logout */
-  const handleLogout = useCallback(async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      window.location.href = "/login";
-    } catch {
-      window.location.href = "/login";
-    }
-  }, []);
-
-  /* Connect action per platform */
-  const handleConnect = useCallback((platform: PlatformDef) => {
-    if (platform.method === "oauth" && platform.oauthPath) {
-      window.open(platform.oauthPath, "_blank");
-    } else if (platform.method === "apikey" || platform.method === "token") {
-      setApiKeyPlatform(platform);
-    }
-  }, []);
-
-  /* Disconnect */
-  const handleDisconnect = useCallback(
-    async (platform: PlatformDef) => {
-      try {
-        await fetch("/api/auth/connect", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ platform: platform.id, disconnect: true }),
-        });
-        fetchUser();
-      } catch {
-        // ignore
-      }
-    },
-    [fetchUser],
+function ModalApi({
+  item,
+  onClose,
+  onSalvo,
+}: {
+  item: Integracao;
+  onClose: () => void;
+  onSalvo: () => void;
+}) {
+  const campos = item.campos ?? [];
+  const [valores, setValores] = useState<Record<string, string>>(() =>
+    Object.fromEntries(campos.map((c) => [c.chave, ""])),
   );
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const overlay = useRef<HTMLDivElement>(null);
 
-  /* Derive platform statuses */
-  const platformConfig = user?.platform_config ?? {};
-  const ligadas = PLATFORMS.filter((p) => p.statusCheck(platformConfig) === "connected");
-
-  /* -------- Render -------- */
+  const enviar = useCallback(async () => {
+    const faltando = campos.filter((c) => c.obrigatorio !== false && !(valores[c.chave] || "").trim());
+    if (faltando.length) {
+      setErro(`Preencha: ${faltando.map((c) => c.rotulo).join(", ")}.`);
+      return;
+    }
+    setSalvando(true);
+    setErro("");
+    try {
+      const config: Record<string, string> = {};
+      for (const c of campos) config[c.chave] = (valores[c.chave] || "").trim();
+      const res = await fetch("/api/auth/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform: item.chaveConfig ?? item.id, config }),
+      });
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(d.error || `falha ao salvar (HTTP ${res.status})`);
+      onSalvo();
+      onClose();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "falha ao salvar");
+    } finally {
+      setSalvando(false);
+    }
+  }, [campos, valores, item, onSalvo, onClose]);
 
   return (
-    <Shell titulo="Integrações" usuario={user}>
-      {error && (
-        <p className="mb-5 rounded-[16px] border border-dash-bad/30 bg-dash-bad/[0.07] px-5 py-4 text-[13px] text-dash-bad">
-          {error}
+    <div
+      ref={overlay}
+      onClick={(e) => {
+        if (e.target === overlay.current) onClose();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Conectar ${item.nome}`}
+        className="relative w-full max-w-md overflow-hidden rounded-[30px] border border-white/[0.18] p-6 text-white"
+        style={VIDRO}
+      >
+        <div className="absolute -right-8 -top-12 h-44 w-64 rounded-full bg-[#ff751f]/60 blur-[34px]" />
+
+        <button
+          onClick={onClose}
+          aria-label="Fechar"
+          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-[10px] text-[#888b93] transition hover:bg-white/[0.06] hover:text-white"
+        >
+          <IconeFechar className="h-4 w-4" />
+        </button>
+
+        <header className="relative z-10 mb-5 flex items-center gap-3.5 pr-8">
+          <Logo item={item} />
+          <div className="min-w-0">
+            <p className="truncate text-[16px] font-semibold text-white">{item.nome}</p>
+            <p className="truncate text-[12px] text-[#888b93]">{item.empresa}</p>
+          </div>
+        </header>
+
+        <div className="relative z-10 space-y-4">
+          {campos.map((c) => (
+            <label key={c.chave} className="block">
+              <span className="mb-1.5 flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-[#555a5f]">
+                <IconeCadeado className="h-3.5 w-3.5" />
+                {c.rotulo}
+                {c.obrigatorio === false && <span className="normal-case text-[#555a5f]">(opcional)</span>}
+              </span>
+              <input
+                type={c.tipo === "senha" ? "password" : "text"}
+                value={valores[c.chave] || ""}
+                onChange={(e) => setValores((s) => ({ ...s, [c.chave]: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void enviar();
+                }}
+                autoFocus={c === campos[0]}
+                autoComplete="off"
+                spellCheck={false}
+                className="w-full rounded-[10px] border border-white/10 bg-[#121416] px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-[#555a5f] focus:border-[#ff751f]/60"
+                placeholder={`Cole aqui — ${c.rotulo.toLowerCase()}`}
+              />
+              {c.dica && <span className="mt-1.5 block text-[11px] text-[#555a5f]">{c.dica}</span>}
+            </label>
+          ))}
+        </div>
+
+        {erro && <p className="relative z-10 mt-3 text-[12px] text-[#ff2d55]">{erro}</p>}
+
+        <p className="relative z-10 mt-4 text-[11px] leading-[1.5] text-[#555a5f]">
+          A chave vai para o cofre desta conta (platform_config), só para ela.
+        </p>
+
+        <div className="relative z-10 mt-5 flex items-center justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="rounded-[10px] border border-white/12 px-5 py-2.5 text-[12px] font-semibold text-[#888b93] transition hover:text-white"
+          >
+            cancelar
+          </button>
+          <button
+            onClick={() => void enviar()}
+            disabled={salvando}
+            className="rounded-[10px] bg-[#ff751f] px-5 py-2.5 text-[12px] font-semibold text-white transition hover:bg-[#ff2d55] disabled:opacity-40"
+          >
+            {salvando ? "salvando..." : "salvar e ligar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Popup do CRM (fluxo próprio: valida a credencial AO VIVO) ────────── */
+
+/* Pede a credencial do CRM (o token dsk_…), manda para POST /api/integracoes —
+   que SÓ grava depois do próprio CRM confirmar, ao vivo, que a credencial
+   serve. Credencial recusada ou CRM mudo = erro em PT-BR e NADA gravado. A
+   credencial nunca é registrada em log, nunca fica na tela, nunca entra aqui
+   no código. */
+function ModalCrm({ onClose, onConectado }: { onClose: () => void; onConectado: () => void }) {
+  const [valor, setValor] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const overlay = useRef<HTMLDivElement>(null);
+
+  const conectar = useCallback(async () => {
+    const cred = valor.trim();
+    if (!cred) {
+      setErro("Cole a credencial do seu CRM.");
+      return;
+    }
+    setSalvando(true);
+    setErro("");
+    try {
+      const res = await fetch("/api/integracoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: "crm", rotulo: "meu CRM", credencial: cred }),
+      });
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setErro(d.error || `não consegui conectar (HTTP ${res.status})`);
+        return;
+      }
+      // Só chego aqui depois do CRM ter confirmado a credencial ao vivo.
+      setValor(""); // a credencial não fica na tela
+      onConectado();
+      onClose();
+    } catch {
+      setErro("O CRM não respondeu agora. Nada foi salvo.");
+    } finally {
+      setSalvando(false);
+    }
+  }, [valor, onConectado, onClose]);
+
+  return (
+    <div
+      ref={overlay}
+      onClick={(e) => {
+        if (e.target === overlay.current) onClose();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+      }}
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Conectar meu CRM"
+        className="relative w-full max-w-md overflow-hidden rounded-[30px] border border-white/[0.18] p-6 text-white"
+        style={VIDRO}
+      >
+        <div className="absolute -right-8 -top-12 h-44 w-64 rounded-full bg-[#ff751f]/60 blur-[34px]" />
+
+        <button
+          onClick={onClose}
+          aria-label="Fechar"
+          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-[10px] text-[#888b93] transition hover:bg-white/[0.06] hover:text-white"
+        >
+          <IconeFechar className="h-4 w-4" />
+        </button>
+
+        <header className="relative z-10 mb-5 pr-8">
+          <p className="text-[16px] font-semibold text-white">Conectar meu CRM</p>
+          <p className="mt-1 text-[12px] text-[#888b93]">
+            O CRM é seu: a credencial vale só para esta conta e é validada na hora.
+          </p>
+        </header>
+
+        <label className="relative z-10 block">
+          <span className="mb-1.5 flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-[#555a5f]">
+            <IconeCadeado className="h-3.5 w-3.5" />
+            Credencial do CRM
+          </span>
+          <input
+            type="password"
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void conectar();
+            }}
+            autoFocus
+            autoComplete="off"
+            spellCheck={false}
+            className="w-full rounded-[10px] border border-white/10 bg-[#121416] px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-[#555a5f] focus:border-[#ff751f]/60"
+            placeholder="Cole aqui — o token que começa com dsk_"
+          />
+          <span className="mt-1.5 block text-[11px] text-[#555a5f]">
+            É o mesmo token de acesso do seu CRM (começa com dsk_).
+          </span>
+        </label>
+
+        {erro && <p className="relative z-10 mt-3 text-[12px] text-[#ff2d55]">{erro}</p>}
+
+        <p className="relative z-10 mt-4 text-[11px] leading-[1.5] text-[#555a5f]">
+          Ao conectar, a Mirai fala com o CRM e só grava a credencial se ele confirmar. Se o CRM não
+          responder ou recusar, nada é salvo.
+        </p>
+
+        <div className="relative z-10 mt-5 flex items-center justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="rounded-[10px] border border-white/12 px-5 py-2.5 text-[12px] font-semibold text-[#888b93] transition hover:text-white"
+          >
+            cancelar
+          </button>
+          <button
+            onClick={() => void conectar()}
+            disabled={salvando}
+            className="rounded-[10px] bg-[#ff751f] px-5 py-2.5 text-[12px] font-semibold text-white transition hover:bg-[#ff2d55] disabled:opacity-40"
+          >
+            {salvando ? "validando..." : "validar e conectar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Popup do produto (a camada sobre a tela) ────────────────────────── */
+
+/* Abre no clique do card. Mostra a LOGO em destaque (mesmo critério de cor do
+   card: a marca branca sobre a COR DA MARCA), o nome, a empresa, o tipo, o
+   estado e as INFORMAÇÕES do catálogo. O caminho adiante depende do item:
+   mcp abre o site; api com OAuth abre a rota; api com campos abre o popup de
+   chave; e o CRM abre o fluxo de credencial (ModalCrm). O painel reusa o
+   VIDRO do login (src/lib/vidro.ts). */
+function ModalProduto({
+  item,
+  conectada,
+  pronta,
+  motivo,
+  onClose,
+  onIntegrar,
+  onConectar,
+}: {
+  item: Integracao;
+  conectada: boolean;
+  pronta: boolean;
+  motivo?: string;
+  onClose: () => void;
+  onIntegrar: (i: Integracao) => void;
+  onConectar: () => void;
+}) {
+  const overlay = useRef<HTMLDivElement>(null);
+  const crm = ehCrm(item);
+  const semDestino = item.tipo === "mcp" && !item.site;
+  /* o CRM só ganha o botão de conectar quando há caminho real e ele não está
+     conectado — sem botão decorativo. */
+  const podeConectarCrm = crm && !conectada && pronta;
+
+  const comoIntegra = crm
+    ? conectada
+      ? "Este CRM já está conectado nesta conta. Integrar abre o próprio CRM."
+      : "Conectar abre o espaço para colar a credencial do seu CRM (dsk_…). Ela é validada ao vivo com o CRM antes de salvar — credencial que não responde não é gravada."
+    : item.tipo === "mcp"
+      ? "Integrar abre o site da integração em uma nova aba."
+      : item.oauthPath
+        ? "Integrar abre a autorização da conta em uma nova aba."
+        : "Integrar abre o espaço da API para você colar a chave.";
+
+  return (
+    <div
+      ref={overlay}
+      onClick={(e) => {
+        if (e.target === overlay.current) onClose();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+      }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 px-4 backdrop-blur-md"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${item.nome} — informações da integração`}
+        className="relative max-h-[90vh] w-full max-w-[520px] overflow-y-auto rounded-[30px] border border-white/[0.18] p-7 text-white"
+        style={VIDRO}
+      >
+        <button
+          onClick={onClose}
+          aria-label="Fechar"
+          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-[10px] text-white/70 transition hover:bg-white/[0.12] hover:text-white"
+        >
+          <IconeFechar className="h-4 w-4" />
+        </button>
+
+        {/* a LOGO em destaque, com o MESMO critério de cor do card:
+            a marca branca sobre a cor da marca (item.cor). */}
+        <div className="flex items-center gap-5 pr-10">
+          <span
+            className="grid h-[96px] w-[96px] shrink-0 place-items-center overflow-hidden rounded-[24px]"
+            style={{ backgroundColor: item.cor ?? COR_PADRAO_CARD }}
+          >
+            <Figura item={item} tamanho={54} />
+          </span>
+          <div className="min-w-0">
+            <h3 className="truncate text-[22px] font-semibold text-white">{item.nome}</h3>
+            <p className="mt-1 truncate text-[13px] text-white/70">{item.empresa}</p>
+          </div>
+        </div>
+
+        {/* TIPO + ESTADO — o estado vem da MESMA fonte do resto da tela. */}
+        <div className="mt-6 flex flex-wrap items-center gap-2.5">
+          <span className="rounded-full bg-white/[0.16] px-3 py-[5px] text-[11px] font-semibold uppercase tracking-[0.14em] text-white">
+            {item.tipo === "mcp" ? "MCP" : "API"}
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/[0.08] px-3 py-[5px] text-[11px] text-white/85">
+            <span className={`h-1.5 w-1.5 rounded-full ${conectada ? "bg-[#8effa2]" : "bg-[#ff2d55]"}`} />
+            {conectada ? "conectada" : "não conectada"}
+          </span>
+          {!pronta && (
+            <span className="rounded-full bg-[#ff2d55]/[0.16] px-3 py-[5px] text-[11px] text-[#ff9db2]">
+              indisponível
+            </span>
+          )}
+        </div>
+
+        {/* INFORMAÇÕES do produto — o subtítulo do catálogo, sem invenção. */}
+        {item.subtitulo ? (
+          <p className="mt-5 text-[13.5px] leading-[1.6] text-white/90">{item.subtitulo}</p>
+        ) : (
+          <p className="mt-5 text-[13px] text-white/50">Sem descrição no catálogo.</p>
+        )}
+
+        <p className="mt-4 text-[11.5px] leading-[1.5] text-white/60">{comoIntegra}</p>
+
+        <div className="mt-7 flex items-center justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="rounded-[10px] border border-white/[0.20] px-5 py-2.5 text-[12px] font-semibold text-white/80 transition hover:text-white"
+          >
+            fechar
+          </button>
+          {podeConectarCrm ? (
+            <button
+              onClick={onConectar}
+              className="rounded-[10px] bg-[#ff751f] px-6 py-2.5 text-[12px] font-semibold text-white transition hover:bg-[#ff2d55]"
+            >
+              conectar meu CRM
+            </button>
+          ) : (
+            <button
+              onClick={() => onIntegrar(item)}
+              disabled={!pronta}
+              className="rounded-[10px] bg-[#ff751f] px-6 py-2.5 text-[12px] font-semibold text-white transition hover:bg-[#ff2d55] disabled:opacity-40"
+            >
+              Integrar
+            </button>
+          )}
+        </div>
+
+        {!pronta ? (
+          <p className="mt-3 text-right text-[11px] text-white/50">
+            {motivo || "Esta integração ainda não está pronta para conectar neste servidor."}
+          </p>
+        ) : (
+          semDestino && (
+            <p className="mt-3 text-right text-[11px] text-white/50">
+              Esta integração roda dentro do MIRAI OS — ainda sem site próprio.
+            </p>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Tela ────────────────────────────────────────────────────────────── */
+
+export default function IntegracoesPage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [erro, setErro] = useState("");
+  const [aviso, setAviso] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [categoria, setCategoria] = useState<string>("todas");
+  const [busca, setBusca] = useState("");
+  const [soSemConexao, setSoSemConexao] = useState(false);
+  /* O catálogo abre LIMITADO (10 cartões). O "Ver todas as integrações" não
+     infla mais a própria página: virou um atalho, AO LADO DA BUSCA, para a
+     GRADE dedicada `/dashboard/integracoes` (pedido do dono, 08/10/2026). */
+  const [modal, setModal] = useState<Integracao | null>(null);
+  const [produto, setProduto] = useState<Integracao | null>(null);
+  const [crmAberto, setCrmAberto] = useState(false);
+  const [saaso, setSaaso] = useState<SaasoStatus | null>(null);
+
+  /* Qual das duas seções está à vista. Começa em Integrações — a primeira
+     geração, do jeito que sempre foi. */
+  const [aba, setAba] = useState<SynapseAba>("integracoes");
+
+  const [linhas, setLinhas] = useState<LinhasDaConta>({ minhas: [], daEmpresa: [] });
+  const [prontidao, setProntidao] = useState<Prontidao>({});
+
+  const [resumo, setResumo] = useState<ResumoUso | null>(null);
+  const [tokensCarregando, setTokensCarregando] = useState(true);
+  const [tokensFalhou, setTokensFalhou] = useState(false);
+
+  const carregarConta = useCallback(async () => {
+    setCarregando(true);
+    setErro("");
+    try {
+      const r = await fetch("/api/auth/me", { cache: "no-store" });
+      if (!r.ok) throw new Error(`não consegui ler a conta (HTTP ${r.status})`);
+      const d = (await r.json()) as { user: User };
+      setUser(d.user);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "erro ao ler a conta");
+    } finally {
+      setCarregando(false);
+    }
+  }, []);
+
+  const carregarTokens = useCallback(async () => {
+    setTokensCarregando(true);
+    try {
+      const r = await fetch("/api/integracoes/tokens", { cache: "no-store" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setResumo((await r.json()) as ResumoUso);
+      setTokensFalhou(false);
+    } catch {
+      // Sem medição: a tela mostra "sem medição ainda", nunca um número inventado.
+      setResumo(null);
+      setTokensFalhou(true);
+    } finally {
+      setTokensCarregando(false);
+    }
+  }, []);
+
+  const carregarSaaso = useCallback(async () => {
+    try {
+      const r = await fetch("/api/integracoes/saaso", { cache: "no-store" });
+      if (r.ok) setSaaso((await r.json()) as SaasoStatus);
+    } catch {
+      /* o CRM é um dos cards; se não responder, o resto da tela segue */
+    }
+  }, []);
+
+  /* AS LINHAS desta conta — a base da fonte única de estado. */
+  const carregarIntegracoes = useCallback(async () => {
+    try {
+      const r = await fetch("/api/integracoes", { cache: "no-store" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = (await r.json()) as {
+        minhas?: LinhaIntegracao[];
+        daEmpresa?: LinhaIntegracao[];
+        prontidao?: Prontidao;
+      };
+      setLinhas({ minhas: d.minhas ?? [], daEmpresa: d.daEmpresa ?? [] });
+      setProntidao(d.prontidao ?? {});
+    } catch {
+      // Sem as linhas a tela não inventa: nada aparece como conectado.
+      setLinhas({ minhas: [], daEmpresa: [] });
+    }
+  }, []);
+
+  useEffect(() => {
+    void carregarConta();
+    void carregarTokens();
+    void carregarSaaso();
+    void carregarIntegracoes();
+  }, [carregarConta, carregarTokens, carregarSaaso, carregarIntegracoes]);
+
+  const config = user?.platform_config ?? {};
+  const saasoAoVivo = Boolean(saaso?.conectado);
+
+  /* a LINHA desta conta para um item — a metade "linhas" da fonte única, agora
+     em `@/lib/integracoes/estado-da-conta` (compartilhada pelas duas telas). */
+  const linhaDaConta = useCallback(
+    (i: Integracao): LinhaIntegracao | null => linhaDaContaEm(i, linhas),
+    [linhas],
+  );
+
+  /* ═══ A FONTE ÚNICA ═══════════════════════════════════════════════════
+     A REGRA vive em `@/lib/integracoes/estado-da-conta` (`estaConectadaNaConta`)
+     — a MESMA função que a grade `/dashboard/integracoes` chama. Aqui só se
+     entrega o contexto desta tela: o CRM ao vivo, as linhas da conta e o cofre.
+     Se a regra mudar, muda lá uma vez, e nenhuma tela discorda das outras. */
+  const estaConectadaDaConta = useCallback(
+    (i: Integracao): boolean => estaConectadaNaConta(i, { saasoAoVivo, linhas, config }),
+    [saasoAoVivo, linhas, config],
+  );
+
+  /* Chegando de outra tela com parâmetro na URL:
+       - `?produto=<id>` (grade /dashboard/integracoes) abre o popup do produto;
+       - `?aba=skills` (botão "Voltar para Skills" da grade) abre a aba SKILLS —
+         era o pedido do dono (08/10/2026): o botão tem de cair AQUI, na Skills da
+         Synapse, não na página do menu esquerdo (que deixou de existir).
+     O parâmetro é limpo em seguida para não reabrir a cada volta à tela. */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search);
+    const a = q.get("aba");
+    if (a === "skills" || a === "integracoes") setAba(a as SynapseAba);
+    const id = q.get("produto");
+    if (id) {
+      const item = CATALOGO.find((i) => i.id === id);
+      if (item) setProduto(item);
+    }
+    if (a || id) window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+
+  /* categoria + busca + filtro: a grade da referência (mesma faixa que rola na
+     horizontal). O filtro usa a MESMA fonte única — esconde o que já está
+     conectado. Nada de botão de filtro decorativo. */
+  const filtradas = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    return CATALOGO.filter((i) => {
+      if (categoria !== "todas" && i.categoria !== categoria) return false;
+      if (soSemConexao && estaConectadaDaConta(i)) return false;
+      if (!termo) return true;
+      return `${i.nome} ${i.empresa} ${i.subtitulo} ${i.explicacao ?? ""}`.toLowerCase().includes(termo);
+    });
+  }, [categoria, busca, soSemConexao, estaConectadaDaConta]);
+
+  /* O que se vê NESTA tela: o limite de fachada. O catálogo INTEIRO (os 21) vive
+     na grade dedicada `/dashboard/integracoes`, aberta pelo atalho ao lado da
+     busca (pedido do dono, 08/10/2026). */
+  const visiveis = useMemo(() => filtradas.slice(0, LIMITE_CATALOGO), [filtradas]);
+
+  /* A tabela "Minhas integrações" usa a MESMA função — nada de uma segunda
+     regra de "o que está ligado". */
+  const ligadas = useMemo(() => CATALOGO.filter((i) => estaConectadaDaConta(i)), [estaConectadaDaConta]);
+
+  /* "Desde" também sai da fonte certa: o CRM da linha da conta, o resto do cofre. */
+  const desde = useCallback(
+    (i: Integracao): string => {
+      if (ehCrm(i)) {
+        const linha = linhaDaConta(i);
+        return linha ? dataCurta(linha.criada_em) : "pelo CRM";
+      }
+      return dataCurta(quandoLigou(i, config));
+    },
+    [linhaDaConta, config],
+  );
+
+  const destaques = useMemo(() => CATALOGO.filter((i) => i.destaque), []);
+
+  /* Prontidão de cada item — vem do servidor (depende de env que a tela não vê).
+     Sem mapa (ex.: a rota falhou), assume-se pronta: o caminho normal costuma
+     ser o site/rota/chave. */
+  const pronta = useCallback((i: Integracao) => prontidao[i.id] ?? { pronta: true }, [prontidao]);
+
+  /* O destino (usado pelo botão Integrar do popup e pelos atalhos lateral/tabela):
+     mcp -> site; api com OAuth -> rota; api com campos -> popup de chave.
+     Item sem caminho real NÃO dispara nada em silêncio: avisa o motivo. */
+  const abrir = useCallback(
+    (item: Integracao) => {
+      const p = prontidao[item.id];
+      if (p && !p.pronta) {
+        setAviso(p.motivo || "Esta integração ainda não está pronta para conectar neste servidor.");
+        return;
+      }
+      if (item.oauthPath) {
+        window.open(item.oauthPath, "_blank", "noopener");
+        return;
+      }
+      if (item.tipo === "mcp") {
+        if (item.site) window.open(item.site, "_blank", "noopener");
+        else setAviso("Esta integração roda dentro do MIRAI OS — ainda sem site próprio.");
+        return;
+      }
+      setModal(item);
+    },
+    [prontidao],
+  );
+
+  /* O clique no CARD abre o popup do produto — não vai mais direto ao destino. */
+  const verProduto = useCallback((item: Integracao) => {
+    setAviso("");
+    setProduto(item);
+  }, []);
+
+  /* Só o botão Integrar leva adiante: fecha o popup e retoma o destino de sempre. */
+  const integrar = useCallback(
+    (item: Integracao) => {
+      setProduto(null);
+      abrir(item);
+    },
+    [abrir],
+  );
+
+  /* O CRM tem fluxo próprio: abre o popup de credencial (valida ao vivo). */
+  const conectarCrm = useCallback(() => {
+    setProduto(null);
+    setCrmAberto(true);
+  }, []);
+
+  /* Depois de conectar: recarrega as LINHAS e o estado ao vivo — o card passa a
+     "conectada" pela MESMA fonte única, e "Minhas integrações" lista o CRM. */
+  const conectouCrm = useCallback(() => {
+    void carregarIntegracoes();
+    void carregarSaaso();
+  }, [carregarIntegracoes, carregarSaaso]);
+
+  return (
+    <Shell
+      titulo="Synapse"
+      usuario={user}
+      /* à DIREITA do cabeçalho, o MESMO seletor da primeira tela (SeletorModo:
+         o Chat/Orb de `/`, extraído e reusado aqui) trocando as duas seções. */
+      cabecalhoDireita={
+        <SeletorModo
+          rotuloAria="Alternar entre Integrações e Skills"
+          ativo={aba}
+          onTrocar={(id) => setAba(id as SynapseAba)}
+          opcoes={[
+            { id: "integracoes", rotulo: "Integrações" },
+            { id: "skills", rotulo: "Skills" },
+          ]}
+        />
+      }
+    >
+      {aba === "integracoes" ? (
+        <>
+      {erro && (
+        <p className="mb-5 rounded-[16px] border border-[#ff2d55]/30 bg-[#ff2d55]/[0.07] px-5 py-4 text-[13px] text-[#ff2d55]">
+          {erro}
         </p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          rotulo="Canais ligados"
-          valor={loading ? "–" : `${ligadas.length}/${PLATFORMS.length}`}
-          nota={ligadas.length ? ligadas.map((p) => p.name).join(" · ") : "nenhum ainda"}
-          tom={ligadas.length ? "ok" : "neutro"}
-          icone={<IconePlug className="h-4 w-4" />}
+      {aviso && (
+        <p className="mb-5 flex items-start justify-between gap-4 rounded-[16px] border border-[#ff751f]/30 bg-[#ff751f]/[0.07] px-5 py-4 text-[13px] text-[#ffb27a]">
+          <span>{aviso}</span>
+          <button onClick={() => setAviso("")} className="shrink-0 text-[12px] text-[#ffb27a] underline">
+            ok
+          </button>
+        </p>
+      )}
+
+      {/* topo da referência: hero + balance + top creators, na grade de 3 colunas */}
+      <div className="mt-[55px] grid gap-5 xl:grid-cols-[1.35fr_1fr_0.65fr]">
+        <Banner promocao={PROMOCOES[0] ?? BANNER_PADRAO} />
+        <UsoTokens
+          resumo={resumo}
+          carregando={tokensCarregando}
+          falhou={tokensFalhou}
+          recarregar={() => void carregarTokens()}
         />
-        <StatCard
-          rotulo="CRM (Saaso)"
-          valor={saaso?.conectado ? `${saaso.ferramentas ?? 0}` : "off"}
-          nota={saaso?.conectado ? "ferramentas pelo MCP do produto" : saaso?.erro || "sem credencial vinculada"}
-          tom={saaso?.conectado ? "ok" : "alerta"}
-          icone={<IconeOrganizacoes className="h-4 w-4" />}
-        />
-        <StatCard
-          rotulo="Sua organização"
-          valor={saaso?.organizacao?.nome || "—"}
-          tamanho="medio"
-          nota={saaso?.ehDono ? "dono da plataforma" : saaso?.organizacao ? "só a sua empresa" : "conta sem vínculo"}
-          tom="marca"
-          icone={<IconeRobo className="h-4 w-4" />}
-        />
-        <StatCard
-          rotulo="Produto por MCP"
-          valor={saaso?.conectado ? "ligado" : "–"}
-          tamanho="medio"
-          nota={saaso?.endpoint || "aguardando leitura"}
-          icone={<IconePlug className="h-4 w-4" />}
+        <Destaques
+          itens={destaques}
+          conectada={estaConectadaDaConta}
+          pronta={pronta}
+          onAbrir={abrir}
+          onConectarCrm={conectarCrm}
         />
       </div>
 
-      <Secao
-        titulo="Canais da conta"
-        contagem={`${PLATFORMS.filter((p) => p.statusCheck(platformConfig) === "connected").length} de ${PLATFORMS.length} ligados`}
-        acao={
+      <div className="mt-[30px] border-t border-[#24272a]" />
+
+      {/* o "Live Auctions" da referência: título, busca, filtro, chips e a faixa de cards */}
+      <section id="catalogo" className="mt-5 scroll-mt-6">
+        <div className="flex flex-wrap items-center gap-5">
+          <h2 className="text-[20px] font-bold text-white">Integrações</h2>
+          <span data-catalogo-contagem className="text-[13px] text-[#888b93]">
+            {`${filtradas.length} de ${CATALOGO.length}`}
+          </span>
+          {/* busca, filtro e o atalho da GRADE completa, todos juntos no canto
+              direito — o "Ver todas" fica AO LADO DA BUSCA (pedido do dono,
+              08/10/2026). O atalho leva a /dashboard/integracoes, onde os 21
+              aparecem em grade, com o mesmo card e o mesmo estado. */}
+          <div className="ml-auto flex flex-wrap items-center gap-3">
+            <label className="hidden h-[30px] w-[209px] items-center rounded-full bg-[#181c1f] px-4 md:flex">
+              <input
+                type="search"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar"
+                className="min-w-0 flex-1 bg-transparent text-[10px] italic text-white outline-none placeholder:text-[#888b93]"
+              />
+              <img src={`${A}/3c6cf.svg`} alt="" className="h-[13px] w-[13px]" />
+            </label>
+            <button
+              onClick={() => setSoSemConexao((v) => !v)}
+              aria-label={soSemConexao ? "Mostrar todas as integrações" : "Mostrar só as que ainda não estão conectadas"}
+              aria-pressed={soSemConexao}
+              title={soSemConexao ? "Mostrar todas" : "Só as que ainda não estão conectadas"}
+              className={`grid h-[26px] w-[26px] place-items-center rounded-full transition ${
+                soSemConexao ? "bg-[#ff751f]" : "hover:bg-white/[0.06]"
+              }`}
+            >
+              <img src={`${A}/e6223.svg`} alt="" className="h-[13px] w-[13px]" />
+            </button>
+            <Link
+              href="/dashboard/integracoes"
+              data-ver-todas-integracoes
+              title="Ver o catálogo inteiro em grade"
+              className="rounded-[10px] border border-white/12 px-4 py-2 text-[12px] text-[#888b93] transition hover:text-white"
+            >
+              Ver todas as integrações ({CATALOGO.length})
+            </Link>
+          </div>
+        </div>
+
+        <div className="mt-5 flex gap-5 overflow-x-auto pb-2">
+          {CATEGORIAS.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setCategoria(c.id)}
+              className={`shrink-0 rounded-full px-2.5 py-[5px] text-[10px] transition ${
+                categoria === c.id ? "bg-[#ff751f] text-white" : "bg-[#32393e] text-[#888b93] hover:text-white"
+              }`}
+            >
+              {c.id === "todas" && <img src={`${A}/4006b.svg`} alt="" className="mr-1 inline h-[9px] w-[6px]" />}
+              {c.rotulo}
+            </button>
+          ))}
+        </div>
+
+        {filtradas.length === 0 ? (
+          <div className="mt-[27px]">
+            <Vazio
+              icone={<IconePlug className="h-7 w-7" />}
+              titulo={soSemConexao ? "Tudo por aqui já está conectado" : "Nada nesta categoria ainda"}
+              texto={
+                soSemConexao
+                  ? "Desligue o filtro (o botão laranja ao lado da busca) para ver o catálogo inteiro."
+                  : "Escolha outra categoria no topo — o catálogo é declarativo e cresce sem refazer a tela."
+              }
+            />
+          </div>
+        ) : (
+          <>
+            <div
+              data-integ-visiveis={visiveis.length}
+              className="mt-[27px] flex gap-[18px] overflow-x-auto pb-2"
+            >
+              {visiveis.map((i, idx) => (
+                <CardIntegracao
+                  key={i.id}
+                  item={i}
+                  arte={ARTES_CARD[idx % ARTES_CARD.length]}
+                  conectada={estaConectadaDaConta(i)}
+                  pronta={pronta(i).pronta}
+                  motivo={pronta(i).motivo}
+                  onAbrir={verProduto}
+                />
+              ))}
+            </div>
+            {/* o "Ver todas" saiu daqui: virou atalho ao lado da busca e leva à
+                grade /dashboard/integracoes. */}
+            <p className="mt-3 text-[11px] text-[#555a5f]">
+              {filtradas.length > LIMITE_CATALOGO
+                ? `mostrando ${visiveis.length} de ${filtradas.length} — o catálogo inteiro está em “Ver todas as integrações”`
+                : `mostrando ${visiveis.length} de ${filtradas.length}`}
+            </p>
+          </>
+        )}
+      </section>
+
+      {/* o "Recent History" da referência: título + contagem, e a tabela com as proporções */}
+      <section className="mt-[30px]">
+        <div className="mb-[19px] flex flex-wrap items-center gap-5">
+          <h2 className="text-[20px] font-bold text-white">Minhas integrações</h2>
+          <span className="text-[13px] text-[#888b93]">{ligadas.length} nesta conta</span>
           <button
-            onClick={fetchUser}
-            className="rounded-[10px] border border-white/12 px-4 py-2 text-[12px] text-dash-muted transition hover:text-white"
+            onClick={() => {
+              void carregarConta();
+              void carregarSaaso();
+              void carregarIntegracoes();
+            }}
+            className="ml-auto rounded-[10px] border border-white/12 px-4 py-2 text-[12px] text-[#888b93] transition hover:text-white"
           >
             atualizar
           </button>
-        }
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          {PLATFORMS.map((platform) => {
-            const status = platform.statusCheck(platformConfig);
-            const on = status === "connected";
-            return (
-              <Card key={platform.id} interativo className="flex items-center gap-4 p-5">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] bg-dash-raise text-dash-muted">
-                  {ICONE_CANAL[platform.id]}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[14px] font-semibold text-white">{platform.name}</p>
-                  <div className="mt-1.5">
-                    <Selo tom={on ? "ok" : status === "pending" ? "alerta" : "info"}>
-                      {on ? "ligado" : status === "pending" ? "pendente" : "não ligado"}
-                    </Selo>
-                  </div>
-                </div>
-                {on ? (
-                  <button
-                    onClick={() => handleDisconnect(platform)}
-                    className="shrink-0 rounded-[10px] border border-dash-bad/30 px-4 py-2 text-[12px] text-dash-bad transition hover:bg-dash-bad/10"
-                  >
-                    desligar
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleConnect(platform)}
-                    className="shrink-0 rounded-[10px] bg-dash-brand px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-dash-brandHi"
-                  >
-                    ligar
-                  </button>
-                )}
-              </Card>
-            );
-          })}
         </div>
-      </Secao>
 
-        {/* ================================================================ */}
-        {/*  Produtos ligados a Mirai (MCP)                                   */}
-        {/* ================================================================ */}
-        <section className="flex flex-col gap-4">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-xs uppercase tracking-[0.28em] text-cyan-100/50">
-              Produtos ligados a Mirai
-            </h2>
-            <button
-              onClick={fetchSaaso}
-              className="text-[11px] uppercase tracking-[0.18em] text-cyan-300/60 transition-colors hover:text-cyan-200"
-            >
-              Atualizar
-            </button>
-          </div>
-
-          {saasoErro && (
-            <p className="text-xs text-amber-300/80">Nao consegui ler o MCP: {saasoErro}</p>
-          )}
-
-          {saaso ? (
-            <div className="rounded-xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm transition-all hover:border-white/20">
-              <div className="flex items-center gap-4">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] bg-dash-raise text-dash-muted">
-                  <IconeOrganizacoes className="h-5 w-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-cyan-50">{saaso.nome}</p>
-                  <p className="mt-0.5 text-xs text-cyan-100/50">{saaso.descricao}</p>
-                </div>
-                <span
-                  className={`shrink-0 rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.18em] ${
-                    saaso.conectado
-                      ? "border-emerald-400/30 text-emerald-300/90"
-                      : "border-red-400/30 text-red-300/90"
-                  }`}
-                >
-                  {saaso.conectado ? "Conectado" : "Sem conexao"}
-                </span>
-              </div>
-
-              <dl className="mt-4 grid grid-cols-1 gap-2 text-xs text-cyan-100/70 sm:grid-cols-2">
-                <div>
-                  <dt className="text-cyan-100/40">Ferramentas no MCP</dt>
-                  <dd>{saaso.ferramentas}</dd>
-                </div>
-                <div className="min-w-0">
-                  <dt className="text-cyan-100/40">Endpoint (MCP do produto)</dt>
-                  <dd className="truncate">{saaso.endpoint}</dd>
-                </div>
-              </dl>
-
-              {saaso.organizacao && (
-                <p className="mt-3 text-xs text-cyan-100/60">
-                  Organização desta conta:{" "}
-                  <span className="text-cyan-100/90">{saaso.organizacao.nome}</span>
-                  {saaso.ehDono ? " (dono)" : ""}
-                </p>
-              )}
-              {!saaso.vinculado && (
-                <p className="mt-2 text-xs text-amber-300/80">
-                  Sem CRM vinculado a esta conta — nada do CRM é consultado.
-                </p>
-              )}
-              {saaso.erro && (
-                <p className="mt-3 text-xs text-amber-300/80">{saaso.erro}</p>
-              )}
-              {saaso.funil && (
-                <p className="mt-3 break-words text-xs text-cyan-100/60">
-                  Leitura ao vivo do CRM: {saaso.funil.slice(0, 260)}
-                </p>
-              )}
-            </div>
-          ) : (
-            !saasoErro && (
-              <p className="text-xs text-cyan-100/40">Lendo o MCP do CRM...</p>
-            )
-          )}
-        </section>
-
-        {/* ================================================================ */}
-        {/*  API Key Modal                                                    */}
-        {/* ================================================================ */}
-        {apiKeyPlatform && (
-          <ApiKeyModal
-            platform={apiKeyPlatform}
-            onClose={() => setApiKeyPlatform(null)}
-            onSaved={fetchUser}
+        {carregando && !user ? (
+          <p className="text-[12px] text-[#555a5f]">Lendo as integrações desta conta...</p>
+        ) : ligadas.length === 0 ? (
+          <Vazio
+            icone={<IconePlug className="h-7 w-7" />}
+            titulo="Nenhuma integração ligada ainda"
+            texto="Escolha uma integração na grade acima: as de MCP abrem o site, as de API pedem a chave e o CRM pede a credencial — todas ligam na hora."
           />
+        ) : (
+          <TabelaIntegracoes ligadas={ligadas} desde={desde} onAbrir={abrir} />
         )}
+      </section>
+
+      {produto && (
+        <ModalProduto
+          item={produto}
+          conectada={estaConectadaDaConta(produto)}
+          pronta={pronta(produto).pronta}
+          motivo={pronta(produto).motivo}
+          onClose={() => setProduto(null)}
+          onIntegrar={integrar}
+          onConectar={conectarCrm}
+        />
+      )}
+
+      {modal && (
+        <ModalApi
+          item={modal}
+          onClose={() => setModal(null)}
+          onSalvo={() => {
+            void carregarConta();
+            void carregarIntegracoes();
+          }}
+        />
+      )}
+
+      {crmAberto && <ModalCrm onClose={() => setCrmAberto(false)} onConectado={conectouCrm} />}
+        </>
+      ) : (
+        /* Seção SKILLS — ESPELHO ESTRUTURAL das Integrações (SkillsEspelho):
+           mesma ordem e mesma língua visual, com as quatro trocas do dono:
+             Destaques           → Top criadores da comunidade (em breve)
+             Uso de tokens       → Skills da comunidade        (em breve)
+             catálogo            → catálogo de skills          (o real, do disco)
+             Minhas integrações  → Minhas skills               (as da conta)
+           As duas seções de comunidade são espaços ESTRUTURADOS e honestos
+           ("em breve") — nada inventado. */
+        <SkillsEspelho />
+      )}
     </Shell>
   );
 }

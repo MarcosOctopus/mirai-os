@@ -50,7 +50,7 @@ export default function SystemPage() {
     { id: "services", label: "SERVICES" },
     { id: "crons", label: "CRONS" },
     { id: "arca", label: "ARCA" },
-    { id: "hermes", label: "HERMES" },
+    { id: "hermes", label: "AGENTE" },
     { id: "atomic", label: "ATOMIC NEWS" },
     { id: "logs", label: "LOGS" },
   ];
@@ -103,7 +103,7 @@ export default function SystemPage() {
               <Line label="Mirai OS" value={svc.mirai_os || "offline"} color={st("mirai_os")} />
               <Line label="Arca" value={svc.arca || "offline"} color={st("arca")} />
               <Line label="Whisper STT" value={svc.whisper_stt || "offline"} color={st("whisper_stt")} />
-              <Line label="Hermes" value={svc.hermes || "offline"} color={st("hermes")} />
+              <Line label="Agente Mirai" value={svc.hermes || "offline"} color={st("hermes")} />
               <Line label="Caddy" value={svc.caddy || "offline"} color={st("caddy")} />
             </Card>
 

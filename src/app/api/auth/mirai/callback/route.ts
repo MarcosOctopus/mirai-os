@@ -20,6 +20,7 @@ import {
   signToken,
 } from "@/lib/auth";
 import { lerBilhete, trocarCodigo, conferirIdToken, destino } from "@/lib/mirai-oidc";
+import { consumirVinculosPendentes } from "@/lib/integracoes";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,15 @@ export async function GET(request: NextRequest) {
     userId = criado.id;
     userEmail = criado.email;
     tenantId = criado.tenantId ?? criado.tenant_id;
+  }
+
+  // ─── PONTE: liga o que o cliente conectou DENTRO do CRM ──────────────────
+  // Vínculo pendente por e-mail, consumido UMA vez. Não é fatal: a sessão
+  // acima já está pronta e o login não pode cair por causa de uma integração.
+  try {
+    consumirVinculosPendentes(userId, userEmail);
+  } catch (ponteErr) {
+    console.warn("Ponte: vínculo pendente não consumido (não fatal):", ponteErr);
   }
 
   const token = await signToken({ userId, email: userEmail, tenantId });

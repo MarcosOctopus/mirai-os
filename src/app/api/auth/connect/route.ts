@@ -27,7 +27,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "platform e config são obrigatórios" }, { status: 400 });
     }
 
-    const allowedPlatforms = ["google_drive", "youtube", "higgsfield", "suno", "telegram", "magnific", "instagram", "kling"];
+    // Único lugar de guardar credencial (platform_config). A lista acompanha o
+    // catálogo declarativo (src/lib/integracoes/catalogo.ts): integração de API
+    // nova entra aqui, nunca numa rota paralela.
+    const allowedPlatforms = [
+      "google_drive",
+      "youtube",
+      "telegram",
+      "instagram",
+      "higgsfield",
+      "suno",
+      "magnific",
+      "kling",
+      "verboo",
+      "openai",
+      "google",
+      "openrouter",
+      "groq",
+      "elevenlabs",
+      "picovoice",
+    ];
     if (!allowedPlatforms.includes(platform)) {
       return NextResponse.json({ error: `Plataforma não suportada: ${platform}` }, { status: 400 });
     }
