@@ -372,6 +372,70 @@ export function injetarTokens(html: string, tokens: Tokens): string {
 }
 
 /**
+ * INJETA o ATALHO DAS INTEGRAÇÕES na prévia: o mapa
+ * `window.MIRAI_INTEGRACOES = { <integração>: <token> }` e a função
+ * `window.miraiPonte(i, caminho, opcoes)`. Entra o MAIS CEDO possível (mesma
+ * técnica de `injetarTokens`: procura `<head…>`, senão `<html…>`, senão põe no
+ * começo), porque o script do projeto pode querer chamar a integração já na
+ * primeira linha.
+ *
+ * POR QUE: o site do Arquiteto é ESTÁTICO — ele NÃO pode guardar a chave. O
+ * `miraiPonte` fala com a NOSSA ponte (`/api/ponte/...`) levando o TOKEN emitido
+ * pelo SERVIDOR (ver a rota `…/integracoes/tokens`), escopado ao par
+ * (projeto, integração). A chave de verdade fica no servidor e NUNCA entra
+ * nesta página. Sem token para a integração pedida, `miraiPonte` REJEITA com
+ * recado claro — JAMAIS segue sem token.
+ *
+ * `projetoId` vai EMBUTIDO no script: é ele que monta o endereço
+ * `/api/ponte/<projeto>/<integração>/<caminho>`.
+ */
+export function injetarIntegracoes(
+  html: string,
+  projetoId: string,
+  tokens: Record<string, string>,
+): string {
+  // O JSON vai DENTRO de um <script>: o "<" de "</" tem de virar "<\/" para
+  // nunca fechar a tag por engano (mesmo cuidado do `protegerFechamento`).
+  const mapaJson = JSON.stringify(tokens || {}).replace(/<\//g, "<\\/");
+  const projetoJson = JSON.stringify(projetoId || "").replace(/<\//g, "<\\/");
+  const script =
+    `<script>window.MIRAI_INTEGRACOES = ${mapaJson};
+window.miraiPonte = async function(i, caminho, opcoes){
+  var mapa = window.MIRAI_INTEGRACOES || {};
+  var token = mapa[i];
+  if (!token) { throw new Error('a integração "' + i + '" não está disponível nesta página'); }
+  var bruto = caminho == null ? "" : String(caminho);
+  while (bruto.charAt(0) === "/") { bruto = bruto.slice(1); }
+  var corte = bruto.indexOf("?");
+  var soCaminho = corte >= 0 ? bruto.slice(0, corte) : bruto;
+  var soConsulta = corte >= 0 ? bruto.slice(corte) : "";
+  var url = "/api/ponte/" + ${projetoJson} + "/" + encodeURIComponent(i) + (soCaminho ? "/" + soCaminho.split("/").map(encodeURIComponent).join("/") : "") + soConsulta;
+  var dadas = opcoes || {};
+  var cabecalhos = {};
+  var k;
+  if (dadas.headers) { for (k in dadas.headers) { if (Object.prototype.hasOwnProperty.call(dadas.headers, k)) cabecalhos[k] = dadas.headers[k]; } }
+  cabecalhos["x-mirai-ponte"] = token;
+  var pedido = {};
+  for (k in dadas) { if (Object.prototype.hasOwnProperty.call(dadas, k) && k !== "headers") pedido[k] = dadas[k]; }
+  pedido.headers = cabecalhos;
+  return fetch(url, pedido);
+};<\/script>`;
+
+  // Mesma régua de posição de `injetarTokens`: o mais cedo possível no documento.
+  const mHead = html.match(/<head\b[^>]*>/i);
+  if (mHead && mHead.index !== undefined) {
+    const i = mHead.index + mHead[0].length;
+    return html.slice(0, i) + script + html.slice(i);
+  }
+  const mHtml = html.match(/<html\b[^>]*>/i);
+  if (mHtml && mHtml.index !== undefined) {
+    const i = mHtml.index + mHtml[0].length;
+    return html.slice(0, i) + script + html.slice(i);
+  }
+  return script + html;
+}
+
+/**
  * Lê os arquivos do projeto e devolve UM documento HTML com o CSS/JS locais já
  * embutidos. Arquivo citado que não existe no projeto NÃO deixa a prévia
  * quebrada em silêncio: entra uma NOTA honesta, em português, na própria página.
@@ -383,13 +447,18 @@ export function injetarTokens(html: string, tokens: Tokens): string {
  * `opcoes.comPonte` (padrão `true`) injeta a PONTE do painel de camadas antes do
  * `</body>`. A página PÚBLICA passa `false`: ela não tem painel e não precisa de
  * recado do sandbox.
+ *
+ * `opcoes.integracoes` (opcional) injeta o ATALHO DAS INTEGRAÇÕES
+ * (`window.miraiPonte` + o mapa de tokens do par projeto/integração) logo depois
+ * dos tokens de design — ver `injetarIntegracoes`. SEM esta opção (ou sem token
+ * algum), NADA muda: compatibilidade total.
  */
 export function montarPrevia(
   arquivos: Arquivo[],
   assets: Asset[],
   baseAssets: string,
   tokens: Tokens,
-  opcoes?: { comPonte?: boolean },
+  opcoes?: { comPonte?: boolean; integracoes?: { projetoId: string; tokens: Record<string, string> } },
 ): Previa {
   const entrada = arquivoDeEntrada(arquivos);
   if (!entrada) return { html: "", faltando: [] };
@@ -399,6 +468,14 @@ export function montarPrevia(
 
   // 0) TOKENS DE DESIGN: entram na RAIZ, o mais cedo possível (ver `injetarTokens`).
   html = injetarTokens(html, tokens);
+
+  // 0.1) ATALHO DAS INTEGRAÇÕES: quando a bancada manda os tokens do par
+  //      (projeto, integração), o `window.miraiPonte` entra junto — DEPOIS dos
+  //      tokens de design e SÓ quando há token. Sem esta opção, nada muda.
+  const integ = opcoes?.integracoes;
+  if (integ && integ.tokens && Object.keys(integ.tokens).length) {
+    html = injetarIntegracoes(html, integ.projetoId, integ.tokens);
+  }
 
   // 1) <link rel="stylesheet" href="styles.css">  →  <style>…</style>
   html = html.replace(

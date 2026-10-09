@@ -5,7 +5,7 @@ import { exigirConta } from "@/lib/orgs";
 import { decidirAcessoArquiteto, CAPACIDADE_ARQUITETO } from "@/lib/arquiteto-acesso";
 import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
 import { normalizarTokens, type Tokens } from "@/lib/arquiteto-tokens";
-import { promptComCraft, promptComVisual } from "@/lib/arquiteto-craft";
+import { promptComCraft, promptComIntegracoes, promptComVisual } from "@/lib/arquiteto-craft";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -506,7 +506,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 3) O pedido.
-  let corpo: { mensagens?: Msg[]; assets?: string[]; tokens?: unknown; docProjeto?: string; foto?: string } = {};
+  let corpo: { mensagens?: Msg[]; assets?: string[]; tokens?: unknown; docProjeto?: string; foto?: string; projetoId?: string; integracoes?: string[] } = {};
   try {
     corpo = (await req.json()) as {
       mensagens?: Msg[];
@@ -514,6 +514,8 @@ export async function POST(req: NextRequest) {
       tokens?: unknown;
       docProjeto?: string;
       foto?: string;
+      projetoId?: string;
+      integracoes?: string[];
     };
   } catch {
     corpo = {};
@@ -539,11 +541,19 @@ export async function POST(req: NextRequest) {
   // craft: dados/isolamento, quatro estados, estrutura, craft visual, front-end
   // e bibliotecas) + o PADRÃO VISUAL ANTI-GENÉRICO (VISUAL.md §5: composição,
   // tipografia com escala única, contraste AA declarado, estrutura, mídia e
-  // movimento) + a LISTA de imagens + os TOKENS do projeto. A porteira, o
+  // movimento) + a LISTA de imagens + os TOKENS do projeto + as INTEGRAÇÕES que
+  // o projeto usa (o construtor precisa saber que `window.miraiPonte` existe,
+  // senão ele escreveria a chave no código — que é o que não pode). A porteira, o
   // formato, a persistência e o fluxo do plano NÃO mudam — só a instrução.
-  const instrucao = promptComDoc(
-    promptComVisual(promptComCraft(promptComTokens(promptComAssets(CONSTRUTOR_PROMPT, assets), tokens))),
-    docProjeto,
+  const integracoes = Array.isArray(corpo.integracoes)
+    ? corpo.integracoes.filter((i): i is string => typeof i === "string")
+    : [];
+  const instrucao = promptComIntegracoes(
+    promptComDoc(
+      promptComVisual(promptComCraft(promptComTokens(promptComAssets(CONSTRUTOR_PROMPT, assets), tokens))),
+      docProjeto,
+    ),
+    integracoes,
   );
   const r = await chamarModelo(
     mensagens,

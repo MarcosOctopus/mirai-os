@@ -123,7 +123,34 @@ function metodoTemCorpo(metodo: string): boolean {
   return metodo !== "GET" && metodo !== "HEAD";
 }
 
-async function encaminhar(req: NextRequest, ctx: Ctx) {
+/**
+ * CORS da ponte. Quem chama é a PÁGINA do projeto: na prévia ela roda num iframe
+ * `sandbox` (origem OPACA) e, publicada, num domínio próprio — nos dois casos é
+ * cross-origin. Sem estes cabeçalhos o navegador BARRA a resposta e a integração
+ * falha em silêncio (das piores falhas de diagnosticar). O que AUTORIZA não é a
+ * origem: é o token do par (projeto, integração) — por isso `*` é aceitável aqui,
+ * e o pré-voo precisa liberar o cabeçalho `x-mirai-ponte`.
+ */
+const CABECALHOS_CORS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+  "Access-Control-Allow-Headers": "x-mirai-ponte, content-type, accept, prefer, range",
+  "Access-Control-Expose-Headers": "*",
+  "Cross-Origin-Resource-Policy": "cross-origin",
+};
+
+/** Toda resposta da ponte sai com CORS — inclusive as de erro. */
+function comCors(resp: Response): Response {
+  for (const [k, v] of Object.entries(CABECALHOS_CORS)) resp.headers.set(k, v);
+  return resp;
+}
+
+/** O pré-voo do navegador (o `x-mirai-ponte` é cabeçalho próprio → dispara OPTIONS). */
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CABECALHOS_CORS });
+}
+
+async function encaminharSemCors(req: NextRequest, ctx: Ctx) {
   const params = await ctx.params;
   const { projeto, integracao } = params;
   const caminho = caminhoSeguro(params.caminho);
@@ -244,6 +271,11 @@ async function encaminhar(req: NextRequest, ctx: Ctx) {
   const tipo = resposta.headers.get("content-type");
   if (tipo) devolver.set("content-type", tipo);
   return new NextResponse(bytes, { status: resposta.status, headers: devolver });
+}
+
+/** Sempre com CORS: o navegador da prévia/página exige (ver CABECALHOS_CORS). */
+async function encaminhar(req: NextRequest, ctx: Ctx) {
+  return comCors(await encaminharSemCors(req, ctx));
 }
 
 export async function GET(req: NextRequest, ctx: Ctx) {

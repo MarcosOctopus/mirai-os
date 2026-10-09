@@ -144,3 +144,45 @@ Fonte: VISUAL.md §5 (as 36 regras que MUDAM o visual). Cada item é VETO, não 
 export function promptComVisual(system: string): string {
   return system + REGRAS_VISUAL;
 }
+
+/**
+ * INTEGRAÇÕES DO PROJETO — o TERCEIRO bloco de regras do construtor.
+ *
+ * ORDEM DO DONO (09/10/2026): o projeto passa a poder USAR as integrações da
+ * conta (o que ele marcou em "Este projeto usa"). A chave é do cliente e NÃO
+ * pode ir para o código: quem fala com o provedor é a PONTE (`/api/ponte/<projeto>/<integração>/…`),
+ * e a página recebe um ATALHO pronto (`window.miraiPonte`) com o token do par
+ * (projeto, integração). O construtor precisa saber que o atalho EXISTE, senão
+ * ele inventa fetch com chave no código — que é justamente o que não pode.
+ *
+ * MESMO CUIDADO DOS OUTROS BLOCOS: nada aqui promete o que o entregável não
+ * cumpre. Se o atalho não existir na página (publicada sem liberação), a regra
+ * manda tratar como erro HONESTO — nunca fingir dados.
+ *
+ * QUANDO ENTRA: só quando o projeto tem integração marcada. Sem integração, o
+ * bloco não é colado (o dono vetou: "não precisa mostrar tudo, só o que foi usado").
+ */
+export function blocoIntegracoes(ids: string[]): string {
+  const lista = (ids || []).map((i) => (i || "").trim()).filter(Boolean);
+  if (!lista.length) return "";
+  return `
+## INTEGRAÇÕES DO PROJETO — a chave NUNCA entra no código
+Este projeto usa estas integrações: ${lista.join(", ")}.
+A chave delas NÃO está aqui (nem pode estar): quem fala com o provedor é a PONTE do projeto.
+Use o atalho que JÁ EXISTE na página (não crie o seu):
+- \`const r = await window.miraiPonte("<integracao>", "<caminho>", { method?, headers?, body? })\`
+  e leia a resposta (\`await r.json()\` ou \`await r.text()\`).
+- \`<integracao>\`: um dos ids acima (ex.: "supabase").
+- \`<caminho>\`: o caminho do provedor SEM barra inicial (ex.: no Supabase, "rest/v1/produtos?select=*").
+- PROIBIDO escrever chave, token, senha ou URL de provedor no código, no CSS ou no HTML. A ponte existe para isso.
+- A chamada segue os QUATRO ESTADOS como qualquer outra: carregando, vazio, erro e sucesso.
+- Se \`window.miraiPonte\` NÃO existir (página publicada e a integração não liberada), trate como erro
+  honesto ("esta integração não está disponível nesta página") — NUNCA finja dados de exemplo.
+`;
+}
+
+/** A instrução do construtor ganha o bloco das INTEGRAÇÕES que o projeto usa. */
+export function promptComIntegracoes(system: string, ids: string[]): string {
+  const bloco = blocoIntegracoes(ids);
+  return bloco ? system + bloco : system;
+}

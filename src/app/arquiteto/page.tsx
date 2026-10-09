@@ -753,6 +753,10 @@ function Arquiteto() {
   // a integração que o projeto precisa. Integração é da CONTA; o projeto é quem diz
   // quais usa. Sem inventário: nada de despejar o catálogo inteiro na tela.
   const [usadas, setUsadas] = useState<string[]>([]);
+  // Os TOKENS da ponte (um por integração que o projeto usa). São do PAR
+  // (projeto, integração), não são a chave do cliente e servem só para a página
+  // falar com a nossa ponte — que é quem tem a chave. NUNCA vão para o código.
+  const [tokensInteg, setTokensInteg] = useState<Record<string, string>>({});
   const [carregandoInteg, setCarregandoInteg] = useState(false);
   const [erroInteg, setErroInteg] = useState("");
   // O POP-UP do catálogo completo (com busca) — a frente fica curta.
@@ -767,8 +771,10 @@ function Arquiteto() {
   const [avisoInteg, setAvisoInteg] = useState("");
 
   // Carrega quando o projeto muda (mesma hora em que o resto do painel se atualiza).
+  // NÃO é mais preso à aba: o construtor precisa desta lista na hora de CONSTRUIR
+  // (senão ele não sabe que pode usar `window.miraiPonte`). A lista de ids é
+  // barata e não traz segredo nenhum.
   useEffect(() => {
-    if (abaConfig !== "integracoes") return;
     const id = projetoIdRef.current;
     if (!id) return;
     let vivo = true;
@@ -788,7 +794,32 @@ function Arquiteto() {
     return () => {
       vivo = false;
     };
-  }, [abaConfig, projetoId]);
+  }, [projetoId]);
+
+  // Os TOKENS da ponte para as integrações que o projeto usa. Sem eles, a página
+  // não tem como chamar a ponte (e a chave NÃO pode ir para o código). Os tokens
+  // são baratos e não trazem segredo; vêm do servidor, escopados ao par.
+  useEffect(() => {
+    const id = projetoIdRef.current;
+    if (!id || !usadas.length) {
+      setTokensInteg({});
+      return;
+    }
+    let vivo = true;
+    fetch(`/api/arquiteto/projetos/${encodeURIComponent(id)}/integracoes/tokens`)
+      .then((r) => (r.ok ? r.json() : { tokens: {} }))
+      .then((j) => {
+        if (!vivo) return;
+        const t = j && typeof j.tokens === "object" && j.tokens ? j.tokens : {};
+        setTokensInteg(t as Record<string, string>);
+      })
+      .catch(() => {
+        if (vivo) setTokensInteg({});
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [usadas, projetoId]);
 
   /** Lê quais integrações da CONTA já têm chave (a leitura nunca traz a chave). */
   function lerMinhasIntegracoes() {
@@ -1766,6 +1797,11 @@ function Arquiteto() {
           mensagens: paraOModelo,
           assets: assets.map((a) => a.caminho),
           tokens,
+          // A PONTE DAS INTEGRAÇÕES (dono, 09/10/2026): o construtor precisa saber
+          // QUAIS integrações este projeto usa (para chamar `window.miraiPonte` em
+          // vez de escrever a chave no código). Vai só a lista de ids — nunca chave.
+          projetoId,
+          integracoes: usadas,
           // O .md DO PROJETO (dono, 08/10/2026): vai o texto que está na tela para o
           // construtor SEGUIR as decisões já tomadas nas próximas mudanças. Sem
           // isto ele só teria o diálogo (pedidos + resumos) e refaria no escuro.
@@ -2753,9 +2789,19 @@ function Arquiteto() {
   const previaCalculada = useMemo(
     () =>
       projeto
-        ? montarPrevia(projeto.arquivos, assets, assetsBase, tokens)
+        ? montarPrevia(
+            projeto.arquivos,
+            assets,
+            assetsBase,
+            tokens,
+            // A PONTE entra na página (dono, 09/10/2026): o atalho `window.miraiPonte`
+            // + os tokens do par. Só quando há projeto E tokens; sem isso, NADA muda.
+            projetoId && Object.keys(tokensInteg).length
+              ? { integracoes: { projetoId, tokens: tokensInteg } }
+              : undefined,
+          )
         : { html: "", faltando: [] as string[] },
-    [projeto, assets, assetsBase, tokens],
+    [projeto, assets, assetsBase, tokens, projetoId, tokensInteg],
   );
   const [previa, setPrevia] = useState<Previa>({ html: "", faltando: [] });
   useEffect(() => {

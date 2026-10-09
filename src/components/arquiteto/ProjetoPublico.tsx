@@ -1,7 +1,8 @@
-import { listarAssets, type ArquivoProjeto, type ProjetoCompleto } from "@/lib/arquiteto-projetos";
+import { integracoesDoProjeto, listarAssets, type ArquivoProjeto, type ProjetoCompleto } from "@/lib/arquiteto-projetos";
 import { montarPrevia, type Asset } from "@/lib/arquiteto-preview";
 import { assinarAsset } from "@/lib/arquiteto-asset-token";
 import { sufixoDoAsset } from "@/lib/arquiteto-asset-tipos";
+import { emitirTokenPonte } from "@/lib/ponte-token";
 
 /**
  * A PÁGINA DE UM PROJETO PUBLICADO — **uma fonte só** para os dois caminhos que
@@ -41,7 +42,18 @@ export function ProjetoPublico({
     url: `${baseAssets}/${sufixoDoAsset(a.caminho)}?t=${assinarAsset(projeto.id, a.caminho, donoId)}`,
   }));
 
-  const previa = montarPrevia(lista, assets, baseAssets, projeto.tokens, { comPonte: false });
+  // A PONTE DAS INTEGRAÇÕES na PÁGINA PUBLICADA (dono, 09/10/2026): a página
+  // recebe o atalho `window.miraiPonte` + os tokens do PAR (projeto, integração).
+  // O token é emitido AQUI, no servidor — a chave do cliente NUNCA sai daqui; a
+  // página só fala com a nossa ponte. Sem integração marcada, nada muda.
+  const usadasPonte = integracoesDoProjeto(projeto.id);
+  const tokensPonte: Record<string, string> = {};
+  for (const i of usadasPonte) tokensPonte[i] = emitirTokenPonte({ projetoId: projeto.id, integracao: i });
+
+  const previa = montarPrevia(lista, assets, baseAssets, projeto.tokens, {
+    comPonte: false,
+    ...(usadasPonte.length ? { integracoes: { projetoId: projeto.id, tokens: tokensPonte } } : {}),
+  });
 
   return (
     <main
