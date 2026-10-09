@@ -29,8 +29,12 @@ import {
   integracoesDaPessoa,
   semSegredo,
 } from "@/lib/integracoes";
+import type { Integracao } from "@/lib/integracoes";
 import { CATALOGO } from "@/lib/integracoes/catalogo";
+import { provedorDaPonte } from "@/lib/ponte-provedores";
 import { saasoValidarCredencial } from "@/lib/saaso";
+import { cifrar } from "@/lib/segredo-guardado";
+import { testarCredencial } from "@/lib/testar-integracao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,14 +64,27 @@ function prontidao(): Record<string, { pronta: boolean; motivo?: string }> {
   return mapa;
 }
 
+/**
+ * A linha pronta para a tela: SEM o segredo (o `semSegredo` já tira a
+ * credencial) e com o `status` declarado. 'conectado' quando existe credencial
+ * guardada; 'pendente' quando a linha existe sem credencial. Nunca vaza o
+ * segredo — só o rótulo, a impressão digital e este status.
+ */
+function comStatus(i: Integracao): ReturnType<typeof semSegredo> & { status: "conectado" | "pendente" } {
+  return {
+    ...semSegredo(i),
+    status: i.credencial && i.credencial.trim() ? "conectado" : "pendente",
+  };
+}
+
 export async function GET(req: NextRequest) {
   const r = await exigirConta(req);
   if (!r.ok) return r.resposta;
   const { conta } = r;
 
-  const minhas = integracoesDaPessoa(conta.id).map(semSegredo);
+  const minhas = integracoesDaPessoa(conta.id).map(comStatus);
   const daEmpresa = conta.org
-    ? integracoesDaOrganizacao(conta.org.id).map(semSegredo)
+    ? integracoesDaOrganizacao(conta.org.id).map(comStatus)
     : [];
 
   return NextResponse.json({
@@ -104,15 +121,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "credencial é obrigatória" }, { status: 400 });
   }
 
-  // O CRM é o único tipo que se confirma AO VIVO antes de gravar. A validação
-  // roda aqui (não só na tela) de propósito: assim nenhum caminho — nem um
-  // cliente direto na rota — consegue guardar uma credencial não testada.
+  // O `config` recebido, quando for um objeto JSON — é dele que o Supabase
+  // tira o endereço do projeto (o mesmo que a ponte lerá depois).
+  const config =
+    corpo.config && typeof corpo.config === "object" && !Array.isArray(corpo.config)
+      ? (corpo.config as Record<string, unknown>)
+      : null;
+
+  // Provedor da ponte conhecido? Se sim, esta credencial tem prova AO VIVO e
+  // vai gravada CIFRADA.
+  const provedor = provedorDaPonte(tipo);
+
+  // O CRM é confirmado AO VIVO antes de gravar. A validação roda aqui (não só
+  // na tela) de propósito: assim nenhum caminho — nem um cliente direto na
+  // rota — consegue guardar uma credencial não testada.
   if (tipo === "crm") {
     const v = await saasoValidarCredencial(credencial);
     if (!v.valida) {
       return NextResponse.json({ error: v.erro, motivo: v.motivo }, { status: 400 });
     }
+  } else if (provedor) {
+    // Provedor da ponte: a MESMA doutrina do CRM — nada é gravado sem prova.
+    // `testarCredencial` monta o alvo com o catálogo (e exige o endereço do
+    // projeto quando o provedor precisa, como o Supabase) e faz UMA chamada
+    // barata. Falhou → 400 com o recado honesto, e NADA é gravado.
+    const teste = await testarCredencial(tipo, credencial, config);
+    if (!teste.ok) {
+      return NextResponse.json({ error: teste.mensagem }, { status: 400 });
+    }
   }
+
+  // Provedor grava CIFRADO (a ponte decifra na leitura, com fallback para o que
+  // já estava em claro). Os tipos da casa seguem gravando EXATAMENTE como antes.
+  const credencialGuardada = provedor ? cifrar(credencial) : credencial;
 
   // SEMPRE da pessoa que está falando. Não existe caminho para escrever na
   // integração de outra pessoa por esta rota.
@@ -121,7 +162,7 @@ export async function POST(req: NextRequest) {
     dono_id: String(conta.id),
     tipo,
     rotulo: (corpo.rotulo || "").trim() || tipo,
-    credencial,
+    credencial: credencialGuardada,
     config: corpo.config ? JSON.stringify(corpo.config) : null,
   });
 

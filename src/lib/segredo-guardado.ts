@@ -39,3 +39,19 @@ export function decifrar(blob: string | null | undefined): string | null {
     return null;
   }
 }
+
+/**
+ * Lê uma credencial GUARDADA, decifrando com fallback.
+ *
+ * Por que existe: nem toda credencial passada é cifrada. A chave de API simples
+ * que a pessoa cola em Integrações é gravada EM CLARO desde o começo; os novos
+ * provedores (a mesma puerta da ponte) gravam CIFRADO. Todo leitor precisa
+ * aceitar os DOIS formatos: tenta decifrar; se o texto não for um blob nosso
+ * (bloco `iv.tag.cifrado` válido), devolve o valor CRU — assim o que já existe
+ * continua valendo e o novo também. NÃO loga e NÃO devolve o segredo além
+ * daqui; serve só para a chamada ao provedor.
+ */
+export function leituraDeCredencial(bruto: string | null | undefined): string {
+  if (typeof bruto !== "string" || !bruto) return "";
+  return decifrar(bruto) ?? bruto;
+}

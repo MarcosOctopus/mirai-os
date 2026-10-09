@@ -758,6 +758,13 @@ function Arquiteto() {
   // O POP-UP do catálogo completo (com busca) — a frente fica curta.
   const [verTodas, setVerTodas] = useState(false);
   const [buscaInteg, setBuscaInteg] = useState("");
+  // AS CHAVES DAS INTEGRAÇÕES (dono, 09/10/2026: "cria, uai"). A integração é da
+  // CONTA; aqui ele cola a chave dela. O valor NUNCA volta na leitura (só o
+  // estado "conectado") e nunca sai daqui para o navegador de novo.
+  const [minhasInteg, setMinhasInteg] = useState<Array<{ id: number; tipo: string; status?: string }>>([]);
+  const [formInteg, setFormInteg] = useState<{ id: string; cred: string; url: string } | null>(null);
+  const [salvandoInteg, setSalvandoInteg] = useState(false);
+  const [avisoInteg, setAvisoInteg] = useState("");
 
   // Carrega quando o projeto muda (mesma hora em que o resto do painel se atualiza).
   useEffect(() => {
@@ -782,6 +789,65 @@ function Arquiteto() {
       vivo = false;
     };
   }, [abaConfig, projetoId]);
+
+  /** Lê quais integrações da CONTA já têm chave (a leitura nunca traz a chave). */
+  function lerMinhasIntegracoes() {
+    fetch("/api/integracoes")
+      .then((r) => (r.ok ? r.json() : { minhas: [] }))
+      .then((j) => {
+        const lista = Array.isArray(j?.minhas) ? j.minhas : [];
+        setMinhasInteg(
+          lista
+            .map((i: { id?: number; tipo?: string; status?: string }) => ({
+              id: Number(i.id ?? 0),
+              tipo: String(i.tipo ?? ""),
+              status: i.status,
+            }))
+            .filter((i: { tipo: string }) => i.tipo),
+        );
+      })
+      .catch(() => {
+        /* sem drama: a tela mostra "não conectada" */
+      });
+  }
+
+  useEffect(() => {
+    if (abaConfig !== "integracoes") return;
+    lerMinhasIntegracoes();
+  }, [abaConfig, projetoId]);
+
+  /** Guarda a chave de uma integração da conta. O servidor TESTA antes de gravar. */
+  async function salvarChaveInteg() {
+    if (!formInteg) return;
+    const cred = formInteg.cred.trim();
+    if (!cred) {
+      setAvisoInteg("cola a chave primeiro");
+      return;
+    }
+    setSalvandoInteg(true);
+    setAvisoInteg("");
+    try {
+      const r = await fetch("/api/integracoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tipo: formInteg.id,
+          rotulo: formInteg.id,
+          credencial: cred,
+          ...(formInteg.url.trim() ? { config: { url: formInteg.url.trim() } } : {}),
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j?.erro || j?.error || "não deu para guardar");
+      setAvisoInteg("conectado ✓");
+      setFormInteg(null);
+      lerMinhasIntegracoes();
+    } catch (e) {
+      setAvisoInteg(e instanceof Error ? e.message : "não deu para guardar");
+    } finally {
+      setSalvandoInteg(false);
+    }
+  }
 
   /** Põe uma integração no projeto (o servidor é quem decide: ele confere a conta). */
   async function porIntegracao(id: string) {
@@ -4306,19 +4372,95 @@ function Arquiteto() {
                       <ul className="mt-1.5 flex flex-col gap-1">
                         {usadas.map((id) => {
                           const o = INTEGRACOES_DO_PROJETO.find((x) => x.id === id);
+                          const conectada = minhasInteg.some((m) => m.tipo === id);
                           return (
-                            <li key={id} className="flex items-center justify-between gap-2 text-[10.5px]">
-                              <span className="flex min-w-0 flex-col">
-                                <span className="truncate text-dash-muted">{o ? o.nome : id}</span>
-                                {o && <span className="truncate text-[9.5px] text-dash-dim">{o.para}</span>}
-                              </span>
-                              <button
-                                onClick={() => void tirarIntegracao(id)}
-                                aria-label={`Tirar ${o ? o.nome : id} deste projeto`}
-                                className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] text-dash-dim transition hover:text-dash-bad"
-                              >
-                                tirar
-                              </button>
+                            <li
+                              key={id}
+                              className="flex flex-col gap-1.5 rounded-[8px] px-1.5 py-1.5 transition hover:bg-white/[0.03]"
+                            >
+                              <div className="flex items-center justify-between gap-2 text-[10.5px]">
+                                <span className="flex min-w-0 flex-col">
+                                  <span className="truncate text-dash-muted">{o ? o.nome : id}</span>
+                                  {o && <span className="truncate text-[9.5px] text-dash-dim">{o.para}</span>}
+                                </span>
+                                <span className="flex shrink-0 items-center gap-1.5">
+                                  {conectada ? (
+                                    <span className="text-[10px] text-dash-ok">conectada</span>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setAvisoInteg("");
+                                        setFormInteg({ id, cred: "", url: "" });
+                                      }}
+                                      data-arquiteto-config-integracoes-conectar={id}
+                                      className="rounded-full bg-dash-raise px-2 py-0.5 text-[10px] text-dash-muted transition hover:text-white"
+                                    >
+                                      conectar
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => void tirarIntegracao(id)}
+                                    aria-label={`Tirar ${o ? o.nome : id} deste projeto`}
+                                    className="rounded-full px-1.5 py-0.5 text-[10px] text-dash-dim transition hover:text-dash-bad"
+                                  >
+                                    tirar
+                                  </button>
+                                </span>
+                              </div>
+
+                              {/* A CHAVE desta integração. Campo de senha (nunca fica à vista),
+                                  some da tela ao salvar e NÃO volta nunca na leitura. */}
+                              {formInteg?.id === id && (
+                                <div className="flex flex-col gap-1.5 rounded-[8px] border border-white/10 bg-black/25 px-2 py-1.5">
+                                  {id === "supabase" && (
+                                    <input
+                                      value={formInteg.url}
+                                      onChange={(e) => setFormInteg({ ...formInteg, url: e.target.value })}
+                                      placeholder="endereço do projeto (https://xxxx.supabase.co)"
+                                      data-arquiteto-integracao-url={id}
+                                      className="w-full rounded-[7px] border border-white/10 bg-black/30 px-2 py-1 text-[10.5px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/50"
+                                    />
+                                  )}
+                                  <input
+                                    type="password"
+                                    autoComplete="off"
+                                    value={formInteg.cred}
+                                    onChange={(e) => setFormInteg({ ...formInteg, cred: e.target.value })}
+                                    placeholder="cola a chave aqui"
+                                    data-arquiteto-integracao-chave={id}
+                                    className="w-full rounded-[7px] border border-white/10 bg-black/30 px-2 py-1 text-[10.5px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/50"
+                                  />
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                      onClick={() => void salvarChaveInteg()}
+                                      disabled={salvandoInteg}
+                                      data-arquiteto-integracao-salvar={id}
+                                      className="rounded-full bg-dash-brand px-2.5 py-1 text-[10px] text-white transition disabled:opacity-50"
+                                    >
+                                      {salvandoInteg ? "testando…" : "salvar e testar"}
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setFormInteg(null);
+                                        setAvisoInteg("");
+                                      }}
+                                      className="rounded-full px-1.5 py-0.5 text-[10px] text-dash-dim transition hover:text-white"
+                                    >
+                                      cancelar
+                                    </button>
+                                    {avisoInteg && (
+                                      <span
+                                        data-arquiteto-integracao-aviso
+                                        className={`text-[10px] ${
+                                          avisoInteg.includes("✓") ? "text-dash-ok" : "text-dash-bad"
+                                        }`}
+                                      >
+                                        {avisoInteg}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </li>
                           );
                         })}

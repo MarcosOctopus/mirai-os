@@ -129,6 +129,14 @@ export const PROVEDORES: Record<string, ProvedorPonte> = {
   google,
 };
 
+/**
+ * Os ids que a ponte fala, na ordem do mapa. Quem precisa ACEITAR um tipo de
+ * provedor (ex.: o POST de /api/integracoes) importa ESTA lista — assim não
+ * existe uma segunda lista para divergir do catálogo; cadastrar um provedor
+ * novo é acrescentar a entrada acima, só.
+ */
+export const IDS_PROVEDORES: readonly string[] = Object.keys(PROVEDORES);
+
 /** O provedor de um id (`null` quando a ponte ainda não fala com ele → 501). */
 export function provedorDaPonte(id: string): ProvedorPonte | null {
   return PROVEDORES[(id || "").trim().toLowerCase()] || null;

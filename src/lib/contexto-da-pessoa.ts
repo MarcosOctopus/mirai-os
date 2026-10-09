@@ -34,6 +34,7 @@
 import type { Conta } from "./orgs";
 import { credencialSaasoDaConta } from "./orgs";
 import { integracoesDaPessoa, integracoesDaOrganizacao } from "./integracoes";
+import { leituraDeCredencial } from "./segredo-guardado";
 import { lerVinculo } from "./vinculo-conta-mirai";
 
 export type FerramentaDoConector = {
@@ -240,7 +241,7 @@ export async function montarContextoDaPessoa(
         nome: "CRM",
         origem: crmDaPessoa ? "pessoa" : "organizacao",
         rotulo: crm.rotulo || (crmDaPessoa ? "meu CRM" : "CRM da empresa"),
-        token: crm.credencial as string,
+        token: leituraDeCredencial(crm.credencial),
         timeoutMs,
       }),
     );
@@ -401,7 +402,7 @@ export async function executarFerramenta(
   const dono = ctx.conectores.find((c) => c.ferramentas.some((f) => f.nome === nome));
   if (!dono) return `erro: ferramenta não disponível para esta conta (${nome})`;
   if (dono.id === "crm" || dono.id === "saaso") {
-    const token = dono.credencial || credencialSaasoDaConta(conta)?.token;
+    const token = leituraDeCredencial(dono.credencial) || credencialSaasoDaConta(conta)?.token;
     if (!token) return "erro: integração sem credencial";
     const { saasoChamar } = await import("./saaso");
     // Registra QUAL integração executou — sem despejar o segredo.

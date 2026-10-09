@@ -26,6 +26,7 @@
  */
 
 import { db } from "./auth";
+import { IDS_PROVEDORES } from "./ponte-provedores";
 
 export type DonoDaIntegracao = "pessoa" | "organizacao";
 
@@ -42,8 +43,21 @@ export type Integracao = {
   atualizada_em: string;
 };
 
-/** Tipos que o resolutor sabe transformar em conector hoje. */
-export const TIPOS_SUPORTADOS = ["crm", "whatsapp", "telegram", "mcp", "api"] as const;
+/**
+ * Tipos aceitos no cadastro. Além dos tipos da casa (crm/whatsapp/telegram/
+ * mcp/api), entram os IDs DE PROVEDOR da ponte — a MESMA lista do catálogo
+ * (`IDS_PROVEDORES` de `ponte-provedores.ts`, a fonte da verdade de como montar
+ * a chamada). Importar de lá, em vez de repetir os ids aqui, é o que impede a
+ * lista do cadastro de divergir do que a ponte sabe usar.
+ */
+export const TIPOS_SUPORTADOS: readonly string[] = [
+  "crm",
+  "whatsapp",
+  "telegram",
+  "mcp",
+  "api",
+  ...IDS_PROVEDORES,
+];
 
 /** Impressão digital de um segredo — para provar qual credencial foi usada sem expor. */
 export function impressao(segredo: string | null | undefined): string {
