@@ -684,37 +684,96 @@ function Arquiteto() {
   // do título. Nada de inventar estado na tela: quem sabe é o servidor.
   const [menuConfig, setMenuConfig] = useState(false);
   const [abaConfig, setAbaConfig] = useState<"dominios" | "fontes" | "integracoes">("dominios");
-  // AS INTEGRAÇÕES DA CONTA dentro do Arquiteto (dono, 09/10/2026): ele quer ver,
-  // no projeto, o que já está plugado (GitHub, Supabase, Google…) e poder usar.
-  // Integração é da CONTA; o projeto só enxerga e usa.
-  const [integracoes, setIntegracoes] = useState<
-    Array<{ id: string; tipo: string; rotulo?: string; status?: string }>
-  >([]);
-  const [carregandoInteg, setCarregandoInteg] = useState(false);
+  // A LISTA CURTA do que dá para ligar no projeto (dono, 09/10/2026). É de
+  // propósito pequena: entram aqui só as que existem de verdade e fazem sentido
+  // num projeto — e vai crescendo conforme cada uma ficar pronta.
+  const INTEGRACOES_DO_PROJETO: Array<{ id: string; nome: string; para: string }> = [
+    { id: "github", nome: "GitHub", para: "editar um projeto que já vive num repositório" },
+    { id: "supabase", nome: "Supabase", para: "banco de dados e login" },
+    { id: "postgres", nome: "Postgres", para: "banco de dados" },
+    { id: "drive", nome: "Google Drive", para: "arquivos e pastas" },
+  ];
+  // O CATÁLOGO COMPLETO fica atrás de um pop-up com BUSCA (dono, 09/10/2026:
+  // "se tiver um monte de coisa, abre um pop-up para ver todas"). A frente
+  // continua curta; aqui é onde ele acha tudo — por categoria, sem rolar eterno.
+  const CATALOGO_INTEGRACOES: Array<{ grupo: string; itens: Array<{ id: string; nome: string; para: string }> }> = [
+    {
+      grupo: "Código e dados",
+      itens: [
+        { id: "github", nome: "GitHub", para: "editar projeto que já vive num repositório" },
+        { id: "supabase", nome: "Supabase", para: "banco de dados e login" },
+        { id: "postgres", nome: "Postgres", para: "banco de dados" },
+      ],
+    },
+    {
+      grupo: "Arquivos e mensagens",
+      itens: [
+        { id: "drive", nome: "Google Drive", para: "arquivos e pastas" },
+        { id: "youtube", nome: "YouTube", para: "vídeos do canal" },
+        { id: "telegram", nome: "Telegram", para: "mensagens e bots" },
+        { id: "whatsapp", nome: "WhatsApp", para: "mensagens" },
+        { id: "instagram", nome: "Instagram", para: "publicações" },
+      ],
+    },
+    {
+      grupo: "Inteligência",
+      itens: [
+        { id: "openai", nome: "OpenAI", para: "modelos de IA" },
+        { id: "google", nome: "Gemini", para: "modelos de IA" },
+        { id: "openrouter", nome: "OpenRouter", para: "vários modelos numa chave" },
+        { id: "groq", nome: "Groq", para: "respostas muito rápidas" },
+        { id: "verboo", nome: "Verboo", para: "modelos que já usamos aqui" },
+      ],
+    },
+    {
+      grupo: "Voz, imagem e vídeo",
+      itens: [
+        { id: "elevenlabs", nome: "ElevenLabs", para: "voz" },
+        { id: "picovoice", nome: "Picovoice", para: "voz no aparelho" },
+        { id: "canva", nome: "Canva", para: "design" },
+        { id: "figma", nome: "Figma", para: "design e protótipo" },
+        { id: "higgsfield", nome: "Higgsfield", para: "imagem e vídeo" },
+        { id: "suno", nome: "Suno", para: "música" },
+        { id: "magnific", nome: "Magnific", para: "melhorar imagem" },
+        { id: "kling", nome: "Kling", para: "vídeo" },
+      ],
+    },
+    {
+      grupo: "Nossa casa",
+      itens: [
+        { id: "saaso", nome: "CRM Saaso", para: "clientes e conversas" },
+        { id: "arca", nome: "Arca", para: "a memória do ecossistema" },
+        { id: "media-factory", nome: "Conteúdo", para: "produção de conteúdo" },
+      ],
+    },
+  ];
 
-  // Lê as integrações da CONTA na primeira vez que a aba abre (não antes: não
-  // gasta requisição à toa). A rota já filtra por pessoa — o projeto não vê o
-  // que não é de quem está falando.
+  // O QUE ESTE PROJETO USA (dono, 09/10/2026: "não precisa mostrar tudo que está
+  // integrado, só o que foi usado no projeto"). A lista é CURTA: ele vai colocando
+  // a integração que o projeto precisa. Integração é da CONTA; o projeto é quem diz
+  // quais usa. Sem inventário: nada de despejar o catálogo inteiro na tela.
+  const [usadas, setUsadas] = useState<string[]>([]);
+  const [carregandoInteg, setCarregandoInteg] = useState(false);
+  const [erroInteg, setErroInteg] = useState("");
+  // O POP-UP do catálogo completo (com busca) — a frente fica curta.
+  const [verTodas, setVerTodas] = useState(false);
+  const [buscaInteg, setBuscaInteg] = useState("");
+
+  // Carrega quando o projeto muda (mesma hora em que o resto do painel se atualiza).
   useEffect(() => {
     if (abaConfig !== "integracoes") return;
+    const id = projetoIdRef.current;
+    if (!id) return;
     let vivo = true;
     setCarregandoInteg(true);
-    fetch("/api/integracoes")
-      .then((r) => (r.ok ? r.json() : { minhas: [] }))
+    setErroInteg("");
+    fetch(`/api/arquiteto/projetos/${encodeURIComponent(id)}/integracoes`)
+      .then((r) => (r.ok ? r.json() : { usadas: [] }))
       .then((j) => {
-        if (!vivo) return;
-        const lista = Array.isArray(j?.minhas) ? j.minhas : [];
-        setIntegracoes(
-          lista.map((i: { id?: string; tipo?: string; rotulo?: string; status?: string }) => ({
-            id: String(i.id ?? ""),
-            tipo: String(i.tipo ?? ""),
-            rotulo: i.rotulo,
-            status: i.status,
-          })),
-        );
+        if (vivo) setUsadas(Array.isArray(j?.usadas) ? j.usadas.map(String) : []);
       })
       .catch(() => {
-        /* sem drama: a aba diz que não leu */
+        if (vivo) setErroInteg("não consegui ler as integrações deste projeto");
       })
       .finally(() => {
         if (vivo) setCarregandoInteg(false);
@@ -722,7 +781,44 @@ function Arquiteto() {
     return () => {
       vivo = false;
     };
-  }, [abaConfig]);
+  }, [abaConfig, projetoId]);
+
+  /** Põe uma integração no projeto (o servidor é quem decide: ele confere a conta). */
+  async function porIntegracao(id: string) {
+    const pid = projetoIdRef.current;
+    if (!pid || !id) return;
+    setErroInteg("");
+    try {
+      const r = await fetch(`/api/arquiteto/projetos/${encodeURIComponent(pid)}/integracoes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j?.erro || j?.error || "não deu para adicionar");
+      if (Array.isArray(j?.usadas)) setUsadas(j.usadas.map(String));
+    } catch (e) {
+      setErroInteg(e instanceof Error ? e.message : "não deu para adicionar");
+    }
+  }
+
+  /** Tira a integração do projeto (não apaga nada da conta de ninguém). */
+  async function tirarIntegracao(id: string) {
+    const pid = projetoIdRef.current;
+    if (!pid || !id) return;
+    setErroInteg("");
+    try {
+      const r = await fetch(
+        `/api/arquiteto/projetos/${encodeURIComponent(pid)}/integracoes?id=${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+      );
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j?.erro || j?.error || "não deu para tirar");
+      if (Array.isArray(j?.usadas)) setUsadas(j.usadas.map(String));
+    } catch (e) {
+      setErroInteg(e instanceof Error ? e.message : "não deu para tirar");
+    }
+  }
   const [endSlug, setEndSlug] = useState<string | null>(null);
   const [endSugerido, setEndSugerido] = useState("");
   const [endTexto, setEndTexto] = useState("");
@@ -4199,62 +4295,188 @@ function Arquiteto() {
 
               {abaConfig === "integracoes" && (
                 <div data-arquiteto-config-integracoes className="flex flex-col gap-2.5">
-                  {/* GITHUB — o primeiro que faz sentido AQUI (dono, 09/10/2026):
-                      editar um projeto que já vive num repositório. O botão leva ao
-                      manifesto: ele clica UMA vez no GitHub, escolhe os repositórios,
-                      e a chave privada chega direto no nosso servidor (cifrada). */}
+                  {/* O QUE ESTE PROJETO USA (dono, 09/10/2026: "não precisa mostrar
+                      tudo que está integrado, só o que foi usado no projeto").
+                      Curto e direto: o que ele escolheu, e a lista de onde escolher. */}
                   <div className="rounded-[8px] border border-white/[0.09] bg-black/20 px-2.5 py-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-white/85">GitHub</span>
-                      <span className="hidden text-[10px] text-dash-dim sm:inline">editar projeto que já existe</span>
-                    </div>
-                    <a
-                      href="/api/oauth/github/manifesto"
-                      data-arquiteto-config-github
-                      className="mt-1.5 inline-flex w-fit items-center gap-1.5 rounded-full bg-dash-raise px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-white"
-                    >
-                      criar o app e escolher os repositórios
-                    </a>
-                    <p className="mt-1.5 text-[10px] leading-[1.5] text-dash-dim">
-                      Abre o GitHub, você clica uma vez e marca quais repositórios liberar. Sem copiar chave: ela
-                      chega direto aqui, cifrada.
-                    </p>
-                  </div>
-
-                  {/* AS INTEGRAÇÕES DA CONTA: o que ele JÁ tem e pode usar neste projeto.
-                      Integração é da CONTA (por pessoa); o projeto só enxerga e usa. */}
-                  <div className="rounded-[8px] border border-white/[0.09] bg-black/20 px-2.5 py-2">
-                    <p className="text-[11px] text-white/85">As suas integrações</p>
+                    <p className="text-[11px] text-white/85">Este projeto usa</p>
                     {carregandoInteg ? (
                       <p className="mt-1 text-[10px] text-dash-dim">lendo…</p>
-                    ) : integracoes.length ? (
+                    ) : usadas.length ? (
                       <ul className="mt-1.5 flex flex-col gap-1">
-                        {integracoes.map((i) => (
-                          <li key={i.id} className="flex items-center justify-between gap-2 text-[10.5px]">
-                            <span className="truncate text-dash-muted">{i.rotulo || i.tipo}</span>
-                            <span className="shrink-0 text-dash-ok">{i.status || "conectado"}</span>
-                          </li>
-                        ))}
+                        {usadas.map((id) => {
+                          const o = INTEGRACOES_DO_PROJETO.find((x) => x.id === id);
+                          return (
+                            <li key={id} className="flex items-center justify-between gap-2 text-[10.5px]">
+                              <span className="flex min-w-0 flex-col">
+                                <span className="truncate text-dash-muted">{o ? o.nome : id}</span>
+                                {o && <span className="truncate text-[9.5px] text-dash-dim">{o.para}</span>}
+                              </span>
+                              <button
+                                onClick={() => void tirarIntegracao(id)}
+                                aria-label={`Tirar ${o ? o.nome : id} deste projeto`}
+                                className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] text-dash-dim transition hover:text-dash-bad"
+                              >
+                                tirar
+                              </button>
+                            </li>
+                          );
+                        })}
                       </ul>
                     ) : (
                       <p className="mt-1 text-[10px] leading-[1.5] text-dash-dim">
-                        Nenhuma plugada ainda.{" "}
-                        <a href="/dashboard/connect" className="underline hover:text-white">
-                          conectar em Conexões
-                        </a>
-                        .
+                        Nenhuma ainda. Escolhe abaixo o que este projeto vai usar.
                       </p>
                     )}
-                    <p className="mt-1.5 text-[10px] leading-[1.5] text-dash-dim">
-                      Integração é da sua conta — aqui é o que este projeto pode usar.
-                    </p>
                   </div>
+
+                  {/* ADICIONAR — lista curta, e vai crescendo conforme existirem. */}
+                  <div className="rounded-[8px] border border-white/[0.09] bg-black/20 px-2.5 py-2">
+                    <p className="text-[11px] text-white/85">Adicionar ao projeto</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {INTEGRACOES_DO_PROJETO.filter((o) => !usadas.includes(o.id)).map((o) => (
+                        <button
+                          key={o.id}
+                          onClick={() => void porIntegracao(o.id)}
+                          title={o.para}
+                          data-arquiteto-config-integracao-add={o.id}
+                          className="rounded-full bg-dash-raise px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-white"
+                        >
+                          {o.nome}
+                        </button>
+                      ))}
+                      {!INTEGRACOES_DO_PROJETO.some((o) => !usadas.includes(o.id)) && (
+                        <span className="text-[10px] text-dash-dim">todas já estão neste projeto</span>
+                      )}
+                    </div>
+                    {/* A porta para o catálogo inteiro: pop-up com busca, por categoria. */}
+                    <button
+                      onClick={() => {
+                        setBuscaInteg("");
+                        setVerTodas(true);
+                      }}
+                      data-arquiteto-config-integracoes-ver-todas
+                      className="mt-2 text-[10.5px] text-dash-dim underline transition hover:text-white"
+                    >
+                      ver todas as integrações
+                    </button>
+                  </div>
+
+                  {/* GITHUB já no projeto: o botão de UM clique (manifesto do GitHub App).
+                      Ele clica uma vez no GitHub, marca os repositórios e a chave privada
+                      chega direto no nosso servidor, cifrada. */}
+                  {usadas.includes("github") && (
+                    <div className="rounded-[8px] border border-white/[0.09] bg-black/20 px-2.5 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-white/85">GitHub</span>
+                        <span className="hidden text-[10px] text-dash-dim sm:inline">editar projeto que já existe</span>
+                      </div>
+                      <a
+                        href="/api/oauth/github/manifesto"
+                        data-arquiteto-config-github
+                        className="mt-1.5 inline-flex w-fit items-center gap-1.5 rounded-full bg-dash-raise px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-white"
+                      >
+                        criar o app e escolher os repositórios
+                      </a>
+                      <p className="mt-1.5 text-[10px] leading-[1.5] text-dash-dim">
+                        Abre o GitHub, você clica uma vez e marca quais repositórios liberar. Sem copiar chave: ela
+                        chega direto aqui, cifrada.
+                      </p>
+                    </div>
+                  )}
+
+                  {erroInteg && <p className="px-1 text-[10px] leading-[1.5] text-dash-bad">{erroInteg}</p>}
 
                   {/* FREIO DE HONESTIDADE: o que ainda NÃO existe, dito com todas as letras. */}
                   <p className="px-1 text-[10px] leading-[1.5] text-dash-dim">
-                    Ainda não existe: marcar integração por projeto e a app gerada receber as chaves. Isso depende
-                    de uma decisão sua — como o segredo entra no código que a IA escreve.
+                    Ainda não existe: as chaves da integração chegarem na app gerada. Isso depende de uma decisão
+                    sua — variável de ambiente no deploy, ou um endereço nosso no meio.
                   </p>
+
+                  {/* ═══ POP-UP: TODAS as integrações, com busca, por categoria ═══
+                      (dono, 09/10/2026: "se tiver um monte de coisa, abre um pop-up
+                      para ver todas"). A frente continua curta; aqui ele acha tudo.
+                      O que ainda não dá para usar diz "ainda não" — sem promessa falsa. */}
+                  {verTodas && (
+                    <div
+                      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center sm:p-6"
+                      onClick={() => setVerTodas(false)}
+                    >
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        data-arquiteto-integracoes-popup
+                        className="flex max-h-[85vh] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[16px] border border-white/10 bg-dash-side shadow-2xl sm:rounded-[16px]"
+                      >
+                        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.07] px-4 py-3">
+                          <p className="text-[12.5px] text-white">Integrações</p>
+                          <button
+                            onClick={() => setVerTodas(false)}
+                            aria-label="Fechar"
+                            className="rounded-full px-2 py-0.5 text-[11px] text-dash-dim transition hover:text-white"
+                          >
+                            fechar
+                          </button>
+                        </div>
+                        <div className="shrink-0 px-4 py-2.5">
+                          <input
+                            autoFocus
+                            value={buscaInteg}
+                            onChange={(e) => setBuscaInteg(e.target.value)}
+                            placeholder="buscar (ex.: banco, voz, vídeo)"
+                            data-arquiteto-integracoes-busca
+                            className="w-full rounded-[10px] border border-white/10 bg-black/25 px-3 py-2 text-[12px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/50"
+                          />
+                        </div>
+                        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+                          {CATALOGO_INTEGRACOES.map((g) => {
+                            const t = buscaInteg.trim().toLowerCase();
+                            const itens = g.itens.filter(
+                              (i) => !t || i.nome.toLowerCase().includes(t) || i.para.toLowerCase().includes(t),
+                            );
+                            if (!itens.length) return null;
+                            return (
+                              <div key={g.grupo} className="mt-3 first:mt-1">
+                                <p className="text-[9.5px] uppercase tracking-[0.14em] text-dash-dim">{g.grupo}</p>
+                                <ul className="mt-1.5 flex flex-col gap-1">
+                                  {itens.map((i) => {
+                                    const dentro = usadas.includes(i.id);
+                                    const fazSentido = INTEGRACOES_DO_PROJETO.some((o) => o.id === i.id);
+                                    return (
+                                      <li
+                                        key={i.id}
+                                        className="flex items-center justify-between gap-3 rounded-[9px] px-2 py-1.5 hover:bg-white/[0.04]"
+                                      >
+                                        <span className="flex min-w-0 flex-col">
+                                          <span className="truncate text-[11.5px] text-white/90">{i.nome}</span>
+                                          <span className="truncate text-[10px] text-dash-dim">{i.para}</span>
+                                        </span>
+                                        {dentro ? (
+                                          <span className="shrink-0 text-[10px] text-dash-ok">neste projeto</span>
+                                        ) : fazSentido ? (
+                                          <button
+                                            onClick={() => void porIntegracao(i.id)}
+                                            className="shrink-0 rounded-full bg-dash-raise px-2.5 py-1 text-[10px] text-dash-muted transition hover:text-white"
+                                          >
+                                            usar
+                                          </button>
+                                        ) : (
+                                          <span className="shrink-0 text-[10px] text-dash-dim">ainda não</span>
+                                        )}
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className="shrink-0 border-t border-white/[0.07] px-4 py-2.5 text-[10px] leading-[1.5] text-dash-dim">
+                          &quot;ainda não&quot; = existe na sua conta, mas o projeto ainda não sabe usar as chaves
+                          dela. Nada aqui é apagado da sua conta.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

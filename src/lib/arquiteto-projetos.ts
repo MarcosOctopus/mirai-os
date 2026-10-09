@@ -241,6 +241,12 @@ function getDb() {
   garantirColuna(db, "arquiteto_projetos", "github_token_cifrado", "TEXT");
   garantirColuna(db, "arquiteto_projetos", "github_login", "TEXT");
   garantirColuna(db, "arquiteto_projetos", "github_em", "TEXT");
+  // INTEGRAÇÕES (dono, 09/10/2026): QUAIS integrações o projeto USA — uma lista
+  // de identificadores curtos (ex.: ['github','supabase']) guardada como JSON.
+  // Coluna ADITIVA na PRÓPRIA linha do projeto, pelo mesmo motivo dos tokens: é
+  // dado do projeto, e um segundo lugar seria um segundo caminho para o mesmo
+  // dado. Linha antiga com NULL = lista vazia; nada de backfill inventado.
+  garantirColuna(db, "arquiteto_projetos", "integracoes", "TEXT");
   return db;
 }
 
@@ -1371,4 +1377,72 @@ export function obterProjetoPublicoPorDominio(
     .all(linha.id) as ArquivoProjeto[];
   db.close();
   return { projeto: comoCompleto(linha, arquivos), donoId: Number(linha.user_id) };
+}
+
+/* ── INTEGRAÇÕES DO PROJETO (dono, 09/10/2026) ───────────────────────────────
+   QUAIS integrações o projeto USA — uma LISTA de identificadores curtos (ex.:
+   ['github','supabase']). Vive na coluna ADITIVA `integracoes` da PRÓPRIA linha
+   do projeto, como um JSON de strings (mesmo espírito de `tokens_json`): lista
+   pequena, dado do projeto — um segundo lugar seria um segundo caminho para o
+   mesmo dado.
+
+   Estas funções NÃO pedem `userId` de propósito, como as de Cloudflare/GitHub:
+   quem chega aqui já foi autorizado ANTES (a ROTA confere a sessão E a posse do
+   projeto). `integracoesDoProjeto` é DEFINITIVA: nunca lança — JSON corrompido,
+   NULL ou lista vazia viram `[]`. Nada de inventar uma integração que não há. */
+
+/** A régua única da lista de integrações — aplicada ao LER (JSON do banco) e ao
+ *  GRAVAR (lista que chega da rota): só strings não vazias, sem duplicados, na
+ *  ordem em que aparecem primeiro. Corrompido não é erro: cai em `[]`. */
+function normalizarIntegracoes(valor: unknown): string[] {
+  let bruto: unknown = valor;
+  if (typeof valor === "string") {
+    try {
+      bruto = JSON.parse(valor);
+    } catch {
+      return []; // JSON torto: sem integração, jamais um valor inventado
+    }
+  }
+  if (!Array.isArray(bruto)) return [];
+  const vistos = new Set<string>();
+  const saida: string[] = [];
+  for (const item of bruto) {
+    if (typeof item !== "string") continue;
+    const limpo = item.trim();
+    if (!limpo || vistos.has(limpo)) continue;
+    vistos.add(limpo);
+    saida.push(limpo);
+  }
+  return saida;
+}
+
+/** As integrações que o projeto USA. NUNCA lança: sem coluna, NULL, JSON
+ *  corrompido ou banco fora do ar → `[]`. */
+export function integracoesDoProjeto(projetoId: string): string[] {
+  try {
+    const db = getDb();
+    const l = db
+      .prepare("SELECT integracoes FROM arquiteto_projetos WHERE id = ?")
+      .get(projetoId) as { integracoes: string | null } | undefined;
+    db.close();
+    return normalizarIntegracoes(l?.integracoes ?? null);
+  } catch {
+    return []; // qualquer tropeço na leitura vale como "não há integrações"
+  }
+}
+
+/**
+ * Grava a LISTA de integrações do projeto (substitui por inteiro, como os
+ * arquivos): é sempre o estado final que a rota mandou. Filtra duplicados e
+ * strings vazias pela MESMA régua da leitura. Devolve `false` quando nenhuma
+ * linha foi afetada (projeto sumiu) — a posse já foi conferida pela rota.
+ */
+export function definirIntegracoesDoProjeto(projetoId: string, lista: string[]): boolean {
+  const limpo = normalizarIntegracoes(lista);
+  const db = getDb();
+  const r = db
+    .prepare("UPDATE arquiteto_projetos SET integracoes = ? WHERE id = ?")
+    .run(JSON.stringify(limpo), projetoId);
+  db.close();
+  return r.changes > 0;
 }
