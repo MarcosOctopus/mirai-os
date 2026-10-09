@@ -317,6 +317,29 @@ function ehDonoDoProjeto(db: Database.Database, userId: number, projetoId: strin
   );
 }
 
+/**
+ * O id da CONTA dona do projeto — sem pedir `userId` de propósito.
+ *
+ * POR QUE (dono, 09/10/2026 — a PONTE DAS INTEGRAÇÕES): quem chama a ponte é o
+ * site PUBLICADO, com um TOKEN escopado ao (projeto, integração) — não há sessão
+ * para dizer de quem é a conta. Mas a credencial a usar é SEMPRE a da conta dona
+ * do projeto. Esta é a ponte entre o `projetoId` e o `dono_id`, para resolver a
+ * credencial pela MESMA régua das outras rotas. Nunca lança: projeto inexistente
+ * ou banco fora do ar viram `null` (a rota responde 404, sem vazar nada).
+ */
+export function donoDoProjeto(projetoId: string): number | null {
+  try {
+    const db = getDb();
+    const l = db
+      .prepare("SELECT user_id FROM arquiteto_projetos WHERE id = ?")
+      .get(projetoId) as { user_id: number } | undefined;
+    db.close();
+    return l ? Number(l.user_id) : null;
+  } catch {
+    return null; // qualquer tropeço vale como "não existe"
+  }
+}
+
 /** Lista os projetos da pessoa — mais recentes primeiro. (id, título, datas) */
 export function listarProjetos(userId: number): ProjetoResumo[] {
   const db = getDb();

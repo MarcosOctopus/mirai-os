@@ -33,6 +33,13 @@ const PUBLIC_PATHS = [
   // sessão de navegador — quem autoriza é o BILHETE assinado (cookie httpOnly,
   // `cloudflare-oauth.ts`) e o token do domínio, conferidos DENTRO das rotas.
   '/api/oauth/cloudflare',
+  // PONTE DAS INTEGRAÇÕES (dono, 09/10/2026): o SITE PUBLICADO (site estático
+  // gerado pelo Arquiteto) chama isto para falar com o provedor usando a
+  // credencial DA CONTA — ele NÃO tem cookie de sessão. A autorização é o TOKEN
+  // assinado, escopado ao par (projeto, integração), conferido DENTRO da rota
+  // (`ponte-token.ts`) — nunca a sessão. Sem token válido (nem sessão dona), a
+  // rota responde 401. "Pública" só no middleware, para o pedido chegar à rota.
+  '/api/ponte',
   // CONSENTIMENTO DO GITHUB (dono, 09/10/2026 — o botão "Conectar com GitHub"):
   // mesmo desenho do Cloudflare — o cliente sai do nosso site para autorizar e
   // volta. Sem sessão de navegador: quem autoriza é o BILHETE assinado (cookie
