@@ -12,7 +12,8 @@
 // escrever não é incomodado com o pedido de microfone da wake word.
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import Shell from "@/components/dash/Shell";
+import Shell, { useMenu } from "@/components/dash/Shell";
+import { IconeMenu } from "@/components/dash/icons";
 import ChatEscrito from "@/components/dash/ChatEscrito";
 import SeletorModo from "@/components/dash/SeletorModo";
 
@@ -55,6 +56,7 @@ export default function Page() {
 
   // O seletor só cresce no palco limpo da tela de início, e só no modo Chat
   // (no modo Orb ele fica discreto, que a estrela ali é o próprio Orb).
+  const menu = useMenu();
   const seletorGrande = modo === "chat" && inicio;
 
   return (
@@ -70,6 +72,17 @@ export default function Page() {
             seletorGrande ? "border-transparent py-4" : "border-white/[0.07] py-2.5"
           }`}
         >
+          {/* O BOTÃO DE MENU (dono, 10/10/2026): a tela de chat é `cheio` e o CSS
+              esconde o cabeçalho do Shell — onde mora o botão de menu. Sem este,
+              no celular a tela do chat ficava SEM MENU. Só no celular (lg:hidden);
+              no desktop a lateral já está sempre à vista. */}
+          <button
+            aria-label="Abrir menu"
+            onClick={() => menu.abrir()}
+            className="absolute left-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-[10px] text-dash-muted transition hover:text-white lg:hidden"
+          >
+            <IconeMenu />
+          </button>
           <SeletorModo
             rotuloAria="Modo de conversa"
             grande={seletorGrande}

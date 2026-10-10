@@ -88,7 +88,10 @@ export default function ChatEscrito({
 
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [texto, setTexto] = useState("");
-  const [modo, setModo] = useState<"conversa" | "arquiteto">("conversa");
+  // O CHAT É SÓ CONVERSA (dono, 10/10/2026): o modo "arquiteto" saiu DESTA tela —
+  // o Arquiteto tem a própria tela, alcançada pelo menu. Antes havia duas abas
+  // (conversa/arquiteto) aqui, e o dono foi claro: "não tem modo arquiteto" no chat.
+  const modo = "conversa";
   const [enviando, setEnviando] = useState(false);
   const [carregandoConversa, setCarregandoConversa] = useState(false);
 
@@ -690,19 +693,6 @@ export default function ChatEscrito({
           <>
             <div className="flex items-center gap-3 border-b border-white/[0.07] px-5 py-3.5">
               <p className="truncate text-[13px] text-dash-muted">{tituloAberto}</p>
-              <div className="ml-auto flex items-center gap-1.5">
-                {(["conversa", "arquiteto"] as const).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => setModo(m)}
-                    className={`rounded-full px-3 py-1.5 text-[11px] transition ${
-                      modo === m ? "bg-dash-brand text-white" : "bg-dash-raise text-dash-muted hover:text-white"
-                    }`}
-                  >
-                    {m === "conversa" ? "conversa" : "arquiteto"}
-                  </button>
-                ))}
-              </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
