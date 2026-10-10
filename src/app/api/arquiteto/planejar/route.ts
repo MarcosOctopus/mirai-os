@@ -48,7 +48,7 @@ const VERBOO_API_KEY = process.env.VERBOO_API_KEY || loadEnv("VERBOO_API_KEY");
 const GOOGLE_API_KEY = loadEnv("GOOGLE_API_KEY");
 
 const VERBOO_BASE = "https://code.verboo.ai/router/v1";
-const VERBOO_MODELOS = ["deepseek-v4.1-flash", "deepseek-v4-flash"];
+const VERBOO_MODELOS = ["deepseek-v4.1-flash", "glm-5.3-flash", "qwen3.8-27b"];
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -124,6 +124,10 @@ async function chamarModelo(mensagens: Msg[], system: string, tenant: number): P
     max_tokens: 6000,
     temperature: 0.4,
     stream: false,
+    // RACIOCÍNIO DESLIGADO (correção 10/10/2026): com o raciocínio ligado o modelo
+    // entra em LOOP INFINITO e a resposta TRAVA (mesmo defeito do construtor e do
+    // chat). Sem isto, o modo Plano do Arquiteto "faz besteira" — não responde.
+    enable_thinking: false,
   };
 
   // 1) Gateway da conta (vínculo + plano/medição).
@@ -149,7 +153,7 @@ async function chamarModelo(mensagens: Msg[], system: string, tenant: number): P
         const r = await fetch(`${VERBOO_BASE}/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${VERBOO_API_KEY}` },
-          body: JSON.stringify({ ...corpoBase, model: modelo, reasoning_effort: "low" }),
+          body: JSON.stringify({ ...corpoBase, model: modelo }),
           signal: AbortSignal.timeout(240000),
         });
         if (!r.ok) {

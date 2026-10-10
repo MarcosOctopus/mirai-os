@@ -11,9 +11,11 @@ export const dynamic = "force-dynamic";
  */
 const CADEIA = [
   { ordem: 1, modelo: "deepseek-v4.1-flash", provider: "verboo" },
-  { ordem: 2, modelo: "deepseek-v4-flash", provider: "verboo", papel: "reserva imediata" },
+  // Reserva: o `deepseek-v4-flash` saiu do provedor (404 "model not available",
+  // medido 10/10/2026) — a reserva real passou a ser o `glm-5.3-flash`.
+  { ordem: 2, modelo: "glm-5.3-flash", provider: "verboo", papel: "reserva imediata" },
   { ordem: 3, modelo: "gemini-2.5-flash", provider: "google" },
-  { ordem: 4, modelo: "anthropic/claude-sonnet-4-6", provider: "openrouter" },
+  { ordem: 4, modelo: "anthropic/", provider: "openrouter" },
 ];
 
 export async function GET() {
