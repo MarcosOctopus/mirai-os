@@ -31,7 +31,7 @@ import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
 
 const VERBOO_BASE     = "https://code.verboo.ai/router/v1";
 const VERBOO_MODEL    = "deepseek-v4.1-flash";      // V4.1 (principal do ecossistema)
-const VERBOO_MODEL_40 = "deepseek-v4-flash";        // V4.0 (reserva imediata)
+const VERBOO_RESERVA  = "glm-5.3-flash";            // reserva (o "deepseek-v4-flash" saiu do provedor: 404)
 const GEMINI_BASE     = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_MODEL    = "gemini-2.5-flash";
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
@@ -478,6 +478,8 @@ async function conversarComFerramentas(opts: {
     ...(comFerramentas ? { tools: ferramentas, tool_choice: "auto" } : {}),
     max_tokens: 4096,
     temperature: 0.4,
+    // Mesma correção do caminho direto: sem isto o gateway também trava no loop.
+    enable_thinking: false,
   });
 
   const chamarDireto = (comFerramentas: boolean) =>
@@ -490,6 +492,11 @@ async function conversarComFerramentas(opts: {
         ...(comFerramentas ? { tools: ferramentas, tool_choice: "auto" } : {}),
         max_tokens: 4096,
         temperature: 0.4,
+        // RACIOCÍNIO DESLIGADO (correção 10/10/2026, medida no construtor): com o
+        // raciocínio LIGADO o modelo entra em LOOP INFINITO — o stream corre e nunca
+        // emite `content`, e a resposta TRAVA (o botão de enviar fica desabilitado
+        // "para sempre"). Com `enable_thinking: false` responde em segundos.
+        enable_thinking: false,
       }),
     });
 
@@ -786,8 +793,8 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
     const err = await resp.text().catch(() => "");
     console.error(`Verboo ${modelo} error:`, resp.status, err.slice(0, 300));
     if (modelo === VERBOO_MODEL) {
-      console.log("V4.1 caiu — indo para o V4.0...");
-      return await callVerboo(messages, lastMsg, chatMode, VERBOO_MODEL_40, apoio, ehDono);
+      console.log("V4.1 caiu — indo para a reserva...");
+      return await callVerboo(messages, lastMsg, chatMode, VERBOO_RESERVA, apoio, ehDono);
     }
     if (GOOGLE_API_KEY) return await callGemini(messages, lastMsg, chatMode, apoio, ehDono);
     if (OPENROUTER_KEY) return await callOpenRouter(messages, lastMsg, chatMode, apoio, ehDono);
