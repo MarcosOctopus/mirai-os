@@ -12,8 +12,12 @@ export async function GET(request: NextRequest) {
     redirect_uri: redirectUri,
     scope: "openid email profile",
     response_type: "code",
-    access_type: "offline",
-    prompt: "consent",
+    // SELETOR DE CONTAS (correção 10/10/2026). Antes era `prompt: "consent"`, que
+    // FORÇAVA a tela de consentimento em TODA entrada e pulava o seletor — e, sem
+    // o seletor, quem entra pelo app instalado (PWA) caía na tela de DIGITAR a
+    // conta em vez de ver as contas já conectadas no aparelho. `select_account`
+    // mostra o seletor; quem já autorizou antes não vê consentimento de novo.
+    prompt: "select_account",
   });
 
   return NextResponse.redirect(
