@@ -1807,6 +1807,11 @@ function Arquiteto() {
           // isto ele só teria o diálogo (pedidos + resumos) e refaria no escuro.
           docProjeto:
             projeto?.arquivos.find((a) => a.nome.trim().toLowerCase() === "projeto.md")?.conteudo ?? "",
+          // OS ARQUIVOS ATUAIS (dono, 10/10/2026): o construtor precisa VER o
+          // código COMO ESTÁ para MUDAR o pedaço que foi marcado. Sem isto ele só
+          // tinha o diálogo + o .md (resumos) e RECONSTRUÍA tudo no escuro — era o
+          // que fazia "marcar e mudar" acabar mudando outra coisa.
+          arquivos: (projeto?.arquivos ?? []).map((a) => ({ nome: a.nome, conteudo: a.conteudo })),
           // A FOTO DO PEDAÇO MARCADO (dono, 09/10/2026): a VISÃO do construtor. O
           // modelo de construção não enxerga imagem — quem lê esta foto é um modelo
           // que enxerga, e a descrição dele entra na instrução (na rota).

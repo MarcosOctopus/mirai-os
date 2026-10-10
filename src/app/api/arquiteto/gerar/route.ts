@@ -386,6 +386,66 @@ async function lerFotoComVisao(foto: string): Promise<string> {
   }
 }
 
+/**
+ * A instrução ganha OS ARQUIVOS ATUAIS do projeto (dono, 10/10/2026).
+ *
+ * Por que existe: o construtor recebia só a CONVERSA (pedidos + resumos) e o .md
+ * — não via o CÓDIGO como estava. Com isso, a cada pedido, ele RECONSTRUÍA o
+ * projeto "no escuro": quando a pessoa marcava um pedaço e pedia uma mudança, o
+ * resultado mudava outra coisa (ou o projeto todo). Aqui vão os arquivos COMO
+ * ESTÃO, com a regra explícita de mudar SÓ o pedido e manter o resto igual.
+ *
+ * Sem projeto (primeira construção), a instrução passa intacta.
+ */
+function promptComArquivos(system: string, arquivos: { nome: string; conteudo: string }[]): string {
+  const limpos = (arquivos || [])
+    .filter((a) => a && typeof a.nome === "string" && typeof a.conteudo === "string" && a.nome.trim())
+    .map((a) => ({ nome: a.nome.trim(), conteudo: a.conteudo }))
+    .slice(0, 60);
+  if (!limpos.length) return system;
+  // Teto de tamanho: manda os arquivos inteiros; num projeto gigante, corta o
+  // excedente com AVISO HONESTO (nunca finge que o arquivo acabou).
+  const TETO = 90000;
+  let usado = 0;
+  const blocos: string[] = [];
+  for (const a of limpos) {
+    const sobra = TETO - usado;
+    if (sobra <= 0) {
+      blocos.push(
+        `=== ARQUIVO: ${a.nome} ===\n[arquivo grande demais para caber aqui — peça para trabalhar neste arquivo separadamente]`,
+      );
+      continue;
+    }
+    const conteudo =
+      a.conteudo.length > sobra
+        ? `${a.conteudo.slice(0, sobra)}\n…[cortado por tamanho; peça o resto se precisar]`
+        : a.conteudo;
+    usado += conteudo.length;
+    blocos.push(`=== ARQUIVO: ${a.nome} ===\n${conteudo}`);
+  }
+  return (
+    system +
+    `
+
+## O PROJETO ATUAL — a fonte da verdade (você já está NO MEIO do projeto)
+Estes são os arquivos COMO ESTÃO AGORA. Isto NÃO é um recomeço: todo pedido parte daqui.
+
+${blocos.join("\n")}
+
+## COMO MUDAR (vale SEMPRE que o pedido for uma mudança)
+- Mudança é ajustar algo que JÁ EXISTE: devolva os arquivos INTEIROS, mas com SÓ o que foi pedido
+  alterado. Tudo o mais sai IGUAL ao que está acima — mesmos textos, tags, classes, ids,
+  atributos, imagens e ordem.
+- Mire no MENOR pedaço: se o pedido é sobre um elemento (ex.: <section secao-destaque>), mude só ele
+  (e o estilo que é dele). NÃO toque no resto da página.
+- NUNCA troque o projeto por uma "versão melhor" sua, nem invente conteúdo que não foi pedido.
+  Pedido de cor → mude a cor e nada mais. Pedido de texto → mude o texto e nada mais.
+- Pedido de ACRESCENTAR: MANTENHA tudo o que já existe e acrescente o novo.
+- Só relaxe isto se o pedido for vago (ex.: "melhore a página"): aí use o bom senso — e diga no
+  RESUMO exatamente o que mudou.`
+  );
+}
+
 /** A VISÃO entra na instrução como o PEDAÇO ALVO — em TEXTO, que é o que o
     construtor consome. Sem descrição, ele é AVISADO de que a foto não foi lida. */
 function promptComFoto(system: string, descricao: string): string {
@@ -514,7 +574,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 3) O pedido.
-  let corpo: { mensagens?: Msg[]; assets?: string[]; tokens?: unknown; docProjeto?: string; foto?: string; projetoId?: string; integracoes?: string[] } = {};
+  let corpo: { mensagens?: Msg[]; assets?: string[]; tokens?: unknown; docProjeto?: string; foto?: string; projetoId?: string; integracoes?: string[]; arquivos?: { nome: string; conteudo: string }[] } = {};
   try {
     corpo = (await req.json()) as {
       mensagens?: Msg[];
@@ -524,6 +584,7 @@ export async function POST(req: NextRequest) {
       foto?: string;
       projetoId?: string;
       integracoes?: string[];
+      arquivos?: { nome: string; conteudo: string }[];
     };
   } catch {
     corpo = {};
@@ -556,12 +617,22 @@ export async function POST(req: NextRequest) {
   const integracoes = Array.isArray(corpo.integracoes)
     ? corpo.integracoes.filter((i): i is string => typeof i === "string")
     : [];
-  const instrucao = promptComIntegracoes(
-    promptComDoc(
-      promptComVisual(promptComCraft(promptComTokens(promptComAssets(CONSTRUTOR_PROMPT, assets), tokens))),
-      docProjeto,
+  // OS ARQUIVOS ATUAIS (dono, 10/10/2026): o construtor precisa VER o código como
+  // está para MUDAR um pedaço em vez de refazer no escuro.
+  const arquivosAtuais: { nome: string; conteudo: string }[] = Array.isArray(corpo.arquivos)
+    ? corpo.arquivos
+        .filter((a) => !!a && typeof a.nome === "string" && typeof a.conteudo === "string" && a.nome.trim() !== "")
+        .map((a) => ({ nome: a.nome.trim(), conteudo: a.conteudo }))
+    : [];
+  const instrucao = promptComArquivos(
+    promptComIntegracoes(
+      promptComDoc(
+        promptComVisual(promptComCraft(promptComTokens(promptComAssets(CONSTRUTOR_PROMPT, assets), tokens))),
+        docProjeto,
+      ),
+      integracoes,
     ),
-    integracoes,
+    arquivosAtuais,
   );
   const r = await chamarModelo(
     mensagens,
