@@ -52,7 +52,7 @@ const GOOGLE_API_KEY = loadEnv("GOOGLE_API_KEY");
 
 const VERBOO_BASE = "https://code.verboo.ai/router/v1";
 // Mesmos modelos do chat: V4.1 (principal) com o V4.0 logo atrás como reserva.
-const VERBOO_MODELOS = ["deepseek-v4.1-flash", "deepseek-v4-flash"];
+const VERBOO_MODELOS = ["deepseek-v4.1-flash", "glm-5.3-flash", "qwen3.8-27b"];
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -402,13 +402,21 @@ async function chamarModelo(mensagens: Msg[], system: string, tenant: number): P
   // alto para os arquivos inteiros caberem. E os modelos Verboo são de
   // RACIOCÍNIO (devolvem `reasoning_content` à parte): com o teto baixo o
   // raciocínio consome a cota, o `content` volta VAZIO ou cortado
-  // (`finish_reason: length`) e o construtor "falha" sem erro de rede. Por isso
-  // o `reasoning_effort: "low"` no caminho direto: raciocínio curto, sobra cota
-  // e a resposta fecha. O caminho do gateway continua exatamente o mesmo.
+  // (`finish_reason: length`) e o construtor "falha" sem erro de rede. O
+  // RACIOCÍNIO vai DESLIGADO (`enable_thinking: false`, ver `corpoBase`) — e
+  // NADA de `reasoning_effort`: medido em 10/10/2026, qualquer `reasoning_effort`
+  // ANULA o `enable_thinking: false` e o modelo volta ao loop infinito.
   const corpoBase = {
     messages: msgs,
     max_tokens: 32000,
     temperature: 0.3,
+    // RACIOCÍNIO DESLIGADO (correção 10/10/2026, medida): com o raciocínio LIGADO
+    // (`reasoning_effort: low`, `none`, etc.) o modelo entra em LOOP INFINITO: o
+    // stream corre (34 mil eventos medidos) e NUNCA emite `content` — só
+    // `reasoning_content`. O build travava os 240s do timeout e devolvia 502. Com
+    // `enable_thinking: false` a MESMA instrução devolve conteúdo em ~1,6s.
+    // Não é preferência: é o que faz o build funcionar (e ficou muito mais rápido).
+    enable_thinking: false,
     // STREAM SEMPRE LIGADO (correção de transporte, 08/10/2026): a chamada
     // BUFFERIZADA (`stream: false`) fazia o router do provedor devolver
     // "upstream unavailable" a ~240s nos builds grandes (o modelo de
@@ -440,7 +448,7 @@ async function chamarModelo(mensagens: Msg[], system: string, tenant: number): P
         const r = await fetch(`${VERBOO_BASE}/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${VERBOO_API_KEY}` },
-          body: JSON.stringify({ ...corpoBase, model: modelo, reasoning_effort: "low" }),
+          body: JSON.stringify({ ...corpoBase, model: modelo }),
           signal: AbortSignal.timeout(240000),
         });
         if (!r.ok) {
