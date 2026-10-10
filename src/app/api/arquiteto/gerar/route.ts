@@ -601,69 +601,116 @@ export async function POST(req: NextRequest) {
   // está na tela — é por ele que o construtor segue as decisões já tomadas. Sem
   // projeto (ou sem .md), vem vazio e o bloco não entra.
   const docProjeto = typeof corpo.docProjeto === "string" ? corpo.docProjeto : "";
-  // A FOTO DO PEDAÇO MARCADO (dono, 09/10/2026): o construtor não enxerga imagem,
-  // então a foto é lida por um modelo que ENXERGA e entra na instrução como TEXTO.
   const foto = typeof corpo.foto === "string" ? corpo.foto : "";
-  const visao = foto ? await lerFotoComVisao(foto) : "";
-
-  // 4) O modelo. A instrução leva o PADRÃO DO ARQUITETO (as cinco skills de
-  // craft: dados/isolamento, quatro estados, estrutura, craft visual, front-end
-  // e bibliotecas) + o PADRÃO VISUAL ANTI-GENÉRICO (VISUAL.md §5: composição,
-  // tipografia com escala única, contraste AA declarado, estrutura, mídia e
-  // movimento) + a LISTA de imagens + os TOKENS do projeto + as INTEGRAÇÕES que
-  // o projeto usa (o construtor precisa saber que `window.miraiPonte` existe,
-  // senão ele escreveria a chave no código — que é o que não pode). A porteira, o
-  // formato, a persistência e o fluxo do plano NÃO mudam — só a instrução.
   const integracoes = Array.isArray(corpo.integracoes)
     ? corpo.integracoes.filter((i): i is string => typeof i === "string")
     : [];
-  // OS ARQUIVOS ATUAIS (dono, 10/10/2026): o construtor precisa VER o código como
-  // está para MUDAR um pedaço em vez de refazer no escuro.
   const arquivosAtuais: { nome: string; conteudo: string }[] = Array.isArray(corpo.arquivos)
     ? corpo.arquivos
         .filter((a) => !!a && typeof a.nome === "string" && typeof a.conteudo === "string" && a.nome.trim() !== "")
         .map((a) => ({ nome: a.nome.trim(), conteudo: a.conteudo }))
     : [];
+
+  // ── A PARTE LENTA VAI NUM FLUXO COM BATIMENTO (dono, 10/10/2026) ────────────
+  // Ler a foto (~36s) + construir (~30s) deixava a conexão PARADA esse tempo
+  // todo; conexão ociosa é cortada pelo Cloudflare/túnel e a pessoa via "Caiu a
+  // conexão no meio". Aqui a rota manda um ESPAÇO a cada 8s (batimento): o
+  // cliente lê o corpo INTEIRO e o JSON do fim continua válido (espaço antes do
+  // JSON é ignorado). Nada muda para o cliente.
+  const codificador = new TextEncoder();
+  const fluxo = new ReadableStream({
+    async start(controlador) {
+      const batida = setInterval(() => {
+        try {
+          controlador.enqueue(codificador.encode(" "));
+        } catch {
+          /* já fechou */
+        }
+      }, 8000);
+      let saida: unknown = { erro: "Falha inesperada ao construir. Tente de novo." };
+      try {
+        saida = await construirProjeto({
+          mensagens,
+          assets,
+          tokens,
+          docProjeto,
+          foto,
+          integracoes,
+          arquivosAtuais,
+          contaId: g.conta.id,
+        });
+      } catch (e) {
+        console.error("Arquiteto: falha no construir:", e instanceof Error ? e.message : e);
+      } finally {
+        clearInterval(batida);
+      }
+      try {
+        controlador.enqueue(codificador.encode(JSON.stringify(saida)));
+        controlador.close();
+      } catch {
+        /* já fechou */
+      }
+    },
+  });
+  return new Response(fluxo, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      // Desliga o buffer de proxies: o batimento precisa FLUIR, não acumular.
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
+/** A parte LENTA do construtor: lê a foto (visão), monta a instrução, chama o
+ *  modelo e extrai o projeto. Devolve SEMPRE um objeto JSON — o MESMO corpo que
+ *  o cliente já esperava (ok/erro/resumo/arquivos/visao). */
+async function construirProjeto(p: {
+  mensagens: Msg[];
+  assets: string[];
+  tokens: Tokens;
+  docProjeto: string;
+  foto: string;
+  integracoes: string[];
+  arquivosAtuais: { nome: string; conteudo: string }[];
+  contaId: number;
+}): Promise<unknown> {
+  // A foto do pedaço marcado vai para um modelo que ENXERGA (o construtor não vê
+  // imagem) e volta como TEXTO; a descrição entra na instrução.
+  const visao = p.foto ? await lerFotoComVisao(p.foto) : "";
+
   const instrucao = promptComArquivos(
     promptComIntegracoes(
       promptComDoc(
-        promptComVisual(promptComCraft(promptComTokens(promptComAssets(CONSTRUTOR_PROMPT, assets), tokens))),
-        docProjeto,
+        promptComVisual(promptComCraft(promptComTokens(promptComAssets(CONSTRUTOR_PROMPT, p.assets), p.tokens))),
+        p.docProjeto,
       ),
-      integracoes,
+      p.integracoes,
     ),
-    arquivosAtuais,
+    p.arquivosAtuais,
   );
   const r = await chamarModelo(
-    mensagens,
-    // Com FOTO do pedaço marcado, a descrição do modelo que ENXERGA entra como
-    // PEDAÇO ALVO — é assim que o construtor "vê" o que foi marcado.
-    foto ? promptComFoto(instrucao, visao) : instrucao,
-    g.conta.id,
+    p.mensagens,
+    p.foto ? promptComFoto(instrucao, visao) : instrucao,
+    p.contaId,
   );
-  if (!r.ok) {
-    return NextResponse.json({ erro: r.erro }, { status: 502 });
-  }
+  if (!r.ok) return { erro: r.erro };
 
-  // 5) Formato previsível → projeto. Sem projeto reconhecível: diz a verdade.
+  // Formato previsível → projeto. Sem projeto reconhecível: diz a verdade.
   const projeto = extrairProjeto(r.texto);
   if (!projeto.arquivos.length) {
-    return NextResponse.json(
-      {
-        erro:
-          "A resposta do modelo não veio no formato de projeto (nenhum arquivo reconhecido). Tente reformular o pedido.",
-      },
-      { status: 422 },
-    );
+    return {
+      erro: "A resposta do modelo não veio no formato de projeto (nenhum arquivo reconhecido). Tente reformular o pedido.",
+    };
   }
 
-  return NextResponse.json({
+  return {
     ok: true,
     resumo: projeto.resumo || "Projeto atualizado.",
     arquivos: projeto.arquivos,
-    // A VISÃO (dono, 09/10/2026): "lida" = a foto do pedaço marcado foi entendida por
-    // um modelo que enxerga; "ilegivel" = não foi e a tela DIZ; "sem-foto" = não houve
-    // foto neste pedido.
-    visao: foto ? (visao ? "lida" : "ilegivel") : "sem-foto",
-  });
+    // "lida" = a foto foi entendida por um modelo que enxerga; "ilegivel" = não
+    // foi e a tela DIZ; "sem-foto" = não houve foto neste pedido.
+    visao: p.foto ? (visao ? "lida" : "ilegivel") : "sem-foto",
+  };
 }
