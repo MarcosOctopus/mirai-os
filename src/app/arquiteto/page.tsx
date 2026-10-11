@@ -1089,6 +1089,12 @@ function Arquiteto() {
         const lista: ProjetoResumo[] = Array.isArray(j?.projetos) ? j.projetos : [];
         if (!vivo) return;
         setProjetos(lista);
+        // ABRIR POR LINK MANDA (dono, 11/10/2026: "quando clico em um projeto
+        // sempre abre o mesmo"). Se a URL traz `?projeto=<id>`, quem abre é o
+        // efeito do link (lá embaixo) — aqui só a LISTA é carregada (o menu
+        // precisa dela) e o "último projeto" NÃO é restaurado por cima, senão
+        // os dois efeitos corriam juntos e o último vencia.
+        if (new URLSearchParams(window.location.search).get("projeto")) return;
         const ultimo = lista[0];
         if (ultimo?.id) {
           const r2 = await fetch(`/api/arquiteto/projetos/${ultimo.id}`, { cache: "no-store" });
@@ -2616,6 +2622,14 @@ function Arquiteto() {
       setAssetAtivo(null);
       setErroAsset("");
       setTurnos([{ papel: "mirai", texto: `Projeto “${p.titulo}” carregado.` }]);
+      // A URL passa a REFLETIR o projeto aberto (dono, 11/10/2026). Sem isto,
+      // abrir pelo menu deixava `?projeto=<antigo>` na barra e um reload
+      // reabria o antigo — o mesmo sintoma de "abre sempre o mesmo".
+      try {
+        window.history.replaceState(null, "", `/arquiteto?projeto=${p.id}`);
+      } catch {
+        /* sem histórico: a tela já está certa, só a barra não acompanha */
+      }
     } catch {
       /* sem rede: nada muda, sem mentir */
     }
