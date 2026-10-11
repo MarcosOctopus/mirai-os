@@ -140,9 +140,22 @@ function montarMensagens(mensagens: Msg[], system: string) {
 
 type Resultado = { ok: true; texto: string; motor: string } | { ok: false; erro: string };
 
-/** O mesmo cano do chat/construtor: gateway da conta → Verboo → Gemini. */
-async function chamarModelo(mensagens: Msg[], system: string, tenant: number): Promise<Resultado> {
+/** Teto do plano INTEIRO: plano é rápido (medido: 18–20s). O teto existe para
+ *  devolver erro honesto ANTES de o túnel matar a conexão (~100s), não para
+ *  esperar mais. */
+const TETO_PLANO_MS = 80000;
+
+/** O mesmo cano do chat/construtor: gateway da conta → Verboo → Gemini.
+ *  `orcamentoMs` limita a CORRENTE inteira (o que a pessoa espera), não cada tentativa. */
+async function chamarModelo(
+  mensagens: Msg[],
+  system: string,
+  tenant: number,
+  orcamentoMs = TETO_PLANO_MS,
+): Promise<Resultado> {
   const msgs = montarMensagens(mensagens, system);
+  const inicioModelos = Date.now();
+  const resta = () => orcamentoMs - (Date.now() - inicioModelos);
   // Plano é TEXTO curto — o teto é bem menor que o do construtor (que precisa
   // dos arquivos inteiros). Mesmo assim com folga para raciocínio.
   const corpoBase = {
@@ -175,12 +188,18 @@ async function chamarModelo(mensagens: Msg[], system: string, tenant: number): P
   // 2) Verboo direto.
   if (VERBOO_API_KEY) {
     for (const modelo of VERBOO_MODELOS) {
+      // Sem fôlego para outra tentativa? Ela só nasceria cortada — e o túnel
+      // mataria a conexão antes de qualquer resposta.
+      if (resta() < 20000) {
+        console.error(`Arquiteto plano: orçamento esgotado (${modelo} não tentado)`);
+        break;
+      }
       try {
         const r = await fetch(`${VERBOO_BASE}/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${VERBOO_API_KEY}` },
           body: JSON.stringify({ ...corpoBase, model: modelo }),
-          signal: AbortSignal.timeout(240000),
+          signal: AbortSignal.timeout(Math.max(20000, Math.min(240000, resta()))),
         });
         if (!r.ok) {
           const err = await r.text().catch(() => "");
@@ -209,7 +228,7 @@ async function chamarModelo(mensagens: Msg[], system: string, tenant: number): P
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ contents }),
-          signal: AbortSignal.timeout(120000),
+          signal: AbortSignal.timeout(Math.max(20000, Math.min(120000, resta()))),
         },
       );
       if (r.ok) {
@@ -273,10 +292,50 @@ export async function POST(req: NextRequest) {
     : `\n\n## PROJETO ATUAL\nAinda não existe projeto nesta conta — o plano é o primeiro passo.`;
 
   // 4) O modelo — e SÓ o modelo. Daqui para baixo nada escreve o projeto.
-  const r = await chamarModelo(mensagens, promptComPadrao(PLANEJADOR_PROMPT) + contextoProjeto, g.conta.id);
-  if (!r.ok) {
-    return NextResponse.json({ erro: r.erro }, { status: 502 });
-  }
-
-  return NextResponse.json({ ok: true, texto: r.texto.trim() });
+  //
+  // O TRABALHO LENTO VAI NUM FLUXO COM BATIMENTO (dono, 11/10/2026: "pode colocar
+  // em todos"). O construtor já tinha essa proteção; o plano não tinha — e caía no
+  // MESMO defeito: provedor engasgado = 240s + 120s em série (até 6 min) com a
+  // conexão já morta pelo túnel (~100s) e a pessoa vendo "Caiu a conexão no meio".
+  // Aqui o plano inteiro cabe num teto e o batimento mantém a conexão viva; o
+  // corpo devolvido é o MESMO JSON de antes (só o transporte muda).
+  const instrucaoPlano = promptComPadrao(PLANEJADOR_PROMPT) + contextoProjeto;
+  const codificador = new TextEncoder();
+  const fluxo = new ReadableStream({
+    async start(controlador) {
+      const batida = setInterval(() => {
+        try {
+          controlador.enqueue(codificador.encode(" "));
+        } catch {
+          /* já fechou */
+        }
+      }, 8000);
+      let saida: unknown = { erro: "Não consegui montar o plano agora. Tente de novo." };
+      try {
+        const r = await chamarModelo(mensagens, instrucaoPlano, g.conta.id, TETO_PLANO_MS);
+        saida = r.ok
+          ? { ok: true, texto: r.texto.trim() }
+          : { erro: r.erro };
+      } catch (e) {
+        console.error("Arquiteto plano: falha:", e instanceof Error ? e.message : e);
+      } finally {
+        clearInterval(batida);
+      }
+      try {
+        controlador.enqueue(codificador.encode(JSON.stringify(saida)));
+        controlador.close();
+      } catch {
+        /* já fechou */
+      }
+    },
+  });
+  return new Response(fluxo, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      // Desliga o buffer de proxies: o batimento precisa FLUIR, não acumular.
+      "X-Accel-Buffering": "no",
+    },
+  });
 }

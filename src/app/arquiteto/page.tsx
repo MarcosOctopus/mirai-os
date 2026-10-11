@@ -1747,7 +1747,14 @@ function Arquiteto() {
       });
       const d = (await r.json().catch(() => ({}))) as { ok?: boolean; texto?: string; erro?: string };
       if (!r.ok || !d.ok || !d.texto) {
-        const msg = d.erro || `Não deu para planejar agora (${r.status}). Tente de novo.`;
+        // A mensagem NÃO culpa o código HTTP (mesmo defeito do "(200)" que
+        // apareceu no construtor): quando a resposta vem vazia, o status não diz
+        // nada sobre a causa e só confunde quem está usando.
+        const msg =
+          d.erro ||
+          (!d.ok || !d.texto
+            ? "O plano não veio agora e nada foi alterado. Tente de novo."
+            : `Não deu para planejar agora (${r.status}). Tente de novo.`);
         setErro(msg);
         setTurnos((t) => [...t, { papel: "mirai", texto: msg, erro: true }]);
         return;
