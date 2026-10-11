@@ -7,6 +7,7 @@ import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
 import { normalizarTokens, type Tokens } from "@/lib/arquiteto-tokens";
 import { mesclarMudanca } from "@/lib/arquiteto-mescla";
 import { aplicarEdicoes, extrairEdicoes } from "@/lib/arquiteto-edicoes";
+import { donoDoProjeto, obterProjeto } from "@/lib/arquiteto-projetos";
 import { promptComCraft, promptComIntegracoes, promptComVisual } from "@/lib/arquiteto-craft";
 
 export const runtime = "nodejs";
@@ -690,17 +691,45 @@ export async function POST(req: NextRequest) {
   const tokens = normalizarTokens(corpo.tokens);
   // O .md DO PROJETO (dono, 08/10/2026): o cliente manda o texto do PROJETO.md que
   // está na tela — é por ele que o construtor segue as decisões já tomadas. Sem
-  // projeto (ou sem .md), vem vazio e o bloco não entra.
-  const docProjeto = typeof corpo.docProjeto === "string" ? corpo.docProjeto : "";
+  // projeto (ou sem .md), vem vazio e o bloco não entra. (O valor é montado mais
+  // abaixo, junto com a autocorreção que busca o projeto no banco.)
   const foto = typeof corpo.foto === "string" ? corpo.foto : "";
   const integracoes = Array.isArray(corpo.integracoes)
     ? corpo.integracoes.filter((i): i is string => typeof i === "string")
     : [];
-  const arquivosAtuais: { nome: string; conteudo: string }[] = Array.isArray(corpo.arquivos)
+  const projetoId = typeof corpo.projetoId === "string" ? corpo.projetoId : "";
+  let arquivosAtuais: { nome: string; conteudo: string }[] = Array.isArray(corpo.arquivos)
     ? corpo.arquivos
         .filter((a) => !!a && typeof a.nome === "string" && typeof a.conteudo === "string" && a.nome.trim() !== "")
         .map((a) => ({ nome: a.nome.trim(), conteudo: a.conteudo }))
     : [];
+
+  // AUTOCORREÇÃO (dono, 11/10/2026): "Não deu para construir agora (200). Tente de
+  // novo." — medido aqui: o pedido chegou com `arquivos: []` (a tela manda lista
+  // vazia quando o estado dela não tem o projeto carregado), o construtor tentou
+  // editar o vazio e a resposta voltou `ok:true` com ZERO arquivos — e a tela, sem
+  // nada para mostrar, culpava o status. O projeto é do dono e está no banco:
+  // BUSCAR LÁ é mais confiável que depender do que a tela mandou. Não muda o
+  // resultado de um pedido normal (só roda quando a lista vem vazia).
+  if (!arquivosAtuais.length && projetoId) {
+    try {
+      if (donoDoProjeto(projetoId) === g.conta.id) {
+        const salvo = obterProjeto(g.conta.id, projetoId);
+        if (salvo?.arquivos.length) {
+          arquivosAtuais = salvo.arquivos.map((a) => ({ nome: a.nome, conteudo: a.conteudo }));
+          console.log(`Arquiteto: pedido veio sem arquivos — carreguei ${arquivosAtuais.length} do projeto`);
+        }
+      }
+    } catch (e) {
+      console.error("Arquiteto: falha ao carregar os arquivos do projeto:", e instanceof Error ? e.message : e);
+    }
+  }
+  // O .md do projeto: a tela manda o texto do PROJETO.md; se ela não tem o projeto
+  // carregado (o caso acima), o .md vem vazio — usa o do projeto salvo.
+  const docProjeto =
+    (typeof corpo.docProjeto === "string" ? corpo.docProjeto : "").trim() ||
+    arquivosAtuais.find((a) => a.nome.toLowerCase() === "projeto.md")?.conteudo ||
+    "";
 
   // ── A PARTE LENTA VAI NUM FLUXO COM BATIMENTO (dono, 10/10/2026) ────────────
   // Ler a foto (~36s) + construir (~30s) deixava a conexão PARADA esse tempo
@@ -885,6 +914,19 @@ async function construirProjeto(p: {
     );
   }
   const resumo = [projeto.resumo || "Projeto atualizado.", ...avisos].filter(Boolean).join(" ");
+
+  // HONESTIDADE (dono, 11/10/2026): `ok:true` com ZERO arquivos não é sucesso — é
+  // uma resposta vazia, e a tela a transformava em "Não deu para construir agora
+  // (200)". Acontece quando o pedido chega sem os arquivos do projeto (e o banco
+  // também não tinha) e o modelo devolve só edições: não há o que editar. Melhor
+  // dizer o motivo do que devolver nada.
+  if (!arquivos.length) {
+    return {
+      erro:
+        "Não recebi os arquivos deste projeto, então não havia o que mudar. Abra o projeto de novo " +
+        "(ou recarregue a página) e repita o pedido — nada foi alterado.",
+    };
+  }
 
   return {
     ok: true,

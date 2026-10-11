@@ -1787,6 +1787,10 @@ function Arquiteto() {
   async function construir(textoForcado?: string, textoVisivel?: string) {
     const texto = (textoForcado ?? pedido).trim();
     if (!texto || gerando) return;
+    // O projeto do MOMENTO: o ref é atualizado ao fim de cada render, então ele
+    // nunca fica atrás de um valor velho capturado no fechamento (era assim que um
+    // envio saía sem os arquivos e a tela dizia "Não deu para construir agora (200)").
+    const projetoAtual = projetoRef.current ?? projeto;
 
     setTurnos((t) => [...t, { papel: "voce", texto: textoVisivel ?? texto }]);
     // Só limpa o campo quando o texto veio DELE. Executar um plano não mexe no
@@ -1837,12 +1841,16 @@ function Arquiteto() {
           // construtor SEGUIR as decisões já tomadas nas próximas mudanças. Sem
           // isto ele só teria o diálogo (pedidos + resumos) e refaria no escuro.
           docProjeto:
-            projeto?.arquivos.find((a) => a.nome.trim().toLowerCase() === "projeto.md")?.conteudo ?? "",
+            projetoAtual?.arquivos.find((a) => a.nome.trim().toLowerCase() === "projeto.md")?.conteudo ?? "",
           // OS ARQUIVOS ATUAIS (dono, 10/10/2026): o construtor precisa VER o
           // código COMO ESTÁ para MUDAR o pedaço que foi marcado. Sem isto ele só
           // tinha o diálogo + o .md (resumos) e RECONSTRUÍA tudo no escuro — era o
           // que fazia "marcar e mudar" acabar mudando outra coisa.
-          arquivos: (projeto?.arquivos ?? []).map((a) => ({ nome: a.nome, conteudo: a.conteudo })),
+          // O REF (dono, 11/10/2026): ler o projeto do ref, não do fechamento —
+          // assim o envio leva o projeto do MOMENTO e nunca um valor velho (foi um
+          // envio sem arquivos que fez a tela mostrar "Não deu para construir
+          // agora (200)"). O servidor também sabe buscar no banco se vier vazio.
+          arquivos: (projetoAtual?.arquivos ?? []).map((a) => ({ nome: a.nome, conteudo: a.conteudo })),
           // A FOTO DO PEDAÇO MARCADO (dono, 09/10/2026): a VISÃO do construtor. O
           // modelo de construção não enxerga imagem — quem lê esta foto é um modelo
           // que enxerga, e a descrição dele entra na instrução (na rota).
@@ -1858,7 +1866,14 @@ function Arquiteto() {
       };
 
       if (!r.ok || !d.ok || !d.arquivos?.length) {
-        const msg = d.erro || `Não deu para construir agora (${r.status}). Tente de novo.`;
+        // A MENSAGEM DIZ A VERDADE (dono, 11/10/2026): antes, uma resposta que veio
+        // SEM arquivos virava "Não deu para construir agora (200). Tente de novo." —
+        // o status não tinha nada a ver com o problema e não dizia o que fazer.
+        const msg =
+          d.erro ||
+          (!d.arquivos?.length
+            ? "A resposta veio sem os arquivos do projeto e nada foi alterado. Tente de novo; se repetir, abra o projeto outra vez."
+            : `Não deu para construir agora (${r.status}). Tente de novo.`);
         setErro(msg);
         setTurnos((t) => [...t, { papel: "mirai", texto: msg, erro: true }]);
         return;
