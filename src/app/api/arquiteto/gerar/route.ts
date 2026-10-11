@@ -116,7 +116,10 @@ Responda EXATAMENTE neste formato, e NADA fora dele:
 Regras do formato:
 - O conteúdo de cada arquivo vem ENTRE as marcações, sem cercas (três crases).
 - Sem texto antes de "===RESUMO===" nem depois de "===FIM===".
-- A cada pedido, devolva TODOS os arquivos INTEIROS (não trechos).
+- Projeto NOVO (nada existe ainda): devolva TODOS os arquivos INTEIROS (não trechos).
+- Projeto que JÁ EXISTE: NÃO devolva o arquivo inteiro — troque só o pedaço, no formato de
+  EDIÇÃO (=== EDIT: arquivo === com @@BUSCAR/@@TROCAR). A seção COMO MUDAR, mais abaixo, mostra como.
+  Devolver o arquivo inteiro numa mudança é ERRO: além de lento, pode apagar o que já estava certo.
 
 ## QUALIDADE
 - Português do Brasil na interface, a menos que o pedido diga outra língua.
@@ -388,7 +391,13 @@ async function lerFotoComVisao(foto: string): Promise<string> {
           },
         ],
       }),
-      signal: AbortSignal.timeout(90000),
+      // ORÇAMENTO DA VISÃO (dono, 11/10/2026): a leitura da foto leva ~5s no
+      // normal. Antes o teto era 90s — e como ela roda ANTES da construção, uma
+      // visão lenta empurrava o pedido inteiro para além dos ~100s que o túnel
+      // aguenta, e a pessoa via "Caiu a conexão no meio" (medido: 128,5s num
+      // pedido com foto). Melhor seguir SEM a descrição da foto do que perder o
+      // pedido: estourou o teto, segue só com a referência de texto.
+      signal: AbortSignal.timeout(30000),
     });
     if (!r.ok) {
       console.error("Arquiteto visão:", r.status, (await r.text().catch(() => "")).slice(0, 200));
@@ -503,14 +512,27 @@ Para uma mudança pontual, devolva SÓ A TROCA, neste formato:
 /** A VISÃO entra na instrução como o PEDAÇO ALVO — em TEXTO, que é o que o
     construtor consome. Sem descrição, ele é AVISADO de que a foto não foi lida. */
 function promptComFoto(system: string, descricao: string): string {
+  const reforco =
+    "\n- A FOTO É SÓ UMA AJUDA PARA ACHAR O PEDAÇO. Ela NÃO é motivo para reescrever o arquivo: " +
+    "mesmo com a foto, pedido pontual continua sendo EDIÇÃO (=== EDIT === com @@BUSCAR/@@TROCAR). " +
+    "Se o risco marca UM elemento, troque esse elemento — não regenere a página.";
   const bloco = descricao
-    ? `\n\nO QUE A PESSOA MARCOU NO PREVIEW: um modelo que ENXERGA leu a foto do pedaço marcado (com o risco rosa dela) e descreveu:\n"""${descricao}"""\nO pedido é sobre ESTE pedaço: mexa no que o risco marca e não mude o resto sem necessidade. Se a descrição não bater com o projeto, siga o texto do pedido e diga a diferença.`
-    : `\n\nO QUE A PESSOA MARCOU NO PREVIEW: existe uma foto do pedaço marcado, mas nenhum modelo que enxerga conseguiu lê-la agora. Trabalhe só com a referência de texto do pedido — não invente o que estava na foto.`;
+    ? `\n\nO QUE A PESSOA MARCOU NO PREVIEW: um modelo que ENXERGA leu a foto do pedaço marcado (com o risco rosa dela) e descreveu:\n"""${descricao}"""\nO pedido é sobre ESTE pedaço: mexa no que o risco marca e não mude o resto sem necessidade. Se a descrição não bater com o projeto, siga o texto do pedido e diga a diferença.${reforco}`
+    : `\n\nO QUE A PESSOA MARCOU NO PREVIEW: existe uma foto do pedaço marcado, mas nenhum modelo que enxerga conseguiu lê-la agora. Trabalhe só com a referência de texto do pedido — não invente o que estava na foto.${reforco}`;
   return system + bloco;
 }
 
-/** O mesmo cano do chat: gateway da conta → Verboo (V4.1→V4.0) → Gemini. */
-async function chamarModelo(mensagens: Msg[], system: string, tenant: number): Promise<Resultado> {
+/** O mesmo cano do chat: gateway da conta → Verboo (V4.1→V4.0) → Gemini.
+ *  `orcamentoMs` limita a CORRENTE inteira de modelos (o tempo que a pessoa
+ *  espera). Sem ele, cada modelo teria 240s e a soma passaria do que o túnel
+ *  aguenta — a conexão morre e a pessoa vê "Caiu a conexão no meio" em vez de
+ *  uma mensagem honesta. */
+async function chamarModelo(
+  mensagens: Msg[],
+  system: string,
+  tenant: number,
+  orcamentoMs = 90000,
+): Promise<Resultado> {
   const msgs = montarMensagens(mensagens, system);
   // Projeto MULTIARQUIVO cabe em muito mais texto que um HTML único: o teto é
   // alto para os arquivos inteiros caberem. E os modelos Verboo são de
@@ -541,6 +563,9 @@ async function chamarModelo(mensagens: Msg[], system: string, tenant: number): P
   };
 
   // 1) Gateway da conta (vínculo + plano/medição). Recusou/caiu → provedor direto.
+  // O relógio do orçamento começa AQUI: vale para o gateway, para os modelos Verboo
+  // e para o Gemini — a corrente inteira, não só uma perna dela.
+  const inicioModelos = Date.now();
   const gw = gatewayDaConta(tenant);
   if (gw) {
     try {
@@ -557,18 +582,14 @@ async function chamarModelo(mensagens: Msg[], system: string, tenant: number): P
 
   // 2) Verboo direto (mesma chave e mesma base do chat do app).
   //
-  // ORÇAMENTO TOTAL (dono, 11/10/2026): antes, cada modelo tinha 240s e os três
-  // corriam EM SÉRIE — quando todos travavam, a pessoa esperava 12 MINUTOS
-  // (medido: 721s) para receber "o provedor não respondeu". Agora a corrente
-  // inteira cabe num orçamento: o primeiro modelo pega o tempo cheio e os
-  // seguintes pegam o que sobrou. Ninguém espera mais de ~7 minutos por um erro.
+  // ORÇAMENTO TOTAL: os modelos correm EM SÉRIE; a corrente inteira cabe no
+  // `orcamentoMs` (o primeiro pega o tempo cheio, os seguintes o que sobrou).
+  // Ninguém espera além disso por um erro.
   if (VERBOO_API_KEY) {
-    const inicio = Date.now();
-    const ORCAMENTO = 400000;
     for (const modelo of VERBOO_MODELOS) {
-      const resta = ORCAMENTO - (Date.now() - inicio);
+      const resta = orcamentoMs - (Date.now() - inicioModelos);
       // Sobrou pouco? Não vale começar outra tentativa (ela só nasceria cortada).
-      if (resta < 30000) {
+      if (resta < 20000) {
         console.error(`Arquiteto Verboo: orçamento esgotado (${modelo} não tentado)`);
         break;
       }
@@ -602,7 +623,9 @@ async function chamarModelo(mensagens: Msg[], system: string, tenant: number): P
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ contents }),
-          signal: AbortSignal.timeout(120000),
+          signal: AbortSignal.timeout(
+            Math.max(20000, Math.min(120000, orcamentoMs - (Date.now() - inicioModelos))),
+          ),
         },
       );
       if (r.ok) {
@@ -744,6 +767,16 @@ async function construirProjeto(p: {
   arquivosAtuais: { nome: string; conteudo: string }[];
   contaId: number;
 }): Promise<unknown> {
+  // TETO TOTAL DO PEDIDO (dono, 11/10/2026). O túnel corta a conexão por volta
+  // dos 100s — medido: um pedido com foto levou 128,5s e a pessoa viu "Caiu a
+  // conexão no meio". Aqui TODO o trabalho (visão + modelo + segunda tentativa)
+  // cabe no teto; estourou, a rota devolve uma mensagem honesta em vez de deixar
+  // a conexão morrer na mão do túnel. O batimento mantém a conexão viva enquanto
+  // isso — por isso o teto pode ser alto sem virar silêncio.
+  const TETO_TOTAL_MS = 90000;
+  const inicio = Date.now();
+  const resta = () => TETO_TOTAL_MS - (Date.now() - inicio);
+
   // A foto do pedaço marcado vai para um modelo que ENXERGA (o construtor não vê
   // imagem) e volta como TEXTO; a descrição entra na instrução.
   const visao = p.foto ? await lerFotoComVisao(p.foto) : "";
@@ -759,8 +792,19 @@ async function construirProjeto(p: {
     p.arquivosAtuais,
   );
   const instrucaoFinal = p.foto ? promptComFoto(instrucao, visao) : instrucao;
-  const r = await chamarModelo(p.mensagens, instrucaoFinal, p.contaId);
+  const r = await chamarModelo(p.mensagens, instrucaoFinal, p.contaId, Math.max(20000, resta()));
   if (!r.ok) return { erro: r.erro };
+  // Régua do formato (ops): mostra se o modelo obedeceu a EDIÇÃO ou reescreveu tudo.
+  // Um "ARQUIVO" numa mudança pontual explica sozinho uma espera de 90s+.
+  console.log(
+    `Arquiteto: ${r.motor} | ${r.texto.length} chars | formato=${
+      r.texto.includes("=== EDIT:") || r.texto.includes("@@BUSCAR")
+        ? "EDIT"
+        : r.texto.includes("=== ARQUIVO:")
+          ? "ARQUIVO"
+          : "livre"
+    }`,
+  );
 
   // Formato previsível → projeto. Sem projeto reconhecível: diz a verdade.
   const projeto = extrairProjeto(r.texto);
@@ -788,7 +832,9 @@ async function construirProjeto(p: {
   const naoCasaram = comEdicoes.recusadas.filter(
     (x) => x.motivo.includes("ambíguo") || x.motivo.includes("não foi encontrado"),
   );
-  if (naoCasaram.length) {
+  // Só vale tentar de novo se ainda houver fôlego no teto: uma segunda chamada
+  // que estoure o tempo só troca um erro por uma conexão morta.
+  if (naoCasaram.length && resta() > 25000) {
     const nomes = [...new Set(naoCasaram.map((a) => a.nome))].join(", ");
     const ambiguo = naoCasaram.some((a) => a.motivo.includes("ambíguo"));
     const correcao =
@@ -803,6 +849,7 @@ async function construirProjeto(p: {
       [...p.mensagens, { role: "assistant", content: r.texto }, { role: "user", content: correcao }],
       instrucaoFinal,
       p.contaId,
+      Math.max(20000, resta()),
     );
     if (r2.ok) {
       const ed2 = extrairEdicoes(r2.texto);
