@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "fs";
 
 import { exigirConta } from "@/lib/orgs";
 import { decidirAcessoArquiteto, CAPACIDADE_ARQUITETO } from "@/lib/arquiteto-acesso";
+import { REGRAS_CRAFT, REGRAS_VISUAL } from "@/lib/arquiteto-craft";
 import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
 
 export const runtime = "nodejs";
@@ -95,6 +96,31 @@ quando ele já existir.
 - NÃO prometa que já construiu: quem constrói é o botão "Executar plano".
 - Nada de cercas de código com arquivos inteiros. No máximo, um trecho curto
   quando ajudar a explicar a ideia. Nada de tabelas.`;
+
+/**
+ * O PADRÃO DO ARQUITETO no MODO PLANO (dono, 11/10/2026: "coloca todas as skills
+ * de design e construção de sites ligadas sempre em todas as contas").
+ *
+ * O construtor JÁ segue o padrão (as cinco skills entram no prompt dele desde
+ * 08/10); o modo Plano não seguia — e é AQUI que as decisões de design são
+ * tomadas. Sem isto, a pessoa planejava uma coisa e o construtor construía outra.
+ *
+ * As MESMAS regras entram por inteiro, com uma ponte em cima: no plano não se
+ * escreve código, então a ponte diz o que fazer com elas (decidir, não codar).
+ * Sem a ponte, as regras (que dizem "você constrói…") contradizem o "NÃO escreva
+ * código" do planejador — e instrução que se contradiz é falta grave.
+ */
+const PONTE_PADRAO = `
+## O PADRÃO DO ARQUITETO já vale para este plano
+Você NÃO escreve o código agora (o plano é TEXTO), mas o plano tem de estar de
+acordo com o padrão abaixo: é ele que o construtor segue quando a pessoa clicar
+em "Executar plano". Decida, nos passos e nas dúvidas, só o que se aplica a ESTE
+projeto — não repita o padrão inteiro nem cite estas regras.`;
+
+/** O prompt do planejador já com o PADRÃO DO ARQUITETO (as cinco skills). */
+function promptComPadrao(system: string): string {
+  return system + PONTE_PADRAO + REGRAS_CRAFT + REGRAS_VISUAL;
+}
 
 function montarMensagens(mensagens: Msg[], system: string) {
   const limpo = mensagens
@@ -247,7 +273,7 @@ export async function POST(req: NextRequest) {
     : `\n\n## PROJETO ATUAL\nAinda não existe projeto nesta conta — o plano é o primeiro passo.`;
 
   // 4) O modelo — e SÓ o modelo. Daqui para baixo nada escreve o projeto.
-  const r = await chamarModelo(mensagens, PLANEJADOR_PROMPT + contextoProjeto, g.conta.id);
+  const r = await chamarModelo(mensagens, promptComPadrao(PLANEJADOR_PROMPT) + contextoProjeto, g.conta.id);
   if (!r.ok) {
     return NextResponse.json({ erro: r.erro }, { status: 502 });
   }
