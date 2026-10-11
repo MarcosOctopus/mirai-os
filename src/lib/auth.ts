@@ -88,10 +88,16 @@ export function getUserPlatformConfig(userId: number) {
 }
 
 // ─── JWT ──────────────────────────────────────────────────────────
+// PRAZO (dono, 11/10/2026): era 7 dias FIXOS, sem renovação — quem usa todo dia
+// era deslogado uma vez por semana, e sem entender por quê (a tela dizia "sem os
+// arquivos do projeto"). Agora são 30 dias E o prazo é RENOVADO a cada uso (ver
+// /api/auth/me): sessão deslizante, quem trabalha não é deslogado no meio.
+export const DIAS_DE_SESSAO = 30;
+
 export async function signToken(payload: { userId: number; email: string; tenantId?: string }) {
   return await new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime("7d")
+    .setExpirationTime(`${DIAS_DE_SESSAO}d`)
     .sign(JWT_SECRET);
 }
 

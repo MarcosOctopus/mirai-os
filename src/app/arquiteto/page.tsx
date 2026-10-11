@@ -443,21 +443,69 @@ function assinaturaArquivos(arquivos: Arquivo[]): string {
   return JSON.stringify(arquivos.map((a) => [a.nome, a.conteudo]));
 }
 
+/**
+ * A FALHA, DITA COM VERDADE (dono, 11/10/2026).
+ *
+ * Dois defeitos somados faziam a tela mentir — e o dono viu o resultado:
+ * "A resposta veio sem os arquivos do projeto", quando o problema era SESSÃO.
+ *  1. a porteira devolve `{ error: "Unauthorized" }` — com `error`, em inglês,
+ *     enquanto o resto da API usa `erro`. Lendo só `d.erro`, a tela não achava
+ *     a mensagem e caía no texto padrão;
+ *  2. o texto padrão falava de "arquivos do projeto" — então uma sessão expirada
+ *     (401) aparecia como falta de arquivos.
+ * Aqui a causa é dita pelo que ela É: sessão, conexão ou resposta sem arquivos.
+ */
+function motivoDaFalha(r: Response, d: unknown, semArquivos: string): string {
+  if (r.status === 401 || r.status === 403) {
+    return "Sua sessão expirou. Entre de novo para continuar de onde parou.";
+  }
+  const corpo = (d ?? {}) as { erro?: unknown; error?: unknown; ok?: unknown; arquivos?: unknown; texto?: unknown };
+  if (typeof corpo.erro === "string" && corpo.erro) return corpo.erro;
+  if (typeof corpo.error === "string" && corpo.error) return corpo.error;
+  // Não é resposta do app (página de erro do proxy, corpo cortado): o pedido não
+  // chegou inteiro. Dizer "sem arquivos" aqui seria mentira.
+  if (!("ok" in corpo) && !("arquivos" in corpo) && !("texto" in corpo)) {
+    return "A conexão caiu no meio do pedido e nada foi alterado. Tente de novo.";
+  }
+  return semArquivos;
+}
+
+/** Sessão expirada não é para o dono resolver na mão: manda para a entrada,
+ *  depois de deixar a mensagem na tela por um instante. */
+function sessaoExpirou(r: Response): boolean {
+  if (r.status !== 401 && r.status !== 403) return false;
+  setTimeout(() => {
+    window.location.href = "/login";
+  }, 1500);
+  return true;
+}
+
 export default function ArquitetoPage() {
   const [conta, setConta] = useState<Conta | null>(null);
   const [acesso, setAcesso] = useState<Acesso | null>(null);
   const [checando, setChecando] = useState(true);
+  // Sessão vencida (401) é um estado PRÓPRIO: não é falta de acesso.
+  const [semSessao, setSemSessao] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        // SESSÃO VENCIDA ≠ SEM ACESSO (dono, 11/10/2026). Sem esta distinção, quem
+        // estava apenas deslogado via "O Arquiteto não está liberado para esta
+        // conta" — uma acusação falsa sobre o acesso dele.
+        if (r.status === 401 || r.status === 403) setSemSessao(true);
+        return r.ok ? r.json() : null;
+      })
       .then((d) =>
         d?.user && setConta({ nome: d.user.name, email: d.user.email, ehDono: Boolean(d.user.ehDono) }),
       )
       .catch(() => {});
 
     fetch("/api/arquiteto/capacidade", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (r.status === 401 || r.status === 403) setSemSessao(true);
+        return r.ok ? r.json() : null;
+      })
       .then((d) => {
         if (d && typeof d.permitido === "boolean") {
           setAcesso({ permitido: d.permitido, motivo: String(d.motivo || ""), capacidade: String(d.capacidade || "") });
@@ -479,6 +527,10 @@ export default function ArquitetoPage() {
       {checando ? (
         <div className="grid h-full w-full place-items-center">
           <p className="text-[13px] text-dash-dim">Verificando acesso…</p>
+        </div>
+      ) : semSessao ? (
+        <div className="grid h-full w-full place-items-center px-6">
+          <SessaoVencida />
         </div>
       ) : acesso?.permitido ? (
         <Arquiteto />
@@ -513,6 +565,30 @@ function NaoLiberado() {
       >
         <IconeSeta className="h-4 w-4 rotate-180" />
         Voltar ao início
+      </Link>
+    </div>
+  );
+}
+
+/* ── Sessão vencida: NÃO é falta de acesso — é só entrar de novo ─────────────
+   Antes, quem estava apenas deslogado caía na tela "não está liberado para esta
+   conta" (e, ao pedir algo, em "a resposta veio sem os arquivos do projeto").
+   As duas diziam a coisa errada sobre o dono. Aqui a causa é dita pelo nome. */
+function SessaoVencida() {
+  return (
+    <div className="flex flex-col items-center justify-center text-center">
+      <span className="grid h-14 w-14 place-items-center rounded-full bg-dash-raise text-dash-muted">
+        <IconeCadeado className="h-6 w-6" />
+      </span>
+      <h2 className="mt-6 max-w-[560px] text-[22px] leading-tight text-white">Sua sessão expirou.</h2>
+      <p className="mt-3 max-w-[540px] text-[14px] leading-[1.7] text-dash-muted">
+        É só entrar de novo para continuar de onde parou — seu projeto está salvo e nada foi perdido.
+      </p>
+      <Link
+        href="/login"
+        className="mt-8 inline-flex items-center gap-2 rounded-[10px] bg-dash-brand px-5 py-2.5 text-[12px] font-semibold text-white transition hover:bg-dash-brandHi"
+      >
+        Entrar de novo
       </Link>
     </div>
   );
@@ -1747,16 +1823,12 @@ function Arquiteto() {
       });
       const d = (await r.json().catch(() => ({}))) as { ok?: boolean; texto?: string; erro?: string };
       if (!r.ok || !d.ok || !d.texto) {
-        // A mensagem NÃO culpa o código HTTP (mesmo defeito do "(200)" que
-        // apareceu no construtor): quando a resposta vem vazia, o status não diz
-        // nada sobre a causa e só confunde quem está usando.
-        const msg =
-          d.erro ||
-          (!d.ok || !d.texto
-            ? "O plano não veio agora e nada foi alterado. Tente de novo."
-            : `Não deu para planejar agora (${r.status}). Tente de novo.`);
+        // Mesma regra do construtor: sessão, conexão e "plano vazio" são causas
+        // diferentes e o código HTTP não é nenhuma delas.
+        const msg = motivoDaFalha(r, d, "O plano não veio agora e nada foi alterado. Tente de novo.");
         setErro(msg);
         setTurnos((t) => [...t, { papel: "mirai", texto: msg, erro: true }]);
+        sessaoExpirou(r);
         return;
       }
       const resposta = d.texto;
@@ -1873,16 +1945,17 @@ function Arquiteto() {
       };
 
       if (!r.ok || !d.ok || !d.arquivos?.length) {
-        // A MENSAGEM DIZ A VERDADE (dono, 11/10/2026): antes, uma resposta que veio
-        // SEM arquivos virava "Não deu para construir agora (200). Tente de novo." —
-        // o status não tinha nada a ver com o problema e não dizia o que fazer.
-        const msg =
-          d.erro ||
-          (!d.arquivos?.length
-            ? "A resposta veio sem os arquivos do projeto e nada foi alterado. Tente de novo; se repetir, abra o projeto outra vez."
-            : `Não deu para construir agora (${r.status}). Tente de novo.`);
+        // A MENSAGEM DIZ A VERDADE: sessão expirada, conexão caída ou resposta
+        // sem arquivos são causas DIFERENTES — antes todas apareciam como "sem
+        // os arquivos do projeto" (foi o que o dono viu com a sessão expirada).
+        const msg = motivoDaFalha(
+          r,
+          d,
+          "A resposta veio sem os arquivos do projeto e nada foi alterado. Tente de novo; se repetir, abra o projeto outra vez.",
+        );
         setErro(msg);
         setTurnos((t) => [...t, { papel: "mirai", texto: msg, erro: true }]);
+        sessaoExpirou(r);
         return;
       }
       // O pedido foi aceito: a foto cumpriu o papel (o construtor já a viu) e sai da

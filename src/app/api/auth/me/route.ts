@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     const { contaDaRequisicao } = await import("@/lib/orgs");
     const conta = await contaDaRequisicao(req);
 
-    return NextResponse.json({
+    const resposta = NextResponse.json({
       user: {
         id: user.id,
         name: user.name,
@@ -40,6 +40,25 @@ export async function GET(req: NextRequest) {
           : null,
       },
     });
+
+    // SESSÃO DESLIZANTE (dono, 11/10/2026): esta rota é chamada a cada
+    // carregamento de página. Renovar o prazo AQUI faz quem está usando nunca ser
+    // deslogado no meio do trabalho — o problema que o dono viu como "a resposta
+    // veio sem os arquivos do projeto" era, na verdade, sessão vencida.
+    const { signToken, DIAS_DE_SESSAO } = await import("@/lib/auth");
+    const novo = await signToken({
+      userId: payload.userId,
+      email: payload.email,
+      tenantId: payload.tenantId,
+    });
+    resposta.cookies.set("token", novo, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * DIAS_DE_SESSAO,
+    });
+    return resposta;
   } catch (err: any) {
     console.error("Me error:", err);
     return NextResponse.json(
