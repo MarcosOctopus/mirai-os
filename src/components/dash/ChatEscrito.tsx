@@ -41,6 +41,7 @@ import {
   novaConversa,
   useConversas,
 } from "@/lib/conversas-cliente";
+import SessaoVencida, { ehSessaoVencida } from "@/components/dash/SemSessao";
 
 type Papel = "user" | "assistant";
 type Mensagem = { role: Papel; content: string; anexos?: AnexoCliente[] };
@@ -94,6 +95,10 @@ export default function ChatEscrito({
   const modo = "conversa";
   const [enviando, setEnviando] = useState(false);
   const [carregandoConversa, setCarregandoConversa] = useState(false);
+  // SESSÃO VENCIDA (dono, 11/10/2026): antes o chat dizia "Não consegui falar com
+  // a Mirai agora (401). Tenta de novo." — mandava repetir o que NUNCA ia dar
+  // certo, sem dizer a causa nem dar caminho de volta. A causa era a sessão.
+  const [semSessao, setSemSessao] = useState(false);
 
   // ── anexos ───────────────────────────────────────────────────────
   const [anexos, setAnexos] = useState<AnexoCliente[]>([]);
@@ -415,6 +420,13 @@ export default function ChatEscrito({
         idConversa = idDoServidor;
       }
 
+      if (ehSessaoVencida(r)) {
+        // 401 NÃO é "tenta de novo": o token venceu e repetir nunca resolve.
+        // Diz a causa e leva para a entrada — a mensagem certa para o problema certo.
+        trocarUltima("Sua sessão expirou. Entre de novo para continuar — o que você escreveu não se perde.");
+        setSemSessao(true);
+        return;
+      }
       if (!r.ok || !r.body) {
         trocarUltima(`Não consegui falar com a Mirai agora (${r.status}). Tenta de novo.`);
         return;
@@ -518,6 +530,16 @@ export default function ChatEscrito({
       )}
     </>
   );
+
+  // Sessão vencida toma a tela: entrar de novo é o único caminho, e é melhor
+  // dizer isso do que deixar a pessoa tentando reenviar para sempre.
+  if (semSessao) {
+    return (
+      <div className="grid h-full w-full place-items-center">
+        <SessaoVencida oQue="sua conversa continua aqui." />
+      </div>
+    );
+  }
 
   return (
     <div className={cheio ? "flex h-full w-full min-h-0" : "flex h-[calc(100dvh-140px)] min-h-[420px]"}>

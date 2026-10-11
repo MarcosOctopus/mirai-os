@@ -138,6 +138,28 @@ Fonte: VISUAL.md §5 (as 36 regras que MUDAM o visual). Cada item é VETO, não 
 22. Movimento com PROPÓSITO, 150–300ms, só em entrada/saída/estado. PROIBIDO "fade-up em tudo" e glow decorativo. [T9 · §3/34–35·39]
 23. Transição de estado → CSS/Web Animations; sequência complexa → GSAP (CDN, com reserva: sem rede fica no estado final, sem animação). NUNCA sequestre o scroll. [§2/34–42 · §2/36]
 24. RESPEITE prefers-reduced-motion (media query que zera animação/transição) e mantenha foco VISÍVEL (:focus-visible) e navegação por teclado. [§3/40–42]
+
+### O que ainda denuncia template (dono, 11/10/2026 — auditoria de uma página real)
+Estas quatro nasceram de um caso concreto: uma página que JÁ seguia o padrão acima (escala
+tipográfica, escala de espaço, paleta plana) e ainda assim parecia template. O padrão anterior
+não nomeava estes pontos — por isso eles passam a ser VETO explícito.
+
+25. COR COM SIGNIFICADO — a mesma natureza de dado usa a MESMA cor na página inteira. Variação
+    do mesmo tipo ("+18% vs. setembro" e "−5 dias vs. setembro") é a MESMA natureza: mesma cor,
+    ou um par DECLARADO (um tom para o que subiu, outro para o que caiu) aplicado a TODOS os
+    casos. PROIBIDO o mesmo tipo de dado aparecer em cores diferentes sem regra. Cor que aparece
+    UMA vez só na página não é acento — é descuido: ou ela se repete, ou sai.
+26. NADA DE RÓTULO INTERNO VISÍVEL — PROIBIDO mostrar no produto o que é bastidor: nome/id de
+    conta interna, "conta: x", marca de debug, placeholder de preenchimento, texto de sistema.
+    Se não é informação para o cliente, não entra na tela. [T13]
+27. DADO MOSTRADO TEM DE SER LEGÍVEL E VERDADEIRO — gráfico, barra ou progresso leva RÓTULO e
+    REFERÊNCIA (percentual, eixo ou valor de base): barra decorativa sem escala é PROIBIDA.
+    Todo número é coerente com o que representa (o funil fecha; o percentual bate com as partes).
+    Sem dado real, NÃO invente número para preencher — desenhe a forma sem valor. [T16]
+28. MICROCOPY SEM CONTRADIÇÃO — antes de entregar, leia os textos EM CONJUNTO, não um a um:
+    promessas que se anulam ("sem cartão" + "você só paga no dia 15"), rótulo que não descreve o
+    conteúdo ("Suporte aqui" para dizer "time em São Paulo"), e o diferencial que VENDE enterrado
+    em letra pequena (o argumento forte vira TÍTULO, não rodapé). Um rótulo = uma ideia.
 `;
 
 /** A instrução do construtor ganha também o PADRÃO VISUAL ANTI-GENÉRICO. */

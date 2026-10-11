@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import Shell from "@/components/dash/Shell";
 import ChatEscrito from "@/components/dash/ChatEscrito";
 import SeletorModo from "@/components/dash/SeletorModo";
+import SessaoVencida from "@/components/dash/SemSessao";
 
 const MiraiApp = dynamic(() => import("./MiraiApp"), { ssr: false });
 
@@ -29,10 +30,18 @@ export default function Page() {
   // palco limpo o seletor Chat/Orb ganha corpo (ver `grande` abaixo); na
   // conversa em andamento ele volta ao tamanho de sempre.
   const [inicio, setInicio] = useState(false);
+  // Sessão vencida com a tela já aberta: a causa é a sessão, e a saída é entrar
+  // de novo — não faz sentido deixar a pessoa digitando para o vazio.
+  const [semSessao, setSemSessao] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        // SESSÃO VENCIDA (dono, 11/10/2026): o 401 era engolido e a tela seguia
+        // como se estivesse tudo bem — até o primeiro envio falhar sem explicação.
+        if (r.status === 401) setSemSessao(true);
+        return r.ok ? r.json() : null;
+      })
       .then((d) =>
         d?.user &&
         setConta({
@@ -56,6 +65,17 @@ export default function Page() {
   // O seletor só cresce no palco limpo da tela de início, e só no modo Chat
   // (no modo Orb ele fica discreto, que a estrela ali é o próprio Orb).
   const seletorGrande = modo === "chat" && inicio;
+
+  // Sessão vencida: a tela certa, com a saída certa (entrar de novo).
+  if (semSessao) {
+    return (
+      <Shell titulo="Mirai" usuario={conta} recolhidaInicial cheio>
+        <div className="grid h-full w-full place-items-center">
+          <SessaoVencida oQue="sua conversa continua aqui." />
+        </div>
+      </Shell>
+    );
+  }
 
   return (
     <Shell titulo="Mirai" usuario={conta} recolhidaInicial cheio>

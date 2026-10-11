@@ -6,6 +6,7 @@ import Nav from "@/components/mirai/Nav";
 import { useVoice } from "@/hooks/useVoice";
 import { useWakeWord } from "@/hooks/useWakeWord";
 import { unlockAudio } from "@/lib/voice";
+import SessaoVencida, { ehSessaoVencida } from "@/components/dash/SemSessao";
 
 const LoadingPresence = ({ label }: { label: string }) => (
   <div className="mirai-loading" role="status" aria-live="polite">
@@ -111,6 +112,10 @@ function MiraiAppCore() {
   const [chatMode, setChatMode] = useState<ChatMode>("conversa");
   const [awake, setAwake] = useState(false);
   const [micWarning, setMicWarning] = useState("");
+  // SESSÃO VENCIDA (dono, 11/10/2026): a voz também respondia "Erro: Unauthorized"
+  // (em inglês, sem causa e sem caminho). 401 = sessão, e é a mesma tela de todas
+  // as portas. 403 NÃO entra aqui: esse é falta de acesso, e quem explica é o servidor.
+  const [semSessao, setSemSessao] = useState(false);
 
   const voice = useVoice();
   const voiceRef = useRef<VoiceApi>(voice);
@@ -277,6 +282,13 @@ function MiraiAppCore() {
       });
 
       if (!resp.ok) {
+        if (ehSessaoVencida(resp)) {
+          // Repetir não resolve: o token venceu. Diz a causa e oferece a entrada.
+          setSemSessao(true);
+          setThinking(false);
+          setStatus("idle");
+          return;
+        }
         let errorMessage = "Falha na API";
         try {
           const err = await resp.json();
@@ -391,6 +403,16 @@ function MiraiAppCore() {
   }, [chatMode, startPostResponseListening]);
 
   if (!mounted) return null;
+
+  if (semSessao) {
+    return (
+      <main className="mirai-os is-dormant">
+        <div className="grid h-full w-full place-items-center">
+          <SessaoVencida oQue="a Mirai continua aqui." />
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className={`mirai-os ${awake ? "is-awake" : "is-dormant"}`} data-status={status}>
