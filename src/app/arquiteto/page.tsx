@@ -2621,6 +2621,17 @@ function Arquiteto() {
     }
   }
 
+  /**
+   * ABRIR POR LINK (dono, 11/10/2026): a página de Projetos (o portfólio) manda
+   * `/arquiteto?projeto=<id>` — o projeto abre já carregado, sem passar pela
+   * lista. Roda UMA vez, na entrada.
+   */
+  useEffect(() => {
+    const pid = new URLSearchParams(window.location.search).get("projeto");
+    if (pid) void abrirProjeto(pid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /** Renomeia um projeto (PATCH) e recarrega a lista. */
   async function renomearProjeto(id: string, titulo: string) {
     const novo = titulo.trim();

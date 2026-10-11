@@ -18,7 +18,17 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/(.*)",
+        // A PRÉVIA DO PROJETO é a ÚNICA resposta que precisa viver dentro de um
+        // iframe do PRÓPRIO app (a miniatura do portfólio, dono 11/10/2026).
+        // `DENY` a bloquearia; `SAMEORIGIN` permite SÓ a mesma origem — o app, e
+        // mais ninguém. Fica ANTES da regra geral e a regra geral a EXCLUI (abaixo),
+        // para não haver dois X-Frame-Options na mesma resposta.
+        source: "/api/arquiteto/projetos/:id/previa",
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      },
+      {
+        // tudo, EXCETO a prévia do projeto (que tem regra própria acima)
+        source: "/((?!api/arquiteto/projetos/[^/]+/previa$).*)",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },

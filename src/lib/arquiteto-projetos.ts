@@ -46,6 +46,14 @@ export type ProjetoResumo = {
   titulo: string;
   criado_em: string;
   atualizado_em: string;
+  /** a pasta/categoria do projeto (null = "Sem pasta"). Presente em listarProjetos. */
+  pasta_id?: string | null;
+  /** endereço `<slug>.miraitohope.com` (null = sem endereço). Presente na lista. */
+  slug?: string | null;
+  /** domínio próprio do cliente (null = nenhum). Presente na lista. */
+  dominio?: string | null;
+  /** quando foi publicado (ISO) ou null. Presente na lista. */
+  publicado_em?: string | null;
 };
 
 /**
@@ -181,7 +189,23 @@ function getDb() {
       UNIQUE (projeto_id, caminho)
     )
   `);
+  // PASTAS / CATEGORIAS (dono, 11/10/2026 — "crie pastas por projeto como se
+  // fosse categoria"): o agrupamento de projetos por pasta. Um NÍVEL (pasta →
+  // projetos), criado pela própria conta. O projeto guarda `pasta_id` na PRÓPRIA
+  // linha (coluna aditiva, abaixo) — a pasta é um agrupamento, não um segundo
+  // lugar para o projeto viver. Apagar a pasta NÃO apaga projeto nenhum: os
+  // projetos dela voltam a "Sem pasta".
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS arquiteto_pastas (
+      id            TEXT PRIMARY KEY,
+      user_id       INTEGER NOT NULL,
+      nome          TEXT NOT NULL,
+      criado_em     TEXT NOT NULL,
+      atualizado_em TEXT NOT NULL
+    )
+  `);
   db.exec("CREATE INDEX IF NOT EXISTS idx_arquiteto_projetos_user ON arquiteto_projetos(user_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_arquiteto_pastas_user ON arquiteto_pastas(user_id)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_arquiteto_arquivos_projeto ON arquiteto_arquivos(projeto_id)");
   db.exec(
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_arquiteto_versoes_projeto ON arquiteto_versoes(projeto_id, numero)",
@@ -233,6 +257,9 @@ function getDb() {
   // Nada disso vai para log; a tela nunca devolve o token.
   garantirColuna(db, "arquiteto_projetos", "dominio_cf_token", "TEXT");
   garantirColuna(db, "arquiteto_projetos", "dominio_cf_zona", "TEXT");
+  // PASTA DO PROJETO (dono, 11/10/2026): a qual pasta/categoria este projeto
+  // pertence. NULL = "Sem pasta". Aditiva e nullable — projeto antigo não muda.
+  garantirColuna(db, "arquiteto_projetos", "pasta_id", "TEXT");
   garantirColuna(db, "arquiteto_projetos", "dominio_cf_em", "TEXT");
   // GITHUB (dono, 09/10/2026 — o botão "Conectar com GitHub"): mesmo padrão do
   // Cloudflare. O `access_token` do OAuth é SEGREDO e vive CIFRADO aqui
@@ -345,13 +372,137 @@ export function listarProjetos(userId: number): ProjetoResumo[] {
   const db = getDb();
   const linhas = db
     .prepare(
-      `SELECT id, titulo, criado_em, atualizado_em
+      `SELECT id, titulo, criado_em, atualizado_em, pasta_id, slug, dominio, publicado_em
        FROM arquiteto_projetos WHERE user_id = ?
        ORDER BY atualizado_em DESC`,
     )
     .all(userId) as ProjetoResumo[];
   db.close();
   return linhas;
+}
+
+/* ─────────────────────────── PASTAS / CATEGORIAS ─────────────────────────── */
+
+export type PastaResumo = {
+  id: string;
+  nome: string;
+  criado_em: string;
+  atualizado_em: string;
+  /** quantos projetos há nesta pasta (contagem viva, feita na leitura) */
+  projetos: number;
+};
+
+/** Lista as pastas da conta, com a contagem de projetos de cada uma. */
+export function listarPastas(userId: number): PastaResumo[] {
+  const db = getDb();
+  const linhas = db
+    .prepare(
+      `SELECT p.id, p.nome, p.criado_em, p.atualizado_em,
+              (SELECT COUNT(*) FROM arquiteto_projetos a
+                WHERE a.pasta_id = p.id AND a.user_id = p.user_id) AS projetos
+       FROM arquiteto_pastas p
+       WHERE p.user_id = ?
+       ORDER BY p.nome COLLATE NOCASE ASC`,
+    )
+    .all(userId) as PastaResumo[];
+  db.close();
+  return linhas;
+}
+
+/** Cria uma pasta (categoria) para a conta. Nome vazio → null. */
+export function criarPasta(userId: number, nome: string): PastaResumo | null {
+  const limpo = (nome || "").trim().slice(0, LIMITE_TITULO);
+  if (!limpo) return null;
+  const db = getDb();
+  const agora = new Date().toISOString();
+  const id = `pasta_${randomUUID()}`;
+  db.prepare(
+    `INSERT INTO arquiteto_pastas (id, user_id, nome, criado_em, atualizado_em)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(id, userId, limpo, agora, agora);
+  db.close();
+  return { id, nome: limpo, criado_em: agora, atualizado_em: agora, projetos: 0 };
+}
+
+/** Renomeia uma pasta da conta. null se não for desta conta. */
+export function renomearPasta(userId: number, pastaId: string, nome: string): PastaResumo | null {
+  const limpo = (nome || "").trim().slice(0, LIMITE_TITULO);
+  if (!limpo) return null;
+  const db = getDb();
+  const info = db
+    .prepare("UPDATE arquiteto_pastas SET nome = ?, atualizado_em = ? WHERE id = ? AND user_id = ?")
+    .run(limpo, new Date().toISOString(), pastaId, userId);
+  if (!info.changes) {
+    db.close();
+    return null;
+  }
+  const linha = db
+    .prepare(
+      `SELECT p.id, p.nome, p.criado_em, p.atualizado_em,
+              (SELECT COUNT(*) FROM arquiteto_projetos a
+                WHERE a.pasta_id = p.id AND a.user_id = p.user_id) AS projetos
+       FROM arquiteto_pastas p WHERE p.id = ? AND p.user_id = ?`,
+    )
+    .get(pastaId, userId) as PastaResumo | undefined;
+  db.close();
+  return linha ?? null;
+}
+
+/**
+ * Apaga a pasta. Os projetos dela NÃO são apagados: voltam a "Sem pasta"
+ * (`pasta_id = NULL`). É o comportamento honesto — apagar uma categoria não pode
+ * destruir o trabalho que estava dentro dela.
+ */
+export function apagarPasta(userId: number, pastaId: string): boolean {
+  const db = getDb();
+  const dono = db
+    .prepare("SELECT 1 AS achou FROM arquiteto_pastas WHERE id = ? AND user_id = ?")
+    .get(pastaId, userId) as { achou: number } | undefined;
+  if (!dono) {
+    db.close();
+    return false;
+  }
+  db.prepare("UPDATE arquiteto_projetos SET pasta_id = NULL WHERE pasta_id = ? AND user_id = ?").run(
+    pastaId,
+    userId,
+  );
+  db.prepare("DELETE FROM arquiteto_pastas WHERE id = ? AND user_id = ?").run(pastaId, userId);
+  db.close();
+  return true;
+}
+
+/**
+ * Move um projeto para uma pasta (ou para "Sem pasta", com `pastaId` null/vazio).
+ * Confere que a PASTA e o PROJETO são da mesma conta — nada de mover projeto de
+ * uma conta para pasta de outra. Devolve false se algum dos dois não for da conta.
+ */
+export function definirPastaDoProjeto(
+  userId: number,
+  projetoId: string,
+  pastaId: string | null,
+): boolean {
+  const db = getDb();
+  if (!ehDonoDoProjeto(db, userId, projetoId)) {
+    db.close();
+    return false;
+  }
+  const alvo = (pastaId || "").trim() || null;
+  if (alvo) {
+    const pastaOk = db
+      .prepare("SELECT 1 AS achou FROM arquiteto_pastas WHERE id = ? AND user_id = ?")
+      .get(alvo, userId) as { achou: number } | undefined;
+    if (!pastaOk) {
+      db.close();
+      return false;
+    }
+  }
+  db.prepare("UPDATE arquiteto_projetos SET pasta_id = ? WHERE id = ? AND user_id = ?").run(
+    alvo,
+    projetoId,
+    userId,
+  );
+  db.close();
+  return true;
 }
 
 /** Projeto completo (com arquivos), escopado ao dono. null se não for desta conta. */
