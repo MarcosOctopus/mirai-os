@@ -514,6 +514,62 @@ async function enviarComRetentativa(url: string, opcoes: RequestInit, tentativas
   throw ultimo;
 }
 
+/**
+ * LÊ A RESPOSTA DO CONSTRUTOR ENQUANTO ELA ACONTECE (dono, 11/10/2026).
+ *
+ * A rota manda LINHAS: avisos de progresso (`{progresso:{segundos,caracteres}}`) e,
+ * no fim, a resposta. A leitura aqui é INCREMENTAL — cada aviso atualiza a tela
+ * ("já escreveu 12 mil caracteres") em vez de deixar a pessoa olhando um relógio
+ * cego por minutos. Se vier uma resposta no formato antigo (sem as linhas), o JSON
+ * do fim continua sendo lido: nada quebra.
+ */
+async function lerRespostaComProgresso(
+  r: Response,
+  aoProgresso?: (p: { segundos?: number; caracteres?: number }) => void,
+): Promise<unknown> {
+  const leitor = r.body?.getReader();
+  if (!leitor) return {};
+  const dec = new TextDecoder();
+  let buf = "";
+  let resposta: unknown = null;
+  const absorver = (linha: string) => {
+    const t = linha.trim();
+    if (!t) return;
+    let j: unknown;
+    try {
+      j = JSON.parse(t);
+    } catch {
+      return; // linha parcial, ou página de erro do proxy (não é do app)
+    }
+    if (j && typeof j === "object" && "progresso" in (j as Record<string, unknown>)) {
+      aoProgresso?.((j as { progresso: { segundos?: number; caracteres?: number } }).progresso);
+      return;
+    }
+    resposta = j;
+  };
+  for (;;) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i: number;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      absorver(buf.slice(0, i));
+      buf = buf.slice(i + 1);
+    }
+  }
+  absorver(buf);
+  return resposta ?? {};
+}
+
+/** Duração em linguagem de gente: "8s", "1min 20s", "3min". */
+function formatarDuracao(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return r ? `${m}min ${r}s` : `${m}min`;
+}
+
 export default function ArquitetoPage() {
   const [conta, setConta] = useState<Conta | null>(null);
   const [acesso, setAcesso] = useState<Acesso | null>(null);
@@ -647,6 +703,25 @@ function Arquiteto() {
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [pedido, setPedido] = useState("");
   const [gerando, setGerando] = useState(false);
+  // ── O TEMPO NA CARA (dono, 11/10/2026) ──────────────────────────────────────
+  // "Quero saber quanto tempo passou, para saber se realmente aconteceu." Um
+  // pedido grande leva MINUTOS: sem relógio, a pessoa não sabe se está andando ou
+  // travado. `segundosDecorridos` conta ao vivo; `progresso` traz o que o SERVIDOR
+  // informa (quantos caracteres o modelo já escreveu). Os dois juntos respondem
+  // "está acontecendo?" sem ninguém precisar adivinhar.
+  const [segundosDecorridos, setSegundosDecorridos] = useState(0);
+  const [progresso, setProgresso] = useState<{ segundos?: number; caracteres?: number } | null>(null);
+
+  // O CRONÔMETRO: enquanto está construindo, conta de segundo em segundo. O
+  // relógio é do CLIENTE de propósito — mede o que a PESSOA esperou, que é o
+  // número que interessa a ela (o do servidor pode ser menor se a rede atrasou).
+  useEffect(() => {
+    if (!gerando) return;
+    const t0 = Date.now();
+    setSegundosDecorridos(0);
+    const id = setInterval(() => setSegundosDecorridos(Math.round((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [gerando]);
   // ── MODO DO CHAT (dono, Figma Make): "Construir" ou "Plano" ────────────────
   // "Construir" = o pedido vira PROJETO (rota /api/arquiteto/gerar). "Plano" =
   // a resposta é TEXTO e o projeto NÃO é tocado (rota própria
@@ -1836,6 +1911,10 @@ function Arquiteto() {
     setPedido("");
     setErro("");
     setGerando(true);
+    setProgresso(null);
+    // O relógio DESTE pedido (cliente): se a conexão cair sem resposta, é este
+    // número que diz quanto tempo se esperou.
+    const inicioPedido = Date.now();
 
     const paraOModelo = [...turnos, { papel: "voce" as const, texto }]
       .filter((t) => !t.erro)
@@ -1855,7 +1934,7 @@ function Arquiteto() {
             : null,
         }),
       });
-      const d = (await r.json().catch(() => ({}))) as { ok?: boolean; texto?: string; erro?: string };
+      const d = (await lerRespostaComProgresso(r, setProgresso)) as { ok?: boolean; texto?: string; erro?: string; levouMs?: number };
       if (!r.ok || !d.ok || !d.texto) {
         // Mesma regra do construtor: sessão, conexão e "plano vazio" são causas
         // diferentes e o código HTTP não é nenhuma delas.
@@ -1868,11 +1947,15 @@ function Arquiteto() {
       const resposta = d.texto;
       // `plano: true` marca o turno: o chat renderiza a estrutura (título,
       // passos numerados, arquivos) e põe o botão "Executar plano" no fim.
-      setTurnos((t) => [...t, { papel: "mirai", texto: resposta, plano: true }]);
+      // O tempo no fim do plano, mesma regra do construtor.
+      const planoComTempo = d.levouMs ? `${resposta}\n\n_(levou ${formatarDuracao(d.levouMs)})_` : resposta;
+      setTurnos((t) => [...t, { papel: "mirai", texto: planoComTempo, plano: true }]);
     } catch {
       // Já tentou de novo sozinho (enviarComRetentativa) antes de chegar aqui — a
       // mensagem diz o que de fato aconteceu, em vez de culpar o "meio".
-      const msg = "A conexão caiu e o pedido não chegou ao fim — nada foi alterado. Tente de novo.";
+      const msg = `A conexão caiu e o pedido não chegou ao fim depois de ${formatarDuracao(
+        Date.now() - inicioPedido,
+      )} — nada foi alterado. Tente de novo.`;
       setErro(msg);
       setTurnos((t) => [...t, { papel: "mirai", texto: msg, erro: true }]);
     } finally {
@@ -1925,6 +2008,10 @@ function Arquiteto() {
     }
 
     setGerando(true);
+    setProgresso(null);
+    // O relógio DESTE pedido, do lado do cliente: se a conexão cair antes de o
+    // servidor responder, é este número que diz quanto tempo se esperou.
+    const inicioPedido = Date.now();
 
     // Nome do projeto quando ele NASCE: o primeiro pedido da conversa. Só vale
     // na criação — depois disso o título é o que a pessoa escolheu.
@@ -1972,23 +2059,28 @@ function Arquiteto() {
           foto: foto?.imagem ?? "",
         }),
       });
-      const d = (await r.json().catch(() => ({}))) as {
+      const d = (await lerRespostaComProgresso(r, setProgresso)) as {
         ok?: boolean;
         resumo?: string;
         arquivos?: Arquivo[];
         erro?: string;
         visao?: string;
+        levouMs?: number;
       };
 
       if (!r.ok || !d.ok || !d.arquivos?.length) {
         // A MENSAGEM DIZ A VERDADE: sessão expirada, conexão caída ou resposta
         // sem arquivos são causas DIFERENTES — antes todas apareciam como "sem
         // os arquivos do projeto" (foi o que o dono viu com a sessão expirada).
-        const msg = motivoDaFalha(
-          r,
-          d,
-          "A resposta veio sem os arquivos do projeto e nada foi alterado. Tente de novo; se repetir, abra o projeto outra vez.",
-        );
+        // E o TEMPO entra junto: quem esperou 3 minutos tem o direito de saber que
+        // esperou 3 minutos (e não que "nada aconteceu").
+        const espera = d.levouMs ? ` (esperei ${formatarDuracao(d.levouMs)})` : "";
+        const msg =
+          motivoDaFalha(
+            r,
+            d,
+            "A resposta veio sem os arquivos do projeto e nada foi alterado. Tente de novo; se repetir, abra o projeto outra vez.",
+          ) + espera;
         setErro(msg);
         setTurnos((t) => [...t, { papel: "mirai", texto: msg, erro: true }]);
         sessaoExpirou(r);
@@ -2010,14 +2102,23 @@ function Arquiteto() {
       registrarPasso(projeto);
       setProjeto({ resumo: d.resumo || "Projeto atualizado.", arquivos: d.arquivos });
       setArquivoAtivo(0);
-      setTurnos((t) => [...t, { papel: "mirai", texto: d.resumo || "Projeto atualizado." }]);
+      // O TEMPO no resultado (dono, 11/10/2026): saber quanto levou é saber se o
+      // pedido "realmente aconteceu" — e quanto custa, em espera, cada tipo de
+      // pedido. Aparece sempre, discreto, no fim do resumo.
+      const comTempo = d.levouMs
+        ? `${d.resumo || "Projeto atualizado."} · levou ${formatarDuracao(d.levouMs)}`
+        : d.resumo || "Projeto atualizado.";
+      setTurnos((t) => [...t, { papel: "mirai", texto: comTempo }]);
       // SALVA sozinho: é isto que faz o projeto não se perder no reload nem no
       // fechar da aba. Sem clique extra — cria na primeira vez, atualiza depois.
       void salvarNoServidor(d.arquivos, tituloSugerido);
     } catch {
       // Já tentou de novo sozinho (enviarComRetentativa) antes de chegar aqui — a
-      // mensagem diz o que de fato aconteceu, em vez de culpar o "meio".
-      const msg = "A conexão caiu e o pedido não chegou ao fim — nada foi alterado. Tente de novo.";
+      // mensagem diz o que de fato aconteceu, em vez de culpar o "meio", e informa
+      // quanto tempo se esperou (o dono quer saber se o pedido realmente rodou).
+      const msg = `A conexão caiu e o pedido não chegou ao fim depois de ${formatarDuracao(
+        Date.now() - inicioPedido,
+      )} — nada foi alterado. Tente de novo.`;
       setErro(msg);
       setTurnos((t) => [...t, { papel: "mirai", texto: msg, erro: true }]);
     } finally {
@@ -5265,6 +5366,14 @@ function Arquiteto() {
                   ))}
                   <span className="ml-1 text-[11px] text-dash-dim">
                     {modoChat === "plano" ? "planejando…" : "construindo…"}
+                    {/* O TEMPO NA CARA (dono, 11/10/2026): pedido grande leva
+                        minutos. Aqui o relógio corre e o servidor diz quantos
+                        caracteres o modelo já escreveu — assim "está andando?" é
+                        uma resposta visível, não uma adivinhação. */}
+                    {segundosDecorridos > 0 && ` ${formatarDuracao(segundosDecorridos * 1000)}`}
+                    {progresso?.caracteres
+                      ? ` · ${(progresso.caracteres / 1000).toFixed(1).replace(".", ",")} mil caracteres`
+                      : ""}
                   </span>
                 </div>
               )}

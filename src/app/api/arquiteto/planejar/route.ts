@@ -301,16 +301,30 @@ export async function POST(req: NextRequest) {
   // corpo devolvido é o MESMO JSON de antes (só o transporte muda).
   const instrucaoPlano = promptComPadrao(PLANEJADOR_PROMPT) + contextoProjeto;
   const codificador = new TextEncoder();
+  const inicioPedido = Date.now();
+  let caracteresGerados = 0;
   const fluxo = new ReadableStream({
     async start(controlador) {
       const batida = setInterval(() => {
         try {
-          controlador.enqueue(codificador.encode(" "));
+          // Igual ao construtor: o batimento INFORMA (tempo + caracteres) em vez de
+          // só segurar a conexão. Quem espera vê que está andando.
+          controlador.enqueue(
+            codificador.encode(
+              JSON.stringify({
+                progresso: {
+                  segundos: Math.round((Date.now() - inicioPedido) / 1000),
+                  caracteres: caracteresGerados,
+                },
+              }) + "\n",
+            ),
+          );
         } catch {
           /* já fechou */
         }
-      }, 8000);
+      }, 4000);
       let saida: unknown = { erro: "Não consegui montar o plano agora. Tente de novo." };
+      const inicioPlano = Date.now();
       try {
         const r = await chamarModelo(mensagens, instrucaoPlano, g.conta.id, TETO_PLANO_MS);
         saida = r.ok
@@ -321,8 +335,12 @@ export async function POST(req: NextRequest) {
       } finally {
         clearInterval(batida);
       }
+      // O tempo real na resposta, sempre (mesma regra do construtor).
+      if (saida && typeof saida === "object") {
+        saida = { ...(saida as Record<string, unknown>), levouMs: Date.now() - inicioPlano };
+      }
       try {
-        controlador.enqueue(codificador.encode(JSON.stringify(saida)));
+        controlador.enqueue(codificador.encode(JSON.stringify(saida) + "\n"));
         controlador.close();
       } catch {
         /* já fechou */

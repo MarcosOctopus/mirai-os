@@ -319,7 +319,7 @@ type Resultado = { ok: true; texto: string; motor: string } | { ok: false; erro:
  *  - JSON (quando o provedor ignora o stream e devolve a resposta inteira).
  * Nunca lança: formato inesperado → texto vazio (quem chamou decide o fallback).
  */
-async function lerTexto(resp: Response): Promise<string> {
+async function lerTexto(resp: Response, onProgresso?: (caracteres: number) => void): Promise<string> {
   const ct = (resp.headers.get("content-type") || "").toLowerCase();
   if (!ct.includes("text/event-stream")) {
     const j = (await resp.json().catch(() => ({}))) as { choices?: { message?: { content?: string } }[] };
@@ -344,7 +344,13 @@ async function lerTexto(resp: Response): Promise<string> {
       try {
         const j = JSON.parse(dado) as { choices?: { delta?: { content?: string } }[] };
         const pedaco = j?.choices?.[0]?.delta?.content;
-        if (pedaco) texto += pedaco;
+        if (pedaco) {
+          texto += pedaco;
+          // PROGRESSO REAL (dono, 11/10/2026): a cada pedaço que o modelo escreve,
+          // avisa quanto já saiu. É o que permite à tela mostrar "já escreveu 12 mil
+          // caracteres" numa construção de minutos, em vez de um relógio cego.
+          if (onProgresso) onProgresso(texto.length);
+        }
       } catch {}
     }
   }
@@ -533,6 +539,7 @@ async function chamarModelo(
   system: string,
   tenant: number,
   orcamentoMs = 90000,
+  onProgresso?: (caracteres: number) => void,
 ): Promise<Resultado> {
   const msgs = montarMensagens(mensagens, system);
   // Projeto MULTIARQUIVO cabe em muito mais texto que um HTML único: o teto é
@@ -572,7 +579,7 @@ async function chamarModelo(
     try {
       const r = await gw.chamar({ ...corpoBase, model: MODELO_DA_CONTA });
       if (r.ok) {
-        const texto = await lerTexto(r);
+        const texto = await lerTexto(r, onProgresso);
         if (texto.trim()) return { ok: true, texto, motor: "conta" };
       }
       console.error("Arquiteto: gateway da conta recusou:", r.status);
@@ -606,7 +613,7 @@ async function chamarModelo(
           console.error(`Arquiteto Verboo ${modelo}:`, r.status, err.slice(0, 200));
           continue;
         }
-        const texto = await lerTexto(r);
+        const texto = await lerTexto(r, onProgresso);
         if (texto.trim()) return { ok: true, texto, motor: "verboo" };
       } catch (e) {
         console.error("Arquiteto Verboo rede:", e instanceof Error ? e.message : e);
@@ -731,41 +738,68 @@ export async function POST(req: NextRequest) {
     arquivosAtuais.find((a) => a.nome.toLowerCase() === "projeto.md")?.conteudo ||
     "";
 
-  // ── A PARTE LENTA VAI NUM FLUXO COM BATIMENTO (dono, 10/10/2026) ────────────
-  // Ler a foto (~36s) + construir (~30s) deixava a conexão PARADA esse tempo
-  // todo; conexão ociosa é cortada pelo Cloudflare/túnel e a pessoa via "Caiu a
-  // conexão no meio". Aqui a rota manda um ESPAÇO a cada 8s (batimento): o
-  // cliente lê o corpo INTEIRO e o JSON do fim continua válido (espaço antes do
-  // JSON é ignorado). Nada muda para o cliente.
+  // ── A PARTE LENTA VAI NUM FLUXO QUE INFORMA (dono, 11/10/2026) ──────────────
+  // Antes: a rota mandava um ESPAÇO a cada 8s só para a conexão não ficar ociosa
+  // (conexão ociosa é cortada pelo Cloudflare/túnel). Agora vai uma LINHA com o
+  // TEMPO DECORRIDO e quantos CARACTERES o modelo já escreveu: quem pediu um app
+  // grande vê que está andando, e no fim sabe quanto tempo levou. Pedido que
+  // demora deixa de ser uma caixa-preta.
+  //
+  // O formato continua compatível: o cliente lê as LINHAS e a última é a resposta.
   const codificador = new TextEncoder();
+  const inicioPedido = Date.now();
+  let caracteresGerados = 0;
   const fluxo = new ReadableStream({
     async start(controlador) {
       const batida = setInterval(() => {
         try {
-          controlador.enqueue(codificador.encode(" "));
+          const aviso = {
+            progresso: {
+              segundos: Math.round((Date.now() - inicioPedido) / 1000),
+              caracteres: caracteresGerados,
+            },
+          };
+          controlador.enqueue(codificador.encode(JSON.stringify(aviso) + "\n"));
         } catch {
           /* já fechou */
         }
-      }, 8000);
+      }, 4000);
       let saida: unknown = { erro: "Falha inesperada ao construir. Tente de novo." };
+      const inicioConstrucao = Date.now();
       try {
-        saida = await construirProjeto({
-          mensagens,
-          assets,
-          tokens,
-          docProjeto,
-          foto,
-          integracoes,
-          arquivosAtuais,
-          contaId: g.conta.id,
-        });
+        saida = await construirProjeto(
+          {
+            mensagens,
+            assets,
+            tokens,
+            docProjeto,
+            foto,
+            integracoes,
+            arquivosAtuais,
+            contaId: g.conta.id,
+          },
+          (n) => {
+            // SEMPRE CRESCENTE (dono, 11/10/2026): quando o sistema tenta de novo
+            // (a segunda tentativa depois de uma edição que não casou), o contador
+            // do modelo reinicia — e a tela mostraria o número CAINDO de 35 mil
+            // para 1,6 mil, que parece que o trabalho foi perdido. O número só
+            // sobe: é o que a pessoa já viu escrito.
+            caracteresGerados = Math.max(caracteresGerados, n);
+          },
+        );
       } catch (e) {
         console.error("Arquiteto: falha no construir:", e instanceof Error ? e.message : e);
       } finally {
         clearInterval(batida);
       }
+      // O TEMPO REAL vai na resposta, SEMPRE (sucesso ou erro): é o que permite ao
+      // dono saber se o que ele pediu realmente aconteceu e quanto custou esperar.
+      const levouMs = Date.now() - inicioConstrucao;
+      if (saida && typeof saida === "object") {
+        saida = { ...(saida as Record<string, unknown>), levouMs };
+      }
       try {
-        controlador.enqueue(codificador.encode(JSON.stringify(saida)));
+        controlador.enqueue(codificador.encode(JSON.stringify(saida) + "\n"));
         controlador.close();
       } catch {
         /* já fechou */
@@ -795,15 +829,18 @@ async function construirProjeto(p: {
   integracoes: string[];
   arquivosAtuais: { nome: string; conteudo: string }[];
   contaId: number;
-}): Promise<unknown> {
-  // TETO TOTAL DO PEDIDO (dono, 11/10/2026). MEDIDO no caminho REAL (Cloudflare →
-  // cloudflared → app): a conexão atravessa o túnel por 104s+ com o batimento —
-  // o limite NÃO é o túnel. O que demora é o MODELO: um pedido pequeno volta em
-  // 3-15s; refazer uma página inteira passa de 210s (o modelo escreve dezenas de
-  // mil caracteres a ~40 tokens/s). Teto curto fazia pedido grande falhar sempre.
-  // Estourou o teto, a rota devolve uma mensagem honesta em vez de deixar a
-  // conexão morrer na mão do túnel; o batimento mantém a conexão viva enquanto isso.
-  const TETO_TOTAL_MS = 180000;
+}, onProgresso?: (caracteres: number) => void): Promise<unknown> {
+  // REDE DE SEGURANÇA, NÃO LIMITE DE TRABALHO (dono, 11/10/2026): "não pode ter
+  // timeout — quero fazer apps complexos". O dono tem razão: cortar por tempo
+  // derruba justamente o trabalho grande, que é o que ele quer fazer.
+  //
+  // MEDIDO no caminho real (Cloudflare → cloudflared → app): a conexão aguenta o
+  // túnel enquanto houver tráfego — o batimento de 4s mantém viva por 104s+ e
+  // segue. O que demora é o MODELO: escreve ~40 tokens/s, então um app grande leva
+  // MINUTOS. O teto aqui existe só para o pedido não ficar pendurado para sempre
+  // se o provedor travar (20 min é muito acima de qualquer construção real). Quem
+  // quiser construir mais do que isso deve construir em partes.
+  const TETO_TOTAL_MS = 1200000;
   const inicio = Date.now();
   const resta = () => TETO_TOTAL_MS - (Date.now() - inicio);
 
@@ -822,7 +859,7 @@ async function construirProjeto(p: {
     p.arquivosAtuais,
   );
   const instrucaoFinal = p.foto ? promptComFoto(instrucao, visao) : instrucao;
-  const r = await chamarModelo(p.mensagens, instrucaoFinal, p.contaId, Math.max(20000, resta()));
+  const r = await chamarModelo(p.mensagens, instrucaoFinal, p.contaId, Math.max(20000, resta()), onProgresso);
   if (!r.ok) return { erro: r.erro };
   // Régua do formato (ops): mostra se o modelo obedeceu a EDIÇÃO ou reescreveu tudo.
   // Um "ARQUIVO" numa mudança pontual explica sozinho uma espera de 90s+.
@@ -880,6 +917,7 @@ async function construirProjeto(p: {
       instrucaoFinal,
       p.contaId,
       Math.max(20000, resta()),
+      onProgresso,
     );
     if (r2.ok) {
       const ed2 = extrairEdicoes(r2.texto);
