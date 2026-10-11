@@ -7,7 +7,7 @@ import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
 import { normalizarTokens, type Tokens } from "@/lib/arquiteto-tokens";
 import { mesclarMudanca } from "@/lib/arquiteto-mescla";
 import { aplicarEdicoes, extrairEdicoes } from "@/lib/arquiteto-edicoes";
-import { donoDoProjeto, obterProjeto } from "@/lib/arquiteto-projetos";
+import { donoDoProjeto, obterProjeto, salvarProjeto } from "@/lib/arquiteto-projetos";
 import { promptComCraft, promptComIntegracoes, promptComVisual } from "@/lib/arquiteto-craft";
 
 export const runtime = "nodejs";
@@ -606,7 +606,13 @@ async function chamarModelo(
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${VERBOO_API_KEY}` },
           body: JSON.stringify({ ...corpoBase, model: modelo }),
-          signal: AbortSignal.timeout(Math.min(240000, resta)),
+          // TETO POR CHAMADA (dono, 11/10/2026: "não pode ter timeout — quero apps
+          // complexos"). Era 240s e CORTava o modelo no meio da escrita de um app
+          // grande — medido: um pedido longo gerava ~36 mil caracteres e era
+          // abortado, e a pessoa via "caiu a conexão". 600s (10 min) cobre qualquer
+          // geração real (o modelo escreve ~150 caracteres/s, então 10 min ≈ 90 mil
+          // caracteres); o teto TOTAL do pedido é quem limita de verdade.
+          signal: AbortSignal.timeout(Math.max(20000, Math.min(600000, resta))),
         });
         if (!r.ok) {
           const err = await r.text().catch(() => "");
@@ -632,7 +638,7 @@ async function chamarModelo(
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ contents }),
           signal: AbortSignal.timeout(
-            Math.max(20000, Math.min(120000, orcamentoMs - (Date.now() - inicioModelos))),
+            Math.max(20000, Math.min(600000, orcamentoMs - (Date.now() - inicioModelos))),
           ),
         },
       );
@@ -777,6 +783,7 @@ export async function POST(req: NextRequest) {
             integracoes,
             arquivosAtuais,
             contaId: g.conta.id,
+            projetoId,
           },
           (n) => {
             // SEMPRE CRESCENTE (dono, 11/10/2026): quando o sistema tenta de novo
@@ -829,6 +836,7 @@ async function construirProjeto(p: {
   integracoes: string[];
   arquivosAtuais: { nome: string; conteudo: string }[];
   contaId: number;
+  projetoId: string;
 }, onProgresso?: (caracteres: number) => void): Promise<unknown> {
   // REDE DE SEGURANÇA, NÃO LIMITE DE TRABALHO (dono, 11/10/2026): "não pode ter
   // timeout — quero fazer apps complexos". O dono tem razão: cortar por tempo
@@ -873,11 +881,42 @@ async function construirProjeto(p: {
     }`,
   );
 
-  // Formato previsível → projeto. Sem projeto reconhecível: diz a verdade.
-  const projeto = extrairProjeto(r.texto);
+  // Formato previsível → projeto. Sem projeto reconhecível: TENTA DE NOVO antes de
+  // desistir (dono, 11/10/2026).
+  //
+  // MEDIDO: de vez em quando o modelo responde TEXTO ("Claro! Vou adicionar uma
+  // seção de perguntas frequentes…") em vez do bloco de edição — e o pedido, que era
+  // claro, morria com "não veio no formato de projeto". Recusar e parar deixa a
+  // pessoa sem saída. Uma segunda chamada DIRIGIDA, mostrando o formato exato e
+  // proibindo explicação, resolve; se também falhar, aí sim a tela diz o motivo.
+  let projeto = extrairProjeto(r.texto);
   // E as EDIÇÕES (dono, 11/10/2026): o caminho RÁPIDO — a troca em vez do arquivo
   // inteiro. É o que faz uma mudança pontual voltar em segundos em vez de ~90s.
-  const edicoes = extrairEdicoes(r.texto);
+  let edicoes = extrairEdicoes(r.texto);
+  if (!projeto.arquivos.length && !edicoes.length && resta() > 30000) {
+    const correcao =
+      "A sua resposta anterior NÃO veio no formato exigido — veio texto. " +
+      "Responda DE NOVO, APENAS com o bloco no formato, sem nenhuma explicação antes ou depois. " +
+      "Para MUDAR algo em um arquivo que já existe, use exatamente:\n" +
+      "=== EDIT: nome-do-arquivo\n@@BUSCAR\n(um trecho EXATO que está no arquivo hoje)\n@@TROCAR\n(o trecho novo)\n=== FIM\n" +
+      "Se precisar devolver um arquivo inteiro, use === ARQUIVO: nome ... === FIM.";
+    const r2 = await chamarModelo(
+      [...p.mensagens, { role: "assistant", content: r.texto }, { role: "user", content: correcao }],
+      instrucaoFinal,
+      p.contaId,
+      Math.max(20000, resta()),
+      onProgresso,
+    );
+    if (r2.ok) {
+      const proj2 = extrairProjeto(r2.texto);
+      const ed2 = extrairEdicoes(r2.texto);
+      if (proj2.arquivos.length || ed2.length) {
+        console.log(`Arquiteto: a segunda tentativa trouxe o formato (${proj2.arquivos.length} arquivo(s), ${ed2.length} edição(ões))`);
+        projeto = proj2;
+        edicoes = ed2;
+      }
+    }
+  }
   if (!projeto.arquivos.length && !edicoes.length) {
     return {
       erro: "A resposta do modelo não veio no formato de projeto (nenhum arquivo reconhecido). Tente reformular o pedido.",
@@ -967,6 +1006,22 @@ async function construirProjeto(p: {
     };
   }
 
+  // GRAVA NO SERVIDOR ANTES DE RESPONDER (dono, 11/10/2026: "quero apps grandes").
+  // Antes, só a TELA salvava: se a conexão caísse no minuto 5 de uma construção de
+  // 7 minutos, o trabalho tinha sido FEITO e era PERDIDO — a pessoa refazia tudo.
+  // Agora o servidor grava o resultado por conta própria: a conexão pode cair que o
+  // trabalho está a salvo e a pessoa o encontra ao recarregar. `salvarProjeto` é
+  // idempotente (arquivos iguais = não cria versão), então o salvamento da tela
+  // depois não duplica nada.
+  let salvoNoServidor = false;
+  if (p.projetoId && donoDoProjeto(p.projetoId) === p.contaId) {
+    try {
+      salvoNoServidor = Boolean(salvarProjeto(p.contaId, p.projetoId, null, arquivos));
+    } catch (e) {
+      console.error("Arquiteto: não consegui gravar no servidor:", e instanceof Error ? e.message : e);
+    }
+  }
+
   return {
     ok: true,
     resumo,
@@ -974,5 +1029,8 @@ async function construirProjeto(p: {
     // "lida" = a foto foi entendida por um modelo que enxerga; "ilegivel" = não
     // foi e a tela DIZ; "sem-foto" = não houve foto neste pedido.
     visao: p.foto ? (visao ? "lida" : "ilegivel") : "sem-foto",
+    // A tela usa isto para saber que NÃO precisa salvar de novo (e para avisar, se
+    // a conexão cair, que o resultado já está guardado no servidor).
+    salvoNoServidor,
   };
 }

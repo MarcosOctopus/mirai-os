@@ -2113,9 +2113,35 @@ function Arquiteto() {
       // fechar da aba. Sem clique extra — cria na primeira vez, atualiza depois.
       void salvarNoServidor(d.arquivos, tituloSugerido);
     } catch {
-      // Já tentou de novo sozinho (enviarComRetentativa) antes de chegar aqui — a
-      // mensagem diz o que de fato aconteceu, em vez de culpar o "meio", e informa
-      // quanto tempo se esperou (o dono quer saber se o pedido realmente rodou).
+      // A conexão caiu — mas o SERVIDOR continua trabalhando e GRAVA o resultado por
+      // conta própria (dono, 11/10/2026: "quero apps grandes"). Em vez de mandar a
+      // pessoa refazer minutos de trabalho, espera o resultado aparecer no projeto.
+      setTurnos((t) => [
+        ...t,
+        {
+          papel: "mirai",
+          texto: "A conexão caiu no meio, mas o trabalho CONTINUA no servidor. Estou esperando o resultado — pode deixar esta tela aberta.",
+        },
+      ]);
+      const veio = await esperarResultadoNoServidor(assinaturaArquivos(projetoAtual?.arquivos ?? []));
+      if (veio) {
+        registrarPasso(projeto);
+        setProjeto({ resumo: "O trabalho terminou no servidor enquanto a conexão estava caída.", arquivos: veio });
+        setArquivoAtivo(0);
+        setTurnos((t) => [
+          ...t,
+          {
+            papel: "mirai",
+            texto: `A conexão caiu, mas o trabalho continuou no servidor e terminou — o projeto foi atualizado (levou ${formatarDuracao(
+              Date.now() - inicioPedido,
+            )} no total).`,
+          },
+        ]);
+        setErro("");
+        return;
+      }
+      // Não chegou: aí sim a mensagem diz o que de fato aconteceu — e informa quanto
+      // tempo se esperou (o dono quer saber se o pedido realmente rodou).
       const msg = `A conexão caiu e o pedido não chegou ao fim depois de ${formatarDuracao(
         Date.now() - inicioPedido,
       )} — nada foi alterado. Tente de novo.`;
@@ -2222,6 +2248,36 @@ function Arquiteto() {
     } catch {
       setErroPasta("Sem rede: a pasta não foi criada.");
     }
+  }
+
+  /**
+   * ESPERA O RESULTADO QUE O SERVIDOR ESTÁ GRAVANDO (dono, 11/10/2026).
+   *
+   * Numa construção longa (app grande = minutos), a conexão pode cair no meio. O
+   * servidor NÃO para: ele termina e GRAVA o resultado por conta própria. Em vez de
+   * mandar a pessoa refazer tudo, aqui a tela espera o resultado aparecer no projeto
+   * e o mostra. Devolve os arquivos quando eles mudarem; null se não chegar.
+   */
+  async function esperarResultadoNoServidor(
+    assinaturaAntes: string,
+    limiteMs = 240000,
+  ): Promise<Arquivo[] | null> {
+    const pid = projetoIdRef.current;
+    if (!pid) return null;
+    const t0 = Date.now();
+    while (Date.now() - t0 < limiteMs) {
+      await new Promise((r) => setTimeout(r, 10000));
+      try {
+        const r = await fetch(`/api/arquiteto/projetos/${pid}`, { cache: "no-store" });
+        if (!r.ok) continue;
+        const j = (await r.json()) as { projeto?: { arquivos?: Arquivo[] } };
+        const arqs = j?.projeto?.arquivos ?? [];
+        if (arqs.length && assinaturaArquivos(arqs) !== assinaturaAntes) return arqs;
+      } catch {
+        /* a rede ainda está fora: tenta de novo na próxima volta */
+      }
+    }
+    return null;
   }
 
   /**
