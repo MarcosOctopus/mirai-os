@@ -6,6 +6,7 @@ import { decidirAcessoArquiteto, CAPACIDADE_ARQUITETO } from "@/lib/arquiteto-ac
 import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
 import { normalizarTokens, type Tokens } from "@/lib/arquiteto-tokens";
 import { mesclarMudanca } from "@/lib/arquiteto-mescla";
+import { aplicarEdicoes, extrairEdicoes } from "@/lib/arquiteto-edicoes";
 import { promptComCraft, promptComIntegracoes, promptComVisual } from "@/lib/arquiteto-craft";
 
 export const runtime = "nodejs";
@@ -273,13 +274,27 @@ function extrairProjeto(texto: string): Projeto {
       modo = null;
       continue;
     }
+    // Um bloco de EDIÇÃO encerra o RESUMO (dono, 11/10/2026): o modelo costuma
+    // escrever o resumo e EMENDAR o bloco de edição logo abaixo — sem esta
+    // guarda, o bloco inteiro ia parar dentro do texto do resumo na tela.
+    if (/^===\s*EDIT:/i.test(ln) || /^@@\s*BUSCAR\s*$/i.test(ln)) {
+      if (modo === "arquivo") fecharArquivo();
+      modo = null;
+      continue;
+    }
     if (modo === "resumo") resumo += (resumo ? "\n" : "") + ln;
     else if (modo === "arquivo") buf.push(ln);
   }
   if (modo === "arquivo") fecharArquivo();
 
   // Rede de segurança: o modelo ignorou o formato mas devolveu código.
-  if (!arquivos.length) {
+  //
+  // GUARDA (dono, 11/10/2026): se a resposta é de EDIÇÃO (=== EDIT: / @@BUSCAR),
+  // NÃO vale a rede — dentro de um bloco de edição há HTML do trecho a trocar, e
+  // tomá-lo por "o projeto inteiro" SUBSTITUIRIA o arquivo bom por um fragmento.
+  // A edição é aplicada por `aplicarEdicoes`, não aqui.
+  const ehEdicao = /^===\s*EDIT:/im.test(texto) || /^@@\s*BUSCAR\s*$/im.test(texto);
+  if (!arquivos.length && !ehEdicao) {
     const cerca = texto.match(/```(?:html|HTML)?\s*\n([\s\S]*?)```/);
     let conteudo = cerca ? cerca[1] : "";
     if (!conteudo && /<(!doctype|html|body|div)/i.test(texto)) conteudo = texto;
@@ -433,16 +448,37 @@ Estes são os arquivos COMO ESTÃO AGORA. Isto NÃO é um recomeço: todo pedido
 
 ${blocos.join("\n")}
 
-## COMO MUDAR (vale SEMPRE que o pedido for uma mudança)
-- Mudança é ajustar algo que JÁ EXISTE. Devolva **SÓ OS ARQUIVOS QUE MUDARAM** — e cada um
-  **INTEIRO**, do começo ao fim (a primeira linha até a última), com SÓ o que foi pedido alterado.
-- **Os arquivos que NÃO mudaram: NÃO os devolva.** Quem monta o projeto guarda o que você não
-  devolveu, exatamente como está. Devolver um arquivo sem mudança é ruído (e atrasa a resposta).
-- Exemplo: se o pedido é o texto de um H1 em index.html, devolva **só** o index.html, inteiro —
-  styles.css e app.js não vêm.
+## COMO MUDAR (preferido: EDITE — NÃO reescreva o arquivo)
+Para uma mudança pontual, devolva SÓ A TROCA, neste formato:
+
+=== EDIT: index.html ===
+@@BUSCAR
+<trecho EXATO que já existe no arquivo aí em cima, copiado sem reindentar>
+@@TROCAR
+<trecho novo>
+@@FIM
+
+- O trecho do @@BUSCAR tem de aparecer **UMA ÚNICA VEZ** no arquivo, e o **TEXTO** (palavras, tags,
+  atributos, pontuação) tem de ser **IDÊNTICO** ao que está lá. Espaço e indentação não precisam ser
+  perfeitos, mas não parafraseie, não resuma e não invente: copie as palavras exatas do arquivo.
+  Se o trecho não for achado (ou aparecer mais de uma vez), a troca é RECUSADA e o projeto fica como
+  estava.
+- Use o MENOR trecho que identifica a mudança — de preferência UM pedaço de UMA linha. Trecho curto
+  e específico acerta mais que trecho longo.
+- Se o trecho aparecer MAIS DE UMA VEZ no arquivo, AUMENTE o trecho: inclua o que vem antes ou
+  depois (a linha de cima, o texto ao lado) até ele ficar ÚNICO. Não chute qual das ocorrências era.
+- Várias trocas = vários blocos (um por troca). Troca em outro arquivo = outro bloco, com o nome
+  daquele arquivo no === EDIT ===.
+- Você NÃO precisa devolver o arquivo inteiro para uma troca pequena. Editar é sempre preferível:
+  é mais rápido e não risco de estragar o resto do arquivo.
+
+### Só quando NÃO der para editar, devolva o arquivo INTEIRO (=== ARQUIVO: nome ===)
+- Arquivo NOVO (arquivo que ainda não existe no projeto), ou mudança grande/estrutural que
+  reescreve boa parte do arquivo.
+- Devolva **SÓ os arquivos que mudaram**, cada um **INTEIRO** (a primeira linha até a última).
+  Quem monta o projeto guarda o que você não devolveu, exatamente como está.
 - **NUNCA devolva um arquivo pela metade.** Meio arquivo não é mudança pequena: é um projeto
   quebrado. Se não couber uma devolução completa, devolva MENOS arquivos — nunca conteúdo cortado.
-- Arquivo com nome que ainda não existe no projeto = arquivo NOVO: devolva-o inteiro e ele entra.
 - Mire no MENOR pedaço: se o pedido é sobre um elemento (ex.: a seção secao-destaque), mude só ele
   (e o estilo que é dele). NÃO toque no resto da página.
 - NUNCA troque o projeto por uma "versão melhor" sua, nem invente conteúdo que não foi pedido.
@@ -720,25 +756,38 @@ async function construirProjeto(p: {
 
   // Formato previsível → projeto. Sem projeto reconhecível: diz a verdade.
   const projeto = extrairProjeto(r.texto);
-  if (!projeto.arquivos.length) {
+  // E as EDIÇÕES (dono, 11/10/2026): o caminho RÁPIDO — a troca em vez do arquivo
+  // inteiro. É o que faz uma mudança pontual voltar em segundos em vez de ~90s.
+  const edicoes = extrairEdicoes(r.texto);
+  if (!projeto.arquivos.length && !edicoes.length) {
     return {
       erro: "A resposta do modelo não veio no formato de projeto (nenhum arquivo reconhecido). Tente reformular o pedido.",
     };
   }
 
-  // A MESCLA (dono, 11/10/2026): o construtor devolveu SÓ os arquivos que
-  // mudaram; os que não vieram ficam como estavam — byte a byte. É isto que faz
-  // a mudança cirúrgica ser garantia do código (e não confiança no modelo) e o
-  // que devolve a resposta em segundos mesmo em projeto grande.
-  const { arquivos, recusados } = mesclarMudanca(p.arquivosAtuais, projeto.arquivos);
-  const resumo = [
-    projeto.resumo || "Projeto atualizado.",
-    recusados.length
-      ? `Não substituí ${recusados.join(", ")}: a resposta veio incompleta. O arquivo anterior está intacto — tente de novo.`
-      : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  // 1) As EDIÇÕES entram por substituição literal no projeto ATUAL.
+  const comEdicoes = aplicarEdicoes(p.arquivosAtuais, edicoes);
+  // 2) Os ARQUIVOS INTEIROS (quando vieram) entram por cima, na mescla: os que não
+  // vieram ficam byte a byte como estavam.
+  const { arquivos, recusados } = mesclarMudanca(comEdicoes.arquivos, projeto.arquivos);
+
+  const avisos: string[] = [];
+  for (const r of comEdicoes.recusadas) {
+    // O PROJETO.md é o doc do PRÓPRIO app: o formato-base manda devolvê-lo
+    // atualizado, e o modelo tenta editá-lo mesmo em projeto que (ainda) não tem
+    // esse arquivo. Não há nada a atualizar — e avisar disso só confunde quem
+    // está usando. Some do aviso; os outros casos continuam sendo ditos.
+    const ehDocDoProjeto =
+      r.nome.toLowerCase() === "projeto.md" && r.motivo === "arquivo não existe neste projeto";
+    if (ehDocDoProjeto) continue;
+    avisos.push(`Não apliquei a troca em ${r.nome} (${r.motivo}).`);
+  }
+  if (recusados.length) {
+    avisos.push(
+      `Não substituí ${recusados.join(", ")}: a resposta veio incompleta. O arquivo anterior está intacto — tente de novo.`,
+    );
+  }
+  const resumo = [projeto.resumo || "Projeto atualizado.", ...avisos].filter(Boolean).join(" ");
 
   return {
     ok: true,
