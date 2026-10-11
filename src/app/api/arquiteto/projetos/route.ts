@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { exigirConta } from "@/lib/orgs";
 import {
+  definirPastaDoProjeto,
   listarProjetos,
   salvarProjeto,
   tituloDoPedido,
@@ -47,6 +48,11 @@ export async function POST(req: NextRequest) {
     // TOKENS DE DESIGN do projeto (opcional). Ausente = mantém os que já estão
     // gravados (uma edição de arquivo não apaga os tokens).
     tokens?: unknown;
+    // A PASTA/CATEGORIA do projeto (dono, 11/10/2026: "o cliente, quando for
+    // criar um projeto novo, ele cria a categoria"). Opcional e só vale quando
+    // um conjunto NOVO vem — ausente = a pasta do projeto NÃO é mexida (uma
+    // edição de arquivo não joga o projeto para fora da pasta dele).
+    pastaId?: string | null;
   } = {};
   try {
     corpo = (await req.json()) as typeof corpo;
@@ -82,5 +88,19 @@ export async function POST(req: NextRequest) {
     // Pediu um projetoId que não é desta conta (ou sumiu): NÃO vaza, 404.
     return NextResponse.json({ erro: "Projeto não encontrado." }, { status: 404 });
   }
-  return NextResponse.json({ projeto });
+
+  // A PASTA do projeto, quando um conjunto NOVO veio no corpo (dono, 11/10/2026).
+  // `"pastaId" in corpo` distingue "não mexer" (ausente) de "tirar da pasta"
+  // (null/""). É assim que o projeto NASCE dentro da categoria escolhida na
+  // criação: a tela manda `pastaId` junto com o primeiro salvamento.
+  let pastaId = projeto.pasta_id ?? null;
+  if ("pastaId" in corpo) {
+    const alvo =
+      typeof corpo.pastaId === "string" && corpo.pastaId.trim() ? corpo.pastaId.trim() : null;
+    // Pasta de outra conta (ou apagada) não pega: o projeto fica sem pasta, em
+    // vez de vazar para um agrupamento que não é dele.
+    if (definirPastaDoProjeto(g.conta.id, projeto.id, alvo)) pastaId = alvo;
+  }
+
+  return NextResponse.json({ projeto: { ...projeto, pasta_id: pastaId } });
 }

@@ -130,6 +130,9 @@ function comoCompleto(
     titulo: linha.titulo,
     criado_em: linha.criado_em,
     atualizado_em: linha.atualizado_em,
+    // A pasta/categoria do projeto (dono, 11/10/2026): presente nas consultas
+    // que a pedem, ausente (→ null = "Sem pasta") nas demais.
+    pasta_id: typeof linha.pasta_id === "string" ? linha.pasta_id : null,
     arquivos,
     tokens: tokensDoJson(linha.tokens_json),
     // Estado de publicação: presente nas consultas que o pedem, ausente (→ null)
@@ -510,7 +513,7 @@ export function obterProjeto(userId: number, projetoId: string): ProjetoCompleto
   const db = getDb();
   const projeto = db
     .prepare(
-      `SELECT id, titulo, criado_em, atualizado_em, tokens_json, publicar_token, publicado_em
+      `SELECT id, titulo, criado_em, atualizado_em, pasta_id, tokens_json, publicar_token, publicado_em
        FROM arquiteto_projetos WHERE id = ? AND user_id = ?`,
     )
     .get(projetoId, userId) as (ProjetoResumo & { tokens_json: string | null }) | undefined;
@@ -625,7 +628,7 @@ export function salvarProjeto(
     ) {
       const atual = db
         .prepare(
-          `SELECT id, titulo, criado_em, atualizado_em, tokens_json, publicar_token, publicado_em
+          `SELECT id, titulo, criado_em, atualizado_em, pasta_id, tokens_json, publicar_token, publicado_em
            FROM arquiteto_projetos WHERE id = ? AND user_id = ?`,
         )
         .get(id, userId) as ProjetoResumo & { tokens_json: string | null };
@@ -675,7 +678,7 @@ export function salvarProjeto(
 
   const projeto = db
     .prepare(
-      `SELECT id, titulo, criado_em, atualizado_em, tokens_json, publicar_token, publicado_em
+      `SELECT id, titulo, criado_em, atualizado_em, pasta_id, tokens_json, publicar_token, publicado_em
        FROM arquiteto_projetos WHERE id = ? AND user_id = ?`,
     )
     .get(id, userId) as ProjetoResumo & { tokens_json: string | null };
@@ -791,7 +794,7 @@ export function restaurarVersao(userId: number, projetoId: string, numero: numbe
 
   const projeto = db
     .prepare(
-      `SELECT id, titulo, criado_em, atualizado_em, tokens_json, publicar_token, publicado_em
+      `SELECT id, titulo, criado_em, atualizado_em, pasta_id, tokens_json, publicar_token, publicado_em
        FROM arquiteto_projetos WHERE id = ? AND user_id = ?`,
     )
     .get(projetoId, userId) as ProjetoResumo & { tokens_json: string | null };
@@ -1035,7 +1038,7 @@ export function obterProjetoPublico(
   const db = getDb();
   const linha = db
     .prepare(
-      `SELECT id, user_id, titulo, criado_em, atualizado_em, tokens_json, publicar_token, publicado_em
+      `SELECT id, user_id, titulo, criado_em, atualizado_em, pasta_id, tokens_json, publicar_token, publicado_em
        FROM arquiteto_projetos WHERE publicar_token = ? AND publicar_token IS NOT NULL`,
     )
     .get(token) as

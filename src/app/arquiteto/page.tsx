@@ -224,7 +224,17 @@ function RespostaPlano({ texto }: { texto: string }) {
 }
 
 // Espelho do que o servidor guarda em `arquiteto_projetos` (sem os arquivos).
-type ProjetoResumo = { id: string; titulo: string; criado_em: string; atualizado_em: string };
+type ProjetoResumo = {
+  id: string;
+  titulo: string;
+  criado_em: string;
+  atualizado_em: string;
+  /** a pasta/categoria do projeto (null = "Sem pasta"). */
+  pasta_id?: string | null;
+};
+
+// Espelho de uma PASTA (a categoria que agrupa projetos — dono, 11/10/2026).
+type PastaResumo = { id: string; nome: string; projetos?: number };
 
 // Espelho de uma VERSÃO do projeto (a história). Sem o conteúdo dos arquivos —
 // a lista é leve de propósito; só nomes + uma impressão do texto (`assinatura`).
@@ -646,6 +656,18 @@ function Arquiteto() {
   const [nomeTemp, setNomeTemp] = useState("");
   const projetoIdRef = useRef<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // PASTA DO PROJETO (dono, 11/10/2026: "o cliente, quando for criar um projeto
+  // novo, ele cria a categoria"). Vale para os DOIS momentos: o projeto ABERTO
+  // (mover de pasta na hora) e o projeto que ainda VAI NASCER — a escolha fica
+  // guardada aqui e vai junto no primeiro salvamento, então o projeto já nasce
+  // dentro da categoria. Nulo = "Sem pasta".
+  const [pastas, setPastas] = useState<PastaResumo[]>([]);
+  const [pastaDoProjeto, setPastaDoProjeto] = useState<string | null>(null);
+  const pastaDoProjetoRef = useRef<string | null>(null);
+  const [criandoPasta, setCriandoPasta] = useState(false);
+  const [nomePastaNova, setNomePastaNova] = useState("");
+  const [erroPasta, setErroPasta] = useState("");
 
   // HISTÓRIA (servidor): as versões do projeto aberto, da mais antiga à mais
   // nova. HISTÓRICO NA SESSÃO (desfazer/refazer): duas pilhas do estado da
@@ -1082,6 +1104,9 @@ function Arquiteto() {
   // que faz o trabalho sobreviver a um reload e à volta de amanhã.
   useEffect(() => {
     let vivo = true;
+    // As PASTAS (categorias) da conta vêm junto: o menu do projeto mostra a
+    // pasta de cada projeto e deixa escolher/trocar na hora (dono, 11/10/2026).
+    void carregarPastas();
     (async () => {
       try {
         const r = await fetch("/api/arquiteto/projetos", { cache: "no-store" });
@@ -1894,6 +1919,77 @@ function Arquiteto() {
     }
   }
 
+  /** Lê as PASTAS (as categorias) da conta. A fonte da verdade é o servidor. */
+  async function carregarPastas(): Promise<PastaResumo[]> {
+    try {
+      const r = await fetch("/api/arquiteto/pastas", { cache: "no-store" });
+      const j = r.ok ? await r.json() : null;
+      const lista: PastaResumo[] = Array.isArray(j?.pastas) ? j.pastas : [];
+      setPastas(lista);
+      return lista;
+    } catch {
+      return pastas;
+    }
+  }
+
+  /**
+   * ESCOLHE a pasta do projeto (dono, 11/10/2026). Dois caminhos:
+   *   - projeto ABERTO  → move na hora (PATCH) e a lista é relida;
+   *   - projeto A NASCER → guarda a escolha; ela vai no primeiro salvamento,
+   *     então o projeto já nasce dentro da categoria.
+   * O espelho (`ref`) existe porque o salvamento é assíncrono e não pode ler
+   * estado velho.
+   */
+  async function escolherPasta(pastaId: string | null) {
+    const alvo = pastaId || null;
+    pastaDoProjetoRef.current = alvo;
+    setPastaDoProjeto(alvo);
+    setErroPasta("");
+    const pid = projetoIdRef.current;
+    if (!pid) return; // projeto ainda não nasceu: a escolha vai no primeiro save
+    try {
+      const r = await fetch(`/api/arquiteto/projetos/${encodeURIComponent(pid)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pastaId: alvo }),
+      });
+      if (!r.ok) {
+        setErroPasta("Não deu para mover agora.");
+        return;
+      }
+      await carregarProjetos();
+      await carregarPastas();
+    } catch {
+      setErroPasta("Sem rede: a pasta não mudou.");
+    }
+  }
+
+  /** CRIA uma pasta pelo nome e já coloca o projeto (aberto ou por nascer) nela. */
+  async function criarPastaInline() {
+    const nome = nomePastaNova.trim();
+    if (!nome) return;
+    setErroPasta("");
+    try {
+      const r = await fetch("/api/arquiteto/pastas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome }),
+      });
+      const j = r.ok ? await r.json() : null;
+      const nova = j?.pasta as PastaResumo | undefined;
+      if (!nova?.id) {
+        setErroPasta("Não deu para criar a pasta.");
+        return;
+      }
+      setNomePastaNova("");
+      setCriandoPasta(false);
+      await carregarPastas();
+      await escolherPasta(nova.id);
+    } catch {
+      setErroPasta("Sem rede: a pasta não foi criada.");
+    }
+  }
+
   /**
    * SALVA o projeto no servidor (dono = a conta). Cria na primeira vez,
    * atualiza depois — sem clique extra. Se o id guardado não valer mais (404),
@@ -1923,6 +2019,13 @@ function Arquiteto() {
             // Só manda os tokens quando há um conjunto novo (o painel). Sem
             // isso, o servidor MANTÉM os tokens — edição de arquivo não os apaga.
             ...(tokensNovos ? { tokens: tokensNovos } : {}),
+            // A PASTA escolhida viaja com o NASCIMENTO do projeto (dono,
+            // 11/10/2026): é o que faz o projeto já nascer dentro da categoria.
+            // Em projeto que JÁ existe, a pasta é gerida pelo PATCH — não se
+            // reenvia aqui, para não sobrescrever uma escolha mais nova.
+            ...(pid === null && pastaDoProjetoRef.current
+              ? { pastaId: pastaDoProjetoRef.current }
+              : {}),
           }),
         });
       let r = await enviar(projetoIdRef.current);
@@ -2601,12 +2704,16 @@ function Arquiteto() {
       const r = await fetch(`/api/arquiteto/projetos/${id}`, { cache: "no-store" });
       const j = r.ok ? await r.json() : null;
       const p = j?.projeto as
-        | { id: string; titulo: string; arquivos: Arquivo[]; tokens?: Tokens; publicar_token?: string | null; publicado_em?: string | null }
+        | { id: string; titulo: string; arquivos: Arquivo[]; tokens?: Tokens; publicar_token?: string | null; publicado_em?: string | null; pasta_id?: string | null }
         | undefined;
       if (!p?.arquivos?.length) return;
       projetoIdRef.current = p.id;
       setProjetoId(p.id);
       setProjeto({ resumo: p.titulo, arquivos: p.arquivos });
+      // A pasta do projeto abre junto com ele (o painel reflete o que é dele).
+      const pastaDele = p.pasta_id || null;
+      pastaDoProjetoRef.current = pastaDele;
+      setPastaDoProjeto(pastaDele);
       // Os TOKENS do projeto abrem junto com ele (o painel reflete o que é dele).
       setTokens(normalizarTokens(p.tokens));
       setEstadoTokens("ocioso");
@@ -2710,6 +2817,13 @@ function Arquiteto() {
     projetoIdRef.current = null;
     setProjetoId(null);
     setProjeto(null);
+    // A PASTA ESCOLHIDA FICA (dono, 11/10/2026): quem está criando vários
+    // projetos do mesmo cliente/produto não recomeça escolhendo a categoria —
+    // o projeto novo NASCE na pasta que já está ali (o `ref` guarda a escolha e
+    // o primeiro salvamento a leva). Trocá-la é um clique.
+    setCriandoPasta(false);
+    setNomePastaNova("");
+    setErroPasta("");
     setTurnos([]);
     setErro("");
     setArquivoAtivo(0);
@@ -3684,6 +3798,76 @@ function Arquiteto() {
                   </p>
                 )}
               </div>
+              {/* A CATEGORIA DO PROJETO (dono, 11/10/2026): "o cliente, quando
+                  for criar um projeto novo, ele cria a categoria". Aqui a
+                  pessoa escolhe a pasta do projeto ABERTO (move na hora) ou do
+                  que VAI NASCER (nasce já dentro dela). Criar uma categoria
+                  nova é um clique, no mesmo lugar. */}
+              <div className="px-3 pb-1 pt-2 text-[10px] uppercase tracking-[0.16em] text-dash-dim">
+                {projetoId ? "Pasta deste projeto" : "Pasta do novo projeto"}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 px-2 pb-2">
+                <button
+                  type="button"
+                  onClick={() => void escolherPasta(null)}
+                  className={`rounded-full border px-2.5 py-1 text-[11.5px] transition ${
+                    pastaDoProjeto === null
+                      ? "border-dash-brand/60 bg-dash-brand/15 text-white"
+                      : "border-white/10 bg-white/[0.04] text-dash-muted hover:text-white"
+                  }`}
+                >
+                  Sem pasta
+                </button>
+                {pastas.map((pa) => (
+                  <button
+                    key={pa.id}
+                    type="button"
+                    onClick={() => void escolherPasta(pa.id)}
+                    title={pa.nome}
+                    className={`max-w-[190px] truncate rounded-full border px-2.5 py-1 text-[11.5px] transition ${
+                      pastaDoProjeto === pa.id
+                        ? "border-dash-brand/60 bg-dash-brand/15 text-white"
+                        : "border-white/10 bg-white/[0.04] text-dash-muted hover:text-white"
+                    }`}
+                  >
+                    {pa.nome}
+                  </button>
+                ))}
+                {criandoPasta ? (
+                  <input
+                    autoFocus
+                    value={nomePastaNova}
+                    onChange={(e) => setNomePastaNova(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void criarPastaInline();
+                      }
+                      if (e.key === "Escape") {
+                        setCriandoPasta(false);
+                        setNomePastaNova("");
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!nomePastaNova.trim()) setCriandoPasta(false);
+                    }}
+                    placeholder="Nome da categoria"
+                    className="min-w-0 flex-1 rounded-full border border-dash-brand/50 bg-dash-bg px-2.5 py-1 text-[11.5px] text-white outline-none placeholder:text-dash-dim"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setCriandoPasta(true)}
+                    className="flex items-center gap-1 rounded-full border border-dashed border-white/20 px-2.5 py-1 text-[11.5px] text-dash-muted transition hover:border-dash-brand/50 hover:text-white"
+                  >
+                    <IconeMais className="h-3 w-3" />
+                    Nova categoria
+                  </button>
+                )}
+              </div>
+              {erroPasta && (
+                <p className="px-3 pb-1 text-[11px] text-dash-bad">{erroPasta}</p>
+              )}
               <div className="my-1 h-px bg-white/[0.08]" />
               <button
                 onClick={novoProjeto}
