@@ -477,14 +477,41 @@ function motivoDaFalha(r: Response, d: unknown, semArquivos: string): string {
   return semArquivos;
 }
 
-/** Só a SESSÃO VENCIDA (401) manda para a entrada. Um 403 é falta de acesso, não
- *  de identificação — mandar para o login só confundiria quem já está logado. */
+/** Sessão expirada não é para o dono resolver na mão: manda para a entrada,
+ *  depois de deixar a mensagem na tela por um instante. */
 function sessaoExpirou(r: Response): boolean {
   if (r.status !== 401) return false;
   setTimeout(() => {
     window.location.href = "/login";
   }, 1500);
   return true;
+}
+
+/**
+ * ENVIA E, SE A CONEXÃO CAIR, TENTA DE NOVO (dono, 11/10/2026).
+ *
+ * "Caiu a conexão no meio" é a queixa que mais volta, e a causa é a CONEXÃO — rede
+ * móvel oscilando ou o servidor reiniciando —, não o pedido. Desistir na primeira
+ * queda faz a pessoa achar que o app não funciona quando bastava repetir.
+ *
+ * É SEGURO repetir: o pedido leva os ARQUIVOS ATUAIS do projeto, então reenviar o
+ * MESMO pedido produz o MESMO resultado (idempotente). O que NÃO se repete é uma
+ * resposta do servidor — se ele respondeu (mesmo com erro), a decisão é dele e
+ * repetir seria adivinhação.
+ */
+async function enviarComRetentativa(url: string, opcoes: RequestInit, tentativas = 2): Promise<Response> {
+  let ultimo: unknown = null;
+  for (let i = 0; i <= tentativas; i++) {
+    try {
+      return await fetch(url, opcoes);
+    } catch (e) {
+      ultimo = e;
+      // Espera crescente: uma oscilação curta de rede costuma passar em segundos.
+      if (i < tentativas) await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+    }
+  }
+  console.error("Arquiteto: a conexão caiu em todas as tentativas:", ultimo);
+  throw ultimo;
 }
 
 export default function ArquitetoPage() {
@@ -1815,7 +1842,7 @@ function Arquiteto() {
       .map((t) => ({ role: t.papel === "voce" ? "user" : "assistant", content: t.texto }));
 
     try {
-      const r = await fetch("/api/arquiteto/planejar", {
+      const r = await enviarComRetentativa("/api/arquiteto/planejar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1843,7 +1870,9 @@ function Arquiteto() {
       // passos numerados, arquivos) e põe o botão "Executar plano" no fim.
       setTurnos((t) => [...t, { papel: "mirai", texto: resposta, plano: true }]);
     } catch {
-      const msg = "Caiu a conexão no meio. Tente de novo.";
+      // Já tentou de novo sozinho (enviarComRetentativa) antes de chegar aqui — a
+      // mensagem diz o que de fato aconteceu, em vez de culpar o "meio".
+      const msg = "A conexão caiu e o pedido não chegou ao fim — nada foi alterado. Tente de novo.";
       setErro(msg);
       setTurnos((t) => [...t, { papel: "mirai", texto: msg, erro: true }]);
     } finally {
@@ -1908,7 +1937,7 @@ function Arquiteto() {
       .map((t) => ({ role: t.papel === "voce" ? "user" : "assistant", content: t.texto }));
 
     try {
-      const r = await fetch("/api/arquiteto/gerar", {
+      const r = await enviarComRetentativa("/api/arquiteto/gerar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // As IMAGENS e os TOKENS do projeto vão junto: o modelo é avisado, na
@@ -1986,7 +2015,9 @@ function Arquiteto() {
       // fechar da aba. Sem clique extra — cria na primeira vez, atualiza depois.
       void salvarNoServidor(d.arquivos, tituloSugerido);
     } catch {
-      const msg = "Caiu a conexão no meio. Tente de novo.";
+      // Já tentou de novo sozinho (enviarComRetentativa) antes de chegar aqui — a
+      // mensagem diz o que de fato aconteceu, em vez de culpar o "meio".
+      const msg = "A conexão caiu e o pedido não chegou ao fim — nada foi alterado. Tente de novo.";
       setErro(msg);
       setTurnos((t) => [...t, { papel: "mirai", texto: msg, erro: true }]);
     } finally {
