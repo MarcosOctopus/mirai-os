@@ -5,6 +5,7 @@ import { exigirConta } from "@/lib/orgs";
 import { decidirAcessoArquiteto, CAPACIDADE_ARQUITETO } from "@/lib/arquiteto-acesso";
 import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
 import { normalizarTokens, type Tokens } from "@/lib/arquiteto-tokens";
+import { mesclarMudanca } from "@/lib/arquiteto-mescla";
 import { promptComCraft, promptComIntegracoes, promptComVisual } from "@/lib/arquiteto-craft";
 
 export const runtime = "nodejs";
@@ -433,10 +434,16 @@ Estes são os arquivos COMO ESTÃO AGORA. Isto NÃO é um recomeço: todo pedido
 ${blocos.join("\n")}
 
 ## COMO MUDAR (vale SEMPRE que o pedido for uma mudança)
-- Mudança é ajustar algo que JÁ EXISTE: devolva os arquivos INTEIROS, mas com SÓ o que foi pedido
-  alterado. Tudo o mais sai IGUAL ao que está acima — mesmos textos, tags, classes, ids,
-  atributos, imagens e ordem.
-- Mire no MENOR pedaço: se o pedido é sobre um elemento (ex.: <section secao-destaque>), mude só ele
+- Mudança é ajustar algo que JÁ EXISTE. Devolva **SÓ OS ARQUIVOS QUE MUDARAM** — e cada um
+  **INTEIRO**, do começo ao fim (a primeira linha até a última), com SÓ o que foi pedido alterado.
+- **Os arquivos que NÃO mudaram: NÃO os devolva.** Quem monta o projeto guarda o que você não
+  devolveu, exatamente como está. Devolver um arquivo sem mudança é ruído (e atrasa a resposta).
+- Exemplo: se o pedido é o texto de um H1 em index.html, devolva **só** o index.html, inteiro —
+  styles.css e app.js não vêm.
+- **NUNCA devolva um arquivo pela metade.** Meio arquivo não é mudança pequena: é um projeto
+  quebrado. Se não couber uma devolução completa, devolva MENOS arquivos — nunca conteúdo cortado.
+- Arquivo com nome que ainda não existe no projeto = arquivo NOVO: devolva-o inteiro e ele entra.
+- Mire no MENOR pedaço: se o pedido é sobre um elemento (ex.: a seção secao-destaque), mude só ele
   (e o estilo que é dele). NÃO toque no resto da página.
 - NUNCA troque o projeto por uma "versão melhor" sua, nem invente conteúdo que não foi pedido.
   Pedido de cor → mude a cor e nada mais. Pedido de texto → mude o texto e nada mais.
@@ -502,14 +509,28 @@ async function chamarModelo(mensagens: Msg[], system: string, tenant: number): P
   }
 
   // 2) Verboo direto (mesma chave e mesma base do chat do app).
+  //
+  // ORÇAMENTO TOTAL (dono, 11/10/2026): antes, cada modelo tinha 240s e os três
+  // corriam EM SÉRIE — quando todos travavam, a pessoa esperava 12 MINUTOS
+  // (medido: 721s) para receber "o provedor não respondeu". Agora a corrente
+  // inteira cabe num orçamento: o primeiro modelo pega o tempo cheio e os
+  // seguintes pegam o que sobrou. Ninguém espera mais de ~7 minutos por um erro.
   if (VERBOO_API_KEY) {
+    const inicio = Date.now();
+    const ORCAMENTO = 400000;
     for (const modelo of VERBOO_MODELOS) {
+      const resta = ORCAMENTO - (Date.now() - inicio);
+      // Sobrou pouco? Não vale começar outra tentativa (ela só nasceria cortada).
+      if (resta < 30000) {
+        console.error(`Arquiteto Verboo: orçamento esgotado (${modelo} não tentado)`);
+        break;
+      }
       try {
         const r = await fetch(`${VERBOO_BASE}/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${VERBOO_API_KEY}` },
           body: JSON.stringify({ ...corpoBase, model: modelo }),
-          signal: AbortSignal.timeout(240000),
+          signal: AbortSignal.timeout(Math.min(240000, resta)),
         });
         if (!r.ok) {
           const err = await r.text().catch(() => "");
@@ -705,10 +726,24 @@ async function construirProjeto(p: {
     };
   }
 
+  // A MESCLA (dono, 11/10/2026): o construtor devolveu SÓ os arquivos que
+  // mudaram; os que não vieram ficam como estavam — byte a byte. É isto que faz
+  // a mudança cirúrgica ser garantia do código (e não confiança no modelo) e o
+  // que devolve a resposta em segundos mesmo em projeto grande.
+  const { arquivos, recusados } = mesclarMudanca(p.arquivosAtuais, projeto.arquivos);
+  const resumo = [
+    projeto.resumo || "Projeto atualizado.",
+    recusados.length
+      ? `Não substituí ${recusados.join(", ")}: a resposta veio incompleta. O arquivo anterior está intacto — tente de novo.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return {
     ok: true,
-    resumo: projeto.resumo || "Projeto atualizado.",
-    arquivos: projeto.arquivos,
+    resumo,
+    arquivos,
     // "lida" = a foto foi entendida por um modelo que enxerga; "ilegivel" = não
     // foi e a tela DIZ; "sem-foto" = não houve foto neste pedido.
     visao: p.foto ? (visao ? "lida" : "ilegivel") : "sem-foto",
