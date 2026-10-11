@@ -456,12 +456,19 @@ function assinaturaArquivos(arquivos: Arquivo[]): string {
  * Aqui a causa é dita pelo que ela É: sessão, conexão ou resposta sem arquivos.
  */
 function motivoDaFalha(r: Response, d: unknown, semArquivos: string): string {
-  if (r.status === 401 || r.status === 403) {
+  // 401 = quem fala não está identificado (sessão). 403 = identificado, mas SEM
+  // ACESSO — são coisas diferentes: dizer "sessão expirou" para um 403 seria a
+  // mesma mentira de antes, só trocando de lado. O 403 deixa o servidor explicar
+  // (ele manda `erro` com o motivo: capacidade não liberada, por exemplo).
+  if (r.status === 401) {
     return "Sua sessão expirou. Entre de novo para continuar de onde parou.";
   }
   const corpo = (d ?? {}) as { erro?: unknown; error?: unknown; ok?: unknown; arquivos?: unknown; texto?: unknown };
   if (typeof corpo.erro === "string" && corpo.erro) return corpo.erro;
   if (typeof corpo.error === "string" && corpo.error) return corpo.error;
+  if (r.status === 403) {
+    return "Esta conta não tem acesso a esta parte do Arquiteto.";
+  }
   // Não é resposta do app (página de erro do proxy, corpo cortado): o pedido não
   // chegou inteiro. Dizer "sem arquivos" aqui seria mentira.
   if (!("ok" in corpo) && !("arquivos" in corpo) && !("texto" in corpo)) {
@@ -470,10 +477,10 @@ function motivoDaFalha(r: Response, d: unknown, semArquivos: string): string {
   return semArquivos;
 }
 
-/** Sessão expirada não é para o dono resolver na mão: manda para a entrada,
- *  depois de deixar a mensagem na tela por um instante. */
+/** Só a SESSÃO VENCIDA (401) manda para a entrada. Um 403 é falta de acesso, não
+ *  de identificação — mandar para o login só confundiria quem já está logado. */
 function sessaoExpirou(r: Response): boolean {
-  if (r.status !== 401 && r.status !== 403) return false;
+  if (r.status !== 401) return false;
   setTimeout(() => {
     window.location.href = "/login";
   }, 1500);
@@ -493,7 +500,7 @@ export default function ArquitetoPage() {
         // SESSÃO VENCIDA ≠ SEM ACESSO (dono, 11/10/2026). Sem esta distinção, quem
         // estava apenas deslogado via "O Arquiteto não está liberado para esta
         // conta" — uma acusação falsa sobre o acesso dele.
-        if (r.status === 401 || r.status === 403) setSemSessao(true);
+        if (r.status === 401) setSemSessao(true); // 403 = sem acesso, nao sem sessao
         return r.ok ? r.json() : null;
       })
       .then((d) =>
@@ -503,7 +510,7 @@ export default function ArquitetoPage() {
 
     fetch("/api/arquiteto/capacidade", { cache: "no-store" })
       .then((r) => {
-        if (r.status === 401 || r.status === 403) setSemSessao(true);
+        if (r.status === 401) setSemSessao(true); // 403 = sem acesso, nao sem sessao
         return r.ok ? r.json() : null;
       })
       .then((d) => {
