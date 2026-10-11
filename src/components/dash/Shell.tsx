@@ -4,7 +4,7 @@
    Estrutura do template ArtDash: sidebar fixa (off-canvas no celular), topbar com
    título/notificações/avatar e conteúdo em coluna centrada. */
 
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -141,15 +141,6 @@ function ItemMenu({
   );
 }
 
-/** O jeito de ABRIR a gaveta do menu a partir de DENTRO da página (dono,
-    10/10/2026). A tela de chat é `cheio` e o CSS esconde o cabeçalho do Shell
-    (onde mora o botão de menu) — sem isto, no celular NÃO havia menu na tela do
-    chat. Quem está dentro (ex.: a barra do chat) chama `useMenu().abrir()`. */
-export const MenuContext = createContext<{ abrir: () => void }>({ abrir: () => {} });
-export function useMenu() {
-  return useContext(MenuContext);
-}
-
 export default function Shell({
   titulo,
   usuario,
@@ -196,8 +187,22 @@ export default function Shell({
   }
 
   return (
-    <MenuContext.Provider value={{ abrir: () => setAberto(true) }}>
     <div className="dash-root min-h-dvh bg-dash-bg text-white">
+      {/* O BOTÃO DE MENU EM TELA CHEIA (dono, 10/10/2026). Em `cheio` o CSS
+          esconde o cabeçalho do Shell — onde mora o botão de menu — e a tela
+          ficava SEM MENU no celular. O botão tem de viver AQUI (dentro do Shell),
+          porque só aqui `setAberto` existe: um botão na página ficaria ACIMA
+          deste componente e não alcançaria o estado (foi o defeito do primeiro
+          conserto — o toque chegava e não fazia nada). Some com a gaveta aberta. */}
+      {cheio && !aberto && (
+        <button
+          aria-label="Abrir menu"
+          onClick={() => setAberto(true)}
+          className="fixed left-3 top-3 z-40 grid h-9 w-9 place-items-center rounded-[10px] bg-dash-side/85 text-dash-muted backdrop-blur transition hover:text-white lg:hidden"
+        >
+          <IconeMenu />
+        </button>
+      )}
       {/* overlay do menu no celular */}
       {aberto && (
         <button
@@ -351,7 +356,6 @@ export default function Shell({
         </div>
       </main>
     </div>
-    </MenuContext.Provider>
   );
 }
 
