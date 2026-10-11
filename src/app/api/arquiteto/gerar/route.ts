@@ -796,13 +796,14 @@ async function construirProjeto(p: {
   arquivosAtuais: { nome: string; conteudo: string }[];
   contaId: number;
 }): Promise<unknown> {
-  // TETO TOTAL DO PEDIDO (dono, 11/10/2026). O túnel corta a conexão por volta
-  // dos 100s — medido: um pedido com foto levou 128,5s e a pessoa viu "Caiu a
-  // conexão no meio". Aqui TODO o trabalho (visão + modelo + segunda tentativa)
-  // cabe no teto; estourou, a rota devolve uma mensagem honesta em vez de deixar
-  // a conexão morrer na mão do túnel. O batimento mantém a conexão viva enquanto
-  // isso — por isso o teto pode ser alto sem virar silêncio.
-  const TETO_TOTAL_MS = 90000;
+  // TETO TOTAL DO PEDIDO (dono, 11/10/2026). MEDIDO no caminho REAL (Cloudflare →
+  // cloudflared → app): a conexão atravessa o túnel por 104s+ com o batimento —
+  // o limite NÃO é o túnel. O que demora é o MODELO: um pedido pequeno volta em
+  // 3-15s; refazer uma página inteira passa de 210s (o modelo escreve dezenas de
+  // mil caracteres a ~40 tokens/s). Teto curto fazia pedido grande falhar sempre.
+  // Estourou o teto, a rota devolve uma mensagem honesta em vez de deixar a
+  // conexão morrer na mão do túnel; o batimento mantém a conexão viva enquanto isso.
+  const TETO_TOTAL_MS = 180000;
   const inicio = Date.now();
   const resta = () => TETO_TOTAL_MS - (Date.now() - inicio);
 
