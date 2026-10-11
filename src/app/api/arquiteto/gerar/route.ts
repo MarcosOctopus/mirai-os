@@ -467,6 +467,17 @@ Para uma mudança pontual, devolva SÓ A TROCA, neste formato:
   e específico acerta mais que trecho longo.
 - Se o trecho aparecer MAIS DE UMA VEZ no arquivo, AUMENTE o trecho: inclua o que vem antes ou
   depois (a linha de cima, o texto ao lado) até ele ficar ÚNICO. Não chute qual das ocorrências era.
+  Exemplo: o logo costuma repetir no topo e no rodapé. Se "span class=logo-text" aparece nos dois,
+  NÃO use só ele — use o contexto que só existe num lugar:
+
+  === EDIT: index.html ===
+  @@BUSCAR
+  <a class="logo" href="#topo">
+            <span class="logo-text">Mirai<span class="logo-accent">CRM</span></span>
+  @@TROCAR
+  <a class="logo" href="#topo">
+            <span class="logo-text">Mirai<span class="logo-accent">CRM 2</span></span>
+  @@FIM
 - Várias trocas = vários blocos (um por troca). Troca em outro arquivo = outro bloco, com o nome
   daquele arquivo no === EDIT ===.
 - Você NÃO precisa devolver o arquivo inteiro para uma troca pequena. Editar é sempre preferível:
@@ -747,11 +758,8 @@ async function construirProjeto(p: {
     ),
     p.arquivosAtuais,
   );
-  const r = await chamarModelo(
-    p.mensagens,
-    p.foto ? promptComFoto(instrucao, visao) : instrucao,
-    p.contaId,
-  );
+  const instrucaoFinal = p.foto ? promptComFoto(instrucao, visao) : instrucao;
+  const r = await chamarModelo(p.mensagens, instrucaoFinal, p.contaId);
   if (!r.ok) return { erro: r.erro };
 
   // Formato previsível → projeto. Sem projeto reconhecível: diz a verdade.
@@ -766,21 +774,63 @@ async function construirProjeto(p: {
   }
 
   // 1) As EDIÇÕES entram por substituição literal no projeto ATUAL.
-  const comEdicoes = aplicarEdicoes(p.arquivosAtuais, edicoes);
+  let comEdicoes = aplicarEdicoes(p.arquivosAtuais, edicoes);
+
+  // SEGUNDA TENTATIVA quando o trecho NÃO CASOU (dono, 11/10/2026: "não aplicou
+  // porque aparece duas vezes"). Dois modos de errar, o mesmo remédio: o modelo
+  // copiou um trecho curto demais (ambíguo — em página real o MESMO bloco costuma
+  // existir no topo e no rodapé) ou um trecho que não existe no arquivo (inventou
+  // ou reformatou). Recusar e parar deixa a pessoa sem saída (ela pediu, o sistema
+  // disse não, e nada mudou); uma segunda chamada DIRIGIDA — dizendo exatamente o
+  // que falhou e pedindo o trecho exato e único — resolve. É barata: a resposta de
+  // edição tem poucas linhas. Se também falhar, aí sim a tela diz o motivo.
+  // NUNCA se adivinha qual das ocorrências era.
+  const naoCasaram = comEdicoes.recusadas.filter(
+    (x) => x.motivo.includes("ambíguo") || x.motivo.includes("não foi encontrado"),
+  );
+  if (naoCasaram.length) {
+    const nomes = [...new Set(naoCasaram.map((a) => a.nome))].join(", ");
+    const ambiguo = naoCasaram.some((a) => a.motivo.includes("ambíguo"));
+    const correcao =
+      `A sua resposta anterior NÃO foi aplicada em ${nomes}: ` +
+      (ambiguo
+        ? `o trecho de @@BUSCAR aparece mais de uma vez no arquivo (é comum o mesmo bloco existir no topo e no rodapé). `
+        : `o trecho de @@BUSCAR não foi encontrado no arquivo — o texto tem de ser IDÊNTICO ao que está lá (palavras, tags, atributos, pontuação). `) +
+      `Responda DE NOVO, apenas com o bloco de edição, copiando o trecho do arquivo tal como ele está e ` +
+      `incluindo a linha de cima ou o que vem antes/depois até o trecho ficar ÚNICO. O pedido é o mesmo; ` +
+      `não mude nada além dele.`;
+    const r2 = await chamarModelo(
+      [...p.mensagens, { role: "assistant", content: r.texto }, { role: "user", content: correcao }],
+      instrucaoFinal,
+      p.contaId,
+    );
+    if (r2.ok) {
+      const ed2 = extrairEdicoes(r2.texto);
+      if (ed2.length) {
+        const ap2 = aplicarEdicoes(comEdicoes.arquivos, ed2);
+        comEdicoes = {
+          arquivos: ap2.arquivos,
+          aplicadas: comEdicoes.aplicadas + ap2.aplicadas,
+          recusadas: ap2.recusadas,
+        };
+      }
+    }
+  }
+
   // 2) Os ARQUIVOS INTEIROS (quando vieram) entram por cima, na mescla: os que não
   // vieram ficam byte a byte como estavam.
   const { arquivos, recusados } = mesclarMudanca(comEdicoes.arquivos, projeto.arquivos);
 
   const avisos: string[] = [];
-  for (const r of comEdicoes.recusadas) {
+  for (const rec of comEdicoes.recusadas) {
     // O PROJETO.md é o doc do PRÓPRIO app: o formato-base manda devolvê-lo
     // atualizado, e o modelo tenta editá-lo mesmo em projeto que (ainda) não tem
     // esse arquivo. Não há nada a atualizar — e avisar disso só confunde quem
     // está usando. Some do aviso; os outros casos continuam sendo ditos.
     const ehDocDoProjeto =
-      r.nome.toLowerCase() === "projeto.md" && r.motivo === "arquivo não existe neste projeto";
+      rec.nome.toLowerCase() === "projeto.md" && rec.motivo === "arquivo não existe neste projeto";
     if (ehDocDoProjeto) continue;
-    avisos.push(`Não apliquei a troca em ${r.nome} (${r.motivo}).`);
+    avisos.push(`Não apliquei a troca em ${rec.nome} (${rec.motivo}).`);
   }
   if (recusados.length) {
     avisos.push(
