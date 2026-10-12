@@ -404,3 +404,41 @@ export const IconeCaret = ({ className }: Props) => (
     <path d="M6 9.5l6 6 6-6" />
   </Svg>
 );
+
+/* ─── Menu da conversa na lateral (padrão ChatGPT, dono 12/10/2026) ──────────
+   Três pontos verticais: abre o menu de UMA conversa (favoritar / apagar). Fica
+   discreto na linha e só aparece no hover — ou sempre, no toque (celular). */
+export const IconePontos = ({ className }: Props) => (
+  <Svg className={className}>
+    <circle cx="12" cy="5.5" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="18.5" r="1.4" fill="currentColor" stroke="none" />
+  </Svg>
+);
+
+/* Estrela vazada — "favoritar". */
+export const IconeEstrela = ({ className }: Props) => (
+  <Svg className={className}>
+    <path d="M12 3.6l2.6 5.3 5.8.85-4.2 4.1 1 5.75L12 16.9l-5.2 2.7 1-5.75-4.2-4.1 5.8-.85L12 3.6z" />
+  </Svg>
+);
+
+/* Estrela CHEIA — conversa já favoritada (o preenchimento diz "está feito",
+   sem precisar de texto). */
+export const IconeEstrelaCheia = ({ className }: Props) => (
+  <Svg className={className}>
+    <path
+      d="M12 3.6l2.6 5.3 5.8.85-4.2 4.1 1 5.75L12 16.9l-5.2 2.7 1-5.75-4.2-4.1 5.8-.85L12 3.6z"
+      fill="currentColor"
+    />
+  </Svg>
+);
+
+/* Lixeira — apagar a conversa. */
+export const IconeLixeira = ({ className }: Props) => (
+  <Svg className={className}>
+    <path d="M4.5 7h15M9.5 7V5.2A1.2 1.2 0 0 1 10.7 4h2.6a1.2 1.2 0 0 1 1.2 1.2V7" />
+    <path d="M6.5 7l.8 11.3A1.8 1.8 0 0 0 9.1 20h5.8a1.8 1.8 0 0 0 1.8-1.7L17.5 7" />
+    <path d="M10.4 11v5.4M13.6 11v5.4" />
+  </Svg>
+);

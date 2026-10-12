@@ -22,6 +22,9 @@ export type ConversaResumo = {
   titulo: string;
   criada_em: string;
   atualizada_em: string;
+  /** 0 = normal, 1 = favoritada. Inteiro porque é assim que o SQLite guarda
+      booleano — e o cliente compara por verdadeiro/falso sem conversão. */
+  favorita: number;
 };
 
 export type MensagemGuardada = {
@@ -59,6 +62,18 @@ function getDb() {
   `);
   db.exec("CREATE INDEX IF NOT EXISTS idx_conversas_user ON conversas(user_id)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_mensagens_conversa ON mensagens(conversa_id)");
+
+  // ── Migração: a coluna `favorita` nasceu DEPOIS da tabela (dono,
+  // 12/10/2026 — os três pontinhos da conversa, no padrão do ChatGPT).
+  // `CREATE TABLE IF NOT EXISTS` não acrescenta coluna a uma tabela que já
+  // existe: sem este ALTER, um banco em produção (com conversas dentro) ficaria
+  // sem a coluna e a listagem quebraria. Roda uma vez; depois disso, o desvio
+  // nem entra no ALTER.
+  const colunas = db.prepare("PRAGMA table_info(conversas)").all() as { name: string }[];
+  if (!colunas.some((c) => c.name === "favorita")) {
+    db.exec("ALTER TABLE conversas ADD COLUMN favorita INTEGER NOT NULL DEFAULT 0");
+  }
+
   return db;
 }
 
@@ -69,14 +84,16 @@ export function tituloDaMensagem(texto: string): string {
   return limpo.length > LIMITE_TITULO ? `${limpo.slice(0, LIMITE_TITULO).trim()}…` : limpo;
 }
 
-/** Lista as conversas da pessoa — mais recentes primeiro. (id, título, data) */
+/** Lista as conversas da pessoa — FAVORITAS primeiro, e dentro de cada grupo as
+ *  mais recentes primeiro (mesma ordem do ChatGPT: as favoritadas ficam no topo
+ *  e não se misturam com o histórico). */
 export function listarConversas(userId: number): ConversaResumo[] {
   const db = getDb();
   const linhas = db
     .prepare(
-      `SELECT id, titulo, criada_em, atualizada_em
+      `SELECT id, titulo, criada_em, atualizada_em, favorita
        FROM conversas WHERE user_id = ?
-       ORDER BY atualizada_em DESC`,
+       ORDER BY favorita DESC, atualizada_em DESC`,
     )
     .all(userId) as ConversaResumo[];
   db.close();
@@ -94,7 +111,7 @@ export function criarConversa(userId: number, titulo?: string): ConversaResumo {
      VALUES (?, ?, ?, ?, ?)`,
   ).run(id, userId, tit, agora, agora);
   db.close();
-  return { id, titulo: tit, criada_em: agora, atualizada_em: agora };
+  return { id, titulo: tit, criada_em: agora, atualizada_em: agora, favorita: 0 };
 }
 
 /** Conversa completa (com mensagens), escopada ao dono. null se não existir. */
@@ -102,7 +119,7 @@ export function obterConversa(userId: number, conversaId: string): ConversaCompl
   const db = getDb();
   const conversa = db
     .prepare(
-      `SELECT id, titulo, criada_em, atualizada_em
+      `SELECT id, titulo, criada_em, atualizada_em, favorita
        FROM conversas WHERE id = ? AND user_id = ?`,
     )
     .get(conversaId, userId) as ConversaResumo | undefined;
@@ -128,6 +145,37 @@ export function conversaExiste(userId: number, conversaId: string): boolean {
     .get(conversaId, userId);
   db.close();
   return !!linha;
+}
+
+/** Favorita / desfavorita a conversa — só se for da pessoa. Devolve o resumo
+ *  atualizado (o cliente usa a resposta do servidor como verdade, em vez de
+ *  adivinhar o estado novo). null = não existe / não é desta conta. */
+export function definirFavorita(
+  userId: number,
+  conversaId: string,
+  favorita: boolean,
+): ConversaResumo | null {
+  const db = getDb();
+  const dona = db
+    .prepare("SELECT 1 FROM conversas WHERE id = ? AND user_id = ?")
+    .get(conversaId, userId);
+  if (!dona) {
+    db.close();
+    return null;
+  }
+  db.prepare("UPDATE conversas SET favorita = ? WHERE id = ? AND user_id = ?").run(
+    favorita ? 1 : 0,
+    conversaId,
+    userId,
+  );
+  const conversa = db
+    .prepare(
+      `SELECT id, titulo, criada_em, atualizada_em, favorita
+       FROM conversas WHERE id = ? AND user_id = ?`,
+    )
+    .get(conversaId, userId) as ConversaResumo;
+  db.close();
+  return conversa;
 }
 
 /** Apaga a conversa (e suas mensagens) — só se for da pessoa. */

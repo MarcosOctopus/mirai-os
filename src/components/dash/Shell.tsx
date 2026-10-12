@@ -8,18 +8,25 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  apagarConversaCliente,
   carregarLista,
   definirAberta,
+  favoritarConversaCliente,
   novaConversa,
   useConversas,
+  type ConversaResumo,
 } from "@/lib/conversas-cliente";
 import {
   IconeBusca,
   IconeChat,
+  IconeEstrela,
+  IconeEstrelaCheia,
   IconeFechar,
+  IconeLixeira,
   IconeMais,
   IconeMenu,
   IconeOrganizacoes,
+  IconePontos,
   IconeProdutos,
   IconeRobo,
   IconeSeta,
@@ -141,6 +148,57 @@ function ItemMenu({
   );
 }
 
+/* Uma conversa da lateral, com os TRÊS PONTINHOS (dono, 12/10/2026: "põe três
+   pontos do lado da conversa, botão para apagar ou favoritar, como o GPT").
+   O botão de pontos aparece no hover no desktop e SEMPRE no celular/tablet, onde
+   hover não existe — se dependesse do hover, no toque ele seria inalcançável.
+   Ele não desenha o menu: avisa a casca, que o desenha FORA da lateral. */
+function LinhaConversa({
+  c,
+  ativa,
+  menuAberto,
+  onAbrir,
+  onMenu,
+}: {
+  c: ConversaResumo;
+  ativa: boolean;
+  menuAberto: boolean;
+  onAbrir: () => void;
+  onMenu: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <div className="group relative">
+      <button
+        type="button"
+        onClick={onAbrir}
+        title={c.titulo}
+        className={`flex w-full items-center gap-2 rounded-[10px] py-2 pl-4 pr-9 text-left text-[13px] transition ${
+          ativa
+            ? "bg-dash-brand/12 text-white"
+            : "text-dash-muted hover:bg-white/[0.04] hover:text-white"
+        }`}
+      >
+        {!!c.favorita && (
+          <IconeEstrelaCheia className="h-[13px] w-[13px] shrink-0 text-dash-brand" />
+        )}
+        <span className="min-w-0 flex-1 truncate">{c.titulo}</span>
+      </button>
+
+      <button
+        type="button"
+        data-menu-conversa
+        aria-label={`Opções de "${c.titulo}"`}
+        onClick={onMenu}
+        className={`absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-[8px] text-dash-muted transition hover:bg-white/10 hover:text-white ${
+          menuAberto ? "opacity-100" : "opacity-0 group-hover:opacity-100 max-lg:opacity-100"
+        }`}
+      >
+        <IconePontos className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
 export default function Shell({
   titulo,
   usuario,
@@ -185,6 +243,68 @@ export default function Shell({
     definirAberta(id);
     if (caminho !== "/") router.push("/");
   }
+
+  // ── O menu de UMA conversa (três pontinhos) ────────────────────────────────
+  // Ele é desenhado FORA da lateral (fixed) e as coordenadas vêm do retângulo do
+  // botão clicado. Motivo: a lateral rola (`overflow-y-auto`) e tem `transform`
+  // (o deslizar do celular) — um menu FILHO seria cortado no fim da lista e o
+  // `position: fixed` ficaria preso ao transform. Fora dela, flutua sobre tudo.
+  const [menuConv, setMenuConv] = useState<{ id: string; top: number; left: number } | null>(null);
+  const [confirmaApagar, setConfirmaApagar] = useState(false);
+  const caixaMenu = useRef<HTMLDivElement | null>(null);
+
+  const favoritas = lista.filter((c) => !!c.favorita);
+  const recentes = lista.filter((c) => !c.favorita);
+  const conversaDoMenu = menuConv ? lista.find((c) => c.id === menuConv.id) : null;
+
+  function abrirMenuConversa(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const LARGURA = 224;
+    const ALTO = 140; // cabe o passo de confirmação, que é mais alto
+    const abaixo = r.bottom + ALTO + 12 < window.innerHeight;
+    setConfirmaApagar(false);
+    setMenuConv({
+      id,
+      top: abaixo ? r.bottom + 6 : Math.max(8, r.top - ALTO - 6),
+      left: Math.max(8, Math.min(r.right - LARGURA, window.innerWidth - LARGURA - 8)),
+    });
+  }
+
+  function fecharMenuConversa() {
+    setMenuConv(null);
+    setConfirmaApagar(false);
+  }
+
+  async function alternarFavorita(id: string) {
+    const c = lista.find((x) => x.id === id);
+    await favoritarConversaCliente(id, !c?.favorita);
+  }
+
+  useEffect(() => {
+    if (!menuConv) return;
+    const fora = (e: MouseEvent) => {
+      const alvo = e.target as HTMLElement;
+      // O toque no próprio botão de pontos não fecha: ele reabre logo em seguida.
+      if (alvo.closest?.("[data-menu-conversa]")) return;
+      if (caixaMenu.current && !caixaMenu.current.contains(alvo)) fecharMenuConversa();
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") fecharMenuConversa();
+    };
+    // A lista rola por baixo: um menu flutuante ficaria solto no ar — fecha.
+    const rolar = () => fecharMenuConversa();
+    document.addEventListener("mousedown", fora);
+    document.addEventListener("keydown", esc);
+    window.addEventListener("scroll", rolar, true);
+    window.addEventListener("resize", rolar);
+    return () => {
+      document.removeEventListener("mousedown", fora);
+      document.removeEventListener("keydown", esc);
+      window.removeEventListener("scroll", rolar, true);
+      window.removeEventListener("resize", rolar);
+    };
+  }, [menuConv]);
 
   return (
     <div className="dash-root min-h-dvh bg-dash-bg text-white">
@@ -272,22 +392,44 @@ export default function Shell({
             A lista rola por conta própria (max-h + overflow) para que muitas
             conversas não empurrem nem os itens nem o rodapé para fora. */}
         <div className={`mt-7 min-h-0 ${recolhida ? "lg:hidden" : ""}`}>
-          <p className="px-4 text-[11px] uppercase tracking-[0.18em] text-dash-dim">Recentes</p>
+          {/* FAVORITAS no topo, separadas do histórico — padrão do ChatGPT
+              (dono, 12/10/2026). Só aparece a seção se houver alguma: sem
+              favoritas, a lateral fica exatamente como era. */}
+          {favoritas.length > 0 && (
+            <>
+              <p className="px-4 text-[11px] uppercase tracking-[0.18em] text-dash-dim">Favoritas</p>
+              <div className="mt-2 space-y-0.5 pr-1">
+                {favoritas.map((c) => (
+                  <LinhaConversa
+                    key={c.id}
+                    c={c}
+                    ativa={c.id === aberta}
+                    menuAberto={menuConv?.id === c.id}
+                    onAbrir={() => abrirConversa(c.id)}
+                    onMenu={(e) => abrirMenuConversa(e, c.id)}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          <p
+            className={`px-4 text-[11px] uppercase tracking-[0.18em] text-dash-dim ${
+              favoritas.length ? "mt-5" : ""
+            }`}
+          >
+            Recentes
+          </p>
           <div className="mt-2 max-h-[38vh] space-y-0.5 overflow-y-auto pr-1">
-            {lista.map((c) => (
-              <button
+            {recentes.map((c) => (
+              <LinhaConversa
                 key={c.id}
-                type="button"
-                onClick={() => abrirConversa(c.id)}
-                title={c.titulo}
-                className={`flex w-full items-center rounded-[10px] px-4 py-2 text-left text-[13px] transition ${
-                  c.id === aberta
-                    ? "bg-dash-brand/12 text-white"
-                    : "text-dash-muted hover:bg-white/[0.04] hover:text-white"
-                }`}
-              >
-                <span className="truncate">{c.titulo}</span>
-              </button>
+                c={c}
+                ativa={c.id === aberta}
+                menuAberto={menuConv?.id === c.id}
+                onAbrir={() => abrirConversa(c.id)}
+                onMenu={(e) => abrirMenuConversa(e, c.id)}
+              />
             ))}
             {!lista.length && (
               <p className="px-4 pb-1 text-[12px] leading-[1.5] text-dash-dim">
@@ -327,6 +469,74 @@ export default function Shell({
           </div>
         </div>
       </aside>
+
+      {/* O MENU DA CONVERSA — favoritar / apagar (dono, 12/10/2026: "põe três
+          pontos do lado da conversa, botão para apagar ou favoritar, como o GPT").
+          Vive AQUI, fora da lateral, e é `fixed`: a lateral rola e tem transform,
+          então um menu filho seria cortado no fim da lista. Apagar pede
+          confirmação (é destrutivo) — em dois toques, sem `window.confirm`. */}
+      {menuConv && conversaDoMenu && (
+        <div
+          ref={caixaMenu}
+          style={{ top: menuConv.top, left: menuConv.left }}
+          className="fixed z-[70] w-[224px] rounded-[14px] border border-dash-line bg-dash-card p-1.5 shadow-2xl"
+        >
+          {!confirmaApagar ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  void alternarFavorita(menuConv.id);
+                  fecharMenuConversa();
+                }}
+                className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[13px] text-dash-muted transition hover:bg-white/[0.05] hover:text-white"
+              >
+                {conversaDoMenu.favorita ? (
+                  <IconeEstrelaCheia className="h-4 w-4 text-dash-brand" />
+                ) : (
+                  <IconeEstrela className="h-4 w-4" />
+                )}
+                {conversaDoMenu.favorita ? "Desfavoritar" : "Favoritar"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConfirmaApagar(true)}
+                className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[13px] text-dash-muted transition hover:bg-red-500/12 hover:text-red-300"
+              >
+                <IconeLixeira className="h-4 w-4" />
+                Apagar
+              </button>
+            </>
+          ) : (
+            <div className="p-2">
+              <p className="text-[12.5px] font-semibold text-white">Apagar esta conversa?</p>
+              <p className="mt-1 text-[11.5px] leading-[1.45] text-dash-muted">
+                Não tem como voltar atrás.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={fecharMenuConversa}
+                  className="flex-1 rounded-[10px] bg-dash-raise px-3 py-2 text-[12px] text-dash-muted transition hover:text-white"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void apagarConversaCliente(menuConv.id);
+                    fecharMenuConversa();
+                  }}
+                  className="flex-1 rounded-[10px] bg-red-500/90 px-3 py-2 text-[12px] font-semibold text-white transition hover:bg-red-500"
+                >
+                  Apagar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <main
         className={`transition-all ${recolhida ? "lg:ml-[84px]" : "lg:ml-[320px]"} ${

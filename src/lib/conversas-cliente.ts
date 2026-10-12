@@ -14,6 +14,8 @@ export type ConversaResumo = {
   id: string;
   titulo: string;
   atualizada_em: string;
+  /** 0/1 — vem do servidor. `1` = favoritada (fica no topo da lateral). */
+  favorita?: number;
 };
 
 export type EstadoConversas = {
@@ -96,6 +98,41 @@ export async function novaConversa(): Promise<string> {
   } catch {
     return "";
   }
+}
+
+/**
+ * Favorita/desfavorita no servidor e reordena o espelho (favoritas no topo).
+ * A ORDEM é refeita aqui do mesmo jeito que o servidor ordena — assim a lista
+ * não "pula" quando a próxima carga chegar: o que a tela mostra já é o que o
+ * servidor devolveria.
+ */
+export async function favoritarConversaCliente(id: string, favorita: boolean): Promise<void> {
+  // Otimista: a estrela responde na hora; se o servidor recusar, volta atrás.
+  const antes = estado.lista;
+  aplicar(id, favorita ? 1 : 0);
+  try {
+    const r = await fetch(`/api/conversas/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ favorita }),
+    });
+    if (!r.ok) definir({ lista: antes });
+  } catch {
+    definir({ lista: antes }); // sem rede: não finge que gravou
+  }
+}
+
+/** Troca a bandeira de UMA conversa e reordena (favoritas primeiro, recentes
+ *  dentro de cada grupo). Puro: devolve uma lista nova, nunca muta a antiga. */
+function aplicar(id: string, favorita: number) {
+  const lista = estado.lista
+    .map((c) => (c.id === id ? { ...c, favorita } : c))
+    .sort((a, b) => {
+      const f = (b.favorita ? 1 : 0) - (a.favorita ? 1 : 0);
+      if (f !== 0) return f;
+      return (b.atualizada_em || "").localeCompare(a.atualizada_em || "");
+    });
+  definir({ lista });
 }
 
 /** Apaga no servidor e ajusta lista/aberta no espelho. */
