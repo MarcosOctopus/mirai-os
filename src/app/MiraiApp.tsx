@@ -467,7 +467,7 @@ function MiraiAppCore() {
         >
           <MiraiOrb3D status={status} audioLevel={voice.audioLevel} awake={awake} />
         </div>
-        <p className="mt-6 text-center text-[13px] leading-relaxed text-white/60">
+        <p className="mt-6 text-center text-[13px] leading-relaxed text-dash-fg/60">
           Para falar, é só clicar no orb ou dizer: “Hey Mirai”
         </p>
       </section>

@@ -130,7 +130,7 @@ export default function TodasIntegracoesPage() {
       cabecalhoDireita={
         <Link
           href="/dashboard/connect"
-          className="rounded-[10px] border border-white/12 px-4 py-2 text-[12px] text-[#888b93] transition hover:text-white"
+          className="rounded-[10px] border border-dash-hair/12 px-4 py-2 text-[12px] text-dash-muted transition hover:text-dash-fg"
         >
           ← Voltar para a Synapse
         </Link>
@@ -138,18 +138,18 @@ export default function TodasIntegracoesPage() {
     >
       <section className="mt-[55px]">
         <div className="flex flex-wrap items-center gap-5">
-          <h2 className="text-[20px] font-bold text-white">Todas as integrações</h2>
-          <span data-grade-contagem className="text-[13px] text-[#888b93]">
+          <h2 className="text-[20px] font-bold text-dash-fg">Todas as integrações</h2>
+          <span data-grade-contagem className="text-[13px] text-dash-muted">
             {filtradas.length} de {CATALOGO.length} · {ligadas} conectada(s)
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-3">
-            <label className="hidden h-[30px] w-[209px] items-center rounded-full bg-[#181c1f] px-4 md:flex">
+            <label className="hidden h-[30px] w-[209px] items-center rounded-full bg-dash-side px-4 md:flex">
               <input
                 type="search"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar"
-                className="min-w-0 flex-1 bg-transparent text-[10px] italic text-white outline-none placeholder:text-[#888b93]"
+                className="min-w-0 flex-1 bg-transparent text-[10px] italic text-dash-fg outline-none placeholder:text-dash-muted"
               />
               <img src={`${A}/3c6cf.svg`} alt="" className="h-[13px] w-[13px]" />
             </label>
@@ -159,7 +159,7 @@ export default function TodasIntegracoesPage() {
               aria-pressed={soSemConexao}
               title={soSemConexao ? "Mostrar todas" : "Só as que ainda não estão conectadas"}
               className={`grid h-[26px] w-[26px] place-items-center rounded-full transition ${
-                soSemConexao ? "bg-[#ff751f]" : "hover:bg-white/[0.06]"
+                soSemConexao ? "bg-dash-brand" : "hover:bg-dash-hair/[0.06]"
               }`}
             >
               <img src={`${A}/e6223.svg`} alt="" className="h-[13px] w-[13px]" />
@@ -173,7 +173,7 @@ export default function TodasIntegracoesPage() {
               key={c.id}
               onClick={() => setCategoria(c.id)}
               className={`shrink-0 rounded-full px-2.5 py-[5px] text-[10px] transition ${
-                categoria === c.id ? "bg-[#ff751f] text-white" : "bg-[#32393e] text-[#888b93] hover:text-white"
+                categoria === c.id ? "bg-dash-brand text-dash-fg" : "bg-dash-raise text-dash-muted hover:text-dash-fg"
               }`}
             >
               {c.id === "todas" && <img src={`${A}/4006b.svg`} alt="" className="mr-1 inline h-[9px] w-[6px]" />}
@@ -183,7 +183,7 @@ export default function TodasIntegracoesPage() {
         </div>
 
         {carregando && !usuario ? (
-          <p className="mt-[27px] text-[12px] text-[#555a5f]">Lendo as integrações desta conta...</p>
+          <p className="mt-[27px] text-[12px] text-dash-dim">Lendo as integrações desta conta...</p>
         ) : filtradas.length === 0 ? (
           <div className="mt-[27px]">
             <Vazio

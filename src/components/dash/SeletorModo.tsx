@@ -33,7 +33,7 @@ export default function SeletorModo({
     <div
       role="tablist"
       aria-label={rotuloAria}
-      className={`flex items-center gap-1 rounded-full border border-white/10 bg-dash-card transition-all ${
+      className={`flex items-center gap-1 rounded-full border border-dash-hair/10 bg-dash-card transition-all ${
         grande ? "p-1.5" : "p-1"
       }`}
     >
@@ -46,7 +46,7 @@ export default function SeletorModo({
           onClick={() => onTrocar(o.id)}
           className={`rounded-full font-semibold transition-all ${
             grande ? "px-6 py-2.5 text-[14px]" : "px-4 py-1.5 text-[12px]"
-          } ${ativo === o.id ? "bg-dash-brand text-white" : "text-dash-muted hover:text-white"}`}
+          } ${ativo === o.id ? "bg-dash-brand text-white" : "text-dash-muted hover:text-dash-fg"}`}
         >
           {o.rotulo}
         </button>

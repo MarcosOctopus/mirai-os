@@ -31,7 +31,7 @@ export default function SystemPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-dash-scrim flex items-center justify-center">
         <div className="text-cyan-400 text-xl font-mono animate-pulse">
           [INICIANDO TELEMETRIA...]
         </div>
@@ -56,7 +56,7 @@ export default function SystemPage() {
   ];
 
   return (
-    <div className="min-h-dvh overflow-y-auto bg-black text-white font-mono">
+    <div className="min-h-dvh overflow-y-auto bg-dash-scrim text-dash-fg font-mono">
       <Nav atual="/system" />
       {/* Header */}
       <div className="border-b border-cyan-900/50 px-6 py-4 flex items-center justify-between">
@@ -265,7 +265,7 @@ export default function SystemPage() {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border border-gray-800 rounded-lg p-4 bg-black/50">
+    <div className="border border-gray-800 rounded-lg p-4 bg-dash-scrim/50">
       <div className="text-xs text-gray-500 mb-3 tracking-wider">{title}</div>
       <div className="space-y-1">{children}</div>
     </div>

@@ -50,7 +50,7 @@ const PROVEDORES: { id: string; nome: string }[] = [
 ];
 
 const CAMPO =
-  "w-full rounded-[10px] border border-white/10 bg-dash-raise px-3 py-2.5 text-[13px] text-white outline-none transition placeholder:text-dash-dim focus:border-dash-brand/70";
+  "w-full rounded-[10px] border border-dash-hair/10 bg-dash-raise px-3 py-2.5 text-[13px] text-dash-fg outline-none transition placeholder:text-dash-dim focus:border-dash-brand/70";
 const ROTULO = "text-[11px] uppercase tracking-[0.18em] text-dash-dim";
 
 export default function CartaoIaDaConta() {
@@ -168,14 +168,14 @@ export default function CartaoIaDaConta() {
           <p className="mt-4 text-[13px] leading-[1.6] text-dash-muted">
             {usandoPropria ? (
               <>
-                Sua conta usa a IA que <span className="text-white">você</span> cadastrou. A chave
+                Sua conta usa a IA que <span className="text-dash-fg">você</span> cadastrou. A chave
                 fica só no servidor da Mirai — os produtos que você usa passam a chamar a sua IA sem
                 nunca ver a sua chave.
               </>
             ) : (
               <>
                 Sua conta ainda não tem IA própria, e funciona assim mesmo: usa o{" "}
-                <span className="text-white">padrão da Mirai</span>. Se você já tem a sua chave,
+                <span className="text-dash-fg">padrão da Mirai</span>. Se você já tem a sua chave,
                 cadastre abaixo — a partir daí passa a valer a sua.
               </>
             )}
@@ -257,7 +257,7 @@ export default function CartaoIaDaConta() {
               <button
                 onClick={voltarAoPadrao}
                 disabled={salvando}
-                className="rounded-[10px] border border-white/12 px-5 py-2.5 text-[13px] font-semibold text-dash-muted transition hover:text-white disabled:opacity-60"
+                className="rounded-[10px] border border-dash-hair/12 px-5 py-2.5 text-[13px] font-semibold text-dash-muted transition hover:text-dash-fg disabled:opacity-60"
               >
                 Voltar ao padrão da Mirai
               </button>

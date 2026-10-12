@@ -195,7 +195,7 @@ function CartaoEspaco({
         {/* coluna esquerda: o número grande + a barra */}
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">Usado</p>
-          <p className="mt-1.5 font-public text-[34px] font-semibold leading-none text-white">
+          <p className="mt-1.5 font-public text-[34px] font-semibold leading-none text-dash-fg">
             {estado === "ok" ? bytes(usado) : estado === "lendo" ? "…" : "—"}
           </p>
           <p className="mt-2 text-[13px] text-dash-muted">
@@ -226,19 +226,19 @@ function CartaoEspaco({
         <dl className="grid grid-cols-1 content-start gap-y-4 sm:grid-cols-2 lg:grid-cols-1">
           <div className="rounded-[16px] bg-dash-side/60 px-4 py-3.5">
             <dt className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">Livre</dt>
-            <dd className="mt-1 font-public text-[15px] text-white">
+            <dd className="mt-1 font-public text-[15px] text-dash-fg">
               {estado === "ok" ? bytes(livre) : "—"}
             </dd>
           </div>
           <div className="rounded-[16px] bg-dash-side/60 px-4 py-3.5">
             <dt className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">Teto do espaço</dt>
-            <dd className="mt-1 font-public text-[15px] text-white">
+            <dd className="mt-1 font-public text-[15px] text-dash-fg">
               {estado === "ok" ? bytes(limite) : "—"}
             </dd>
           </div>
           <div className="rounded-[16px] bg-dash-side/60 px-4 py-3.5">
             <dt className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">Uso real</dt>
-            <dd className="mt-1 font-public text-[15px] text-white">
+            <dd className="mt-1 font-public text-[15px] text-dash-fg">
               {estado === "ok" ? percentual(razao * 100) : "—"}
             </dd>
           </div>
@@ -360,11 +360,11 @@ export default function PerfilPage() {
             }
           />
           <div className="flex items-center gap-4">
-            <span className="grid h-[54px] w-[54px] shrink-0 place-items-center rounded-full border border-white/15 bg-dash-raise text-[19px] font-semibold text-white">
+            <span className="grid h-[54px] w-[54px] shrink-0 place-items-center rounded-full border border-dash-hair/15 bg-dash-raise text-[19px] font-semibold text-dash-fg">
               {carregando ? "" : inicial}
             </span>
             <div className="min-w-0">
-              <p className="truncate text-[15px] font-semibold text-white">
+              <p className="truncate text-[15px] font-semibold text-dash-fg">
                 {carregando ? "Carregando…" : conta?.name || "Sua conta"}
               </p>
               <p className="truncate text-[12.5px] text-dash-muted">{conta?.email || "—"}</p>
@@ -414,11 +414,11 @@ export default function PerfilPage() {
               <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
                 <div>
                   <dt className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">Nome</dt>
-                  <dd className="mt-1 truncate text-[13.5px] text-white">{organizacao.nome || "—"}</dd>
+                  <dd className="mt-1 truncate text-[13.5px] text-dash-fg">{organizacao.nome || "—"}</dd>
                 </div>
                 <div>
                   <dt className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">Seu papel</dt>
-                  <dd className="mt-1 text-[13.5px] text-white">{rotuloPapel(papel)}</dd>
+                  <dd className="mt-1 text-[13.5px] text-dash-fg">{rotuloPapel(papel)}</dd>
                 </div>
                 <div>
                   <dt className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">Slug</dt>
@@ -428,18 +428,18 @@ export default function PerfilPage() {
                 </div>
                 <div>
                   <dt className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">Quem entra</dt>
-                  <dd className="mt-1 font-public text-[13px] text-white">
+                  <dd className="mt-1 font-public text-[13px] text-dash-fg">
                     {membros.length} {membros.length === 1 ? "pessoa" : "pessoas"}
                   </dd>
                 </div>
               </dl>
 
               {membros.length > 0 && (
-                <ul className="mt-5 space-y-2 border-t border-white/[0.07] pt-5">
+                <ul className="mt-5 space-y-2 border-t border-dash-hair/[0.07] pt-5">
                   {membros.slice(0, 6).map((m) => (
                     <li key={m.email} className="flex flex-wrap items-center gap-3 text-[13px]">
                       <IconeUsuarios className="h-4 w-4 text-dash-dim" />
-                      <span className="break-all text-white">{m.email}</span>
+                      <span className="break-all text-dash-fg">{m.email}</span>
                       <span className="ml-auto rounded-full bg-dash-raise px-2.5 py-[3px] text-[10px] uppercase tracking-[0.14em] text-dash-muted">
                         {rotuloPapel(m.papel)}
                       </span>
@@ -488,7 +488,7 @@ export default function PerfilPage() {
             }
           />
           <p className="text-[13px] leading-[1.6] text-dash-muted">
-            Sair encerra a sessão <span className="text-white">neste navegador</span> e volta para a
+            Sair encerra a sessão <span className="text-dash-fg">neste navegador</span> e volta para a
             tela de entrada. Sua conta, sua organização e seus arquivos continuam intactos.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">

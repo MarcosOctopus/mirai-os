@@ -6,21 +6,30 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        /* Padrão Dash (base ArtDash) — o tema de TODAS as páginas internas */
+        /* Padrão Dash — os tokens apontam para CANAIS RGB em variáveis CSS
+           (globals.css). Dois motivos, e os dois importam:
+           1) o TEMA (escuro/claro) troca só as variáveis — nenhuma classe muda;
+           2) `/85`, `/10` continuam funcionando, porque o Tailwind injeta o alfa
+              no `<alpha-value>`. Um hex fixo aqui impediria os dois.
+           `fg` é a TINTA (o que era `text-white`); `hair` é o FIO (o que era
+           `border-white/`, `bg-white/`): brancos no escuro, pretos no claro. */
         dash: {
-          bg: "#121416",
-          side: "#181c1f",
-          card: "#161719",
-          raise: "#32393e",
-          line: "#25292c",
-          line2: "#24272a",
-          muted: "#888b93",
-          dim: "#555a5f",
-          brand: "#ff751f",
-          brandHi: "#ff8f4d",
-          ok: "#8effa2",
-          warn: "#ffdd9d",
-          bad: "#ff96a0",
+          bg: "rgb(var(--dash-bg) / <alpha-value>)",
+          side: "rgb(var(--dash-side) / <alpha-value>)",
+          card: "rgb(var(--dash-card) / <alpha-value>)",
+          raise: "rgb(var(--dash-raise) / <alpha-value>)",
+          line: "rgb(var(--dash-line) / <alpha-value>)",
+          line2: "rgb(var(--dash-line2) / <alpha-value>)",
+          fg: "rgb(var(--dash-fg) / <alpha-value>)",
+          hair: "rgb(var(--dash-hair) / <alpha-value>)",
+          scrim: "rgb(var(--dash-scrim) / <alpha-value>)",
+          muted: "rgb(var(--dash-muted) / <alpha-value>)",
+          dim: "rgb(var(--dash-dim) / <alpha-value>)",
+          brand: "rgb(var(--dash-brand) / <alpha-value>)",
+          brandHi: "rgb(var(--dash-brandHi) / <alpha-value>)",
+          ok: "rgb(var(--dash-ok) / <alpha-value>)",
+          warn: "rgb(var(--dash-warn) / <alpha-value>)",
+          bad: "rgb(var(--dash-bad) / <alpha-value>)",
         },
         mirai: {
           50: "#e0f7ff",

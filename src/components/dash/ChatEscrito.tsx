@@ -495,7 +495,7 @@ export default function ChatEscrito({
           {anexos.map((a) => (
             <span
               key={a.id}
-              className="flex items-center gap-2 rounded-[10px] border border-white/10 bg-dash-raise px-2.5 py-1.5 text-[11px] text-white/90"
+              className="flex items-center gap-2 rounded-[10px] border border-dash-hair/10 bg-dash-raise px-2.5 py-1.5 text-[11px] text-dash-fg/90"
             >
               {a.categoria === "imagem" ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -513,14 +513,14 @@ export default function ChatEscrito({
             <span
               key={p.tempId}
               className={`flex items-center gap-2 rounded-[10px] border px-2.5 py-1.5 text-[11px] ${
-                p.estado === "erro" ? "border-dash-bad/40 bg-dash-bad/10 text-dash-bad" : "border-white/10 bg-dash-raise text-dash-muted"
+                p.estado === "erro" ? "border-dash-bad/40 bg-dash-bad/10 text-dash-bad" : "border-dash-hair/10 bg-dash-raise text-dash-muted"
               }`}
               title={p.erro}
             >
               <span className="max-w-[160px] truncate">{p.nome}</span>
               <span className="text-[10px]">{p.estado === "erro" ? "falhou" : "subindo…"}</span>
               {p.estado === "erro" && (
-                <button onClick={() => removerPendente(p.tempId)} aria-label="Remover" className="hover:text-white">
+                <button onClick={() => removerPendente(p.tempId)} aria-label="Remover" className="hover:text-dash-fg">
                   <IconeFechar className="h-3 w-3" />
                 </button>
               )}
@@ -549,7 +549,7 @@ export default function ChatEscrito({
           cheio
             ? "relative flex min-w-0 flex-1 flex-col"
             : `relative flex min-w-0 flex-1 flex-col rounded-[24px] border bg-dash-card transition ${
-                arrastando ? "border-dash-brand ring-2 ring-dash-brand/40" : "border-white/[0.07]"
+                arrastando ? "border-dash-brand ring-2 ring-dash-brand/40" : "border-dash-hair/[0.07]"
               }`
         }
         onDragOver={(e) => {
@@ -571,7 +571,7 @@ export default function ChatEscrito({
               cheio ? "" : "rounded-[24px]"
             }`}
           >
-            <div className="flex items-center gap-2 rounded-full border border-dash-brand/40 bg-dash-card px-5 py-3 text-[13px] text-white">
+            <div className="flex items-center gap-2 rounded-full border border-dash-brand/40 bg-dash-card px-5 py-3 text-[13px] text-dash-fg">
               <IconeClipe className="h-4 w-4" /> Solta aqui para anexar
             </div>
           </div>
@@ -600,14 +600,14 @@ export default function ChatEscrito({
         {mostrarInicio && (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-12 pt-6 sm:px-8">
             <div className="w-full max-w-[720px]">
-              <h1 className="mb-7 text-center text-[26px] font-medium leading-tight tracking-tight text-white sm:text-[38px]">
+              <h1 className="mb-7 text-center text-[26px] font-medium leading-tight tracking-tight text-dash-fg sm:text-[38px]">
                 O que vamos explorar hoje?
               </h1>
 
               {faixaAnexos}
 
               {/* a caixa: "+" à esquerda, campo que cresce, microfone e enviar à direita */}
-              <div className="rounded-[26px] border border-white/10 bg-dash-card p-2 shadow-2xl transition focus-within:border-dash-brand/60">
+              <div className="rounded-[26px] border border-dash-hair/10 bg-dash-card p-2 shadow-2xl transition focus-within:border-dash-brand/60">
                 <div className="flex items-end gap-1 sm:gap-1.5">
                   <button
                     type="button"
@@ -615,7 +615,7 @@ export default function ChatEscrito({
                     disabled={enviando}
                     aria-label="Anexar arquivo"
                     title={`Anexar arquivo (até ${MAX_UPLOAD_ROTULO} por arquivo)`}
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-dash-muted transition hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-dash-muted transition hover:bg-dash-hair/[0.06] hover:text-dash-fg disabled:opacity-40"
                   >
                     <IconeMais className="h-[19px] w-[19px]" />
                   </button>
@@ -642,7 +642,7 @@ export default function ChatEscrito({
                     }}
                     placeholder="Escreve para a Mirai…"
                     style={{ transition: "height 220ms cubic-bezier(.22,.61,.36,1)" }}
-                    className="min-h-[40px] max-h-[200px] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1 py-[9px] text-[15px] leading-[22px] text-white outline-none placeholder:text-dash-dim"
+                    className="min-h-[40px] max-h-[200px] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1 py-[9px] text-[15px] leading-[22px] text-dash-fg outline-none placeholder:text-dash-dim"
                   />
 
                   <button
@@ -663,7 +663,7 @@ export default function ChatEscrito({
                         ? "cursor-not-allowed text-dash-dim opacity-50"
                         : ouvindo
                           ? "bg-dash-bad/20 text-dash-bad ring-1 ring-dash-bad/50"
-                          : "text-dash-muted hover:bg-white/[0.06] hover:text-white"
+                          : "text-dash-muted hover:bg-dash-hair/[0.06] hover:text-dash-fg"
                     }`}
                   >
                     <IconeMicrofone className="h-[19px] w-[19px]" />
@@ -713,7 +713,7 @@ export default function ChatEscrito({
         {/* ── CONVERSA EM ANDAMENTO — nada mudou em relação ao de antes ── */}
         {!mostrarInicio && (
           <>
-            <div className="flex items-center gap-3 border-b border-white/[0.07] px-5 py-3.5">
+            <div className="flex items-center gap-3 border-b border-dash-hair/[0.07] px-5 py-3.5">
               <p className="truncate text-[13px] text-dash-muted">{tituloAberto}</p>
             </div>
 
@@ -728,8 +728,8 @@ export default function ChatEscrito({
                     key={i}
                     className={
                       m.role === "user"
-                        ? "ml-auto max-w-[85%] rounded-[18px] rounded-br-sm bg-dash-brand/18 px-4 py-3 text-[13px] text-white"
-                        : "mr-auto max-w-[92%] rounded-[18px] rounded-bl-sm border border-white/[0.07] bg-dash-side px-4 py-3 text-[13px] text-white/85"
+                        ? "ml-auto max-w-[85%] rounded-[18px] rounded-br-sm bg-dash-brand/18 px-4 py-3 text-[13px] text-dash-fg"
+                        : "mr-auto max-w-[92%] rounded-[18px] rounded-bl-sm border border-dash-hair/[0.07] bg-dash-side px-4 py-3 text-[13px] text-dash-fg/85"
                     }
                   >
                     <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-dash-dim">
@@ -744,18 +744,18 @@ export default function ChatEscrito({
                             href={`${a.url}?dl=1`}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex max-w-[220px] items-center gap-2 overflow-hidden rounded-[12px] border border-white/10 bg-black/20 p-2 transition hover:border-dash-brand/50"
+                            className="flex max-w-[220px] items-center gap-2 overflow-hidden rounded-[12px] border border-dash-hair/10 bg-dash-scrim/20 p-2 transition hover:border-dash-brand/50"
                           >
                             {a.categoria === "imagem" ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={a.url} alt={a.nome} className="h-11 w-11 shrink-0 rounded-[8px] object-cover" />
                             ) : (
-                              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] bg-white/[0.06] text-dash-muted">
+                              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] bg-dash-hair/[0.06] text-dash-muted">
                                 <IconeDoAnexo categoria={a.categoria} className="h-4 w-4" />
                               </span>
                             )}
                             <span className="min-w-0">
-                              <span className="block truncate text-[11px] text-white/90">{a.nome}</span>
+                              <span className="block truncate text-[11px] text-dash-fg/90">{a.nome}</span>
                               <span className="block text-[10px] text-dash-dim">
                                 {a.rotulo} · {tamanhoLegivel(a.tamanho)}
                               </span>
@@ -790,7 +790,7 @@ export default function ChatEscrito({
               </div>
             </div>
 
-            <div className="border-t border-white/[0.07] px-4 py-3">
+            <div className="border-t border-dash-hair/[0.07] px-4 py-3">
               {faixaAnexos}
 
               <div className="flex items-end gap-2">
@@ -799,7 +799,7 @@ export default function ChatEscrito({
                   disabled={enviando}
                   aria-label="Anexar arquivo"
                   title={`Anexar arquivo (até ${MAX_UPLOAD_ROTULO} por arquivo)`}
-                  className="grid h-[46px] w-[46px] shrink-0 place-items-center rounded-[12px] border border-white/10 bg-dash-bg text-dash-muted transition hover:border-dash-brand/50 hover:text-white disabled:opacity-40"
+                  className="grid h-[46px] w-[46px] shrink-0 place-items-center rounded-[12px] border border-dash-hair/10 bg-dash-bg text-dash-muted transition hover:border-dash-brand/50 hover:text-dash-fg disabled:opacity-40"
                 >
                   <IconeClipe />
                 </button>
@@ -823,7 +823,7 @@ export default function ChatEscrito({
                   rows={1}
                   placeholder="Escreve para a Mirai…"
                   style={{ transition: "height 220ms cubic-bezier(.22,.61,.36,1)" }}
-                  className="max-h-32 min-h-[40px] flex-1 resize-none rounded-[12px] border border-white/10 bg-dash-bg px-4 py-2 text-[13px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
+                  className="max-h-32 min-h-[40px] flex-1 resize-none rounded-[12px] border border-dash-hair/10 bg-dash-bg px-4 py-2 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
                 />
                 <button
                   onClick={() => void enviar()}

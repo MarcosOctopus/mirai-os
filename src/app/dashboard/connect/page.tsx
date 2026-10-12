@@ -196,7 +196,7 @@ function Banner({ promocao }: { promocao: Promocao }) {
       <img src={`${A}/474f3.svg`} alt="" className="absolute inset-0 h-full w-full" />
 
       <div className="relative z-10 px-[51px] py-[25px]">
-        <h2 className="max-w-[320px] text-[36px] leading-[1.35] text-white">
+        <h2 className="max-w-[320px] text-[36px] leading-[1.35] text-dash-fg">
           <span className="font-bold">{negrito}</span>
           {meio && <> {meio} </>}
           {italico && <span className="font-italic">{italico}</span>}
@@ -206,7 +206,7 @@ function Banner({ promocao }: { promocao: Promocao }) {
             href={promocao.botaoPrimario.href}
             target={promocao.botaoPrimario.externo ? "_blank" : undefined}
             rel={promocao.botaoPrimario.externo ? "noreferrer" : undefined}
-            className="rounded-[10px] bg-[#ff751f] px-5 py-2.5 text-[12px] font-semibold text-white transition hover:bg-[#ff2d55]"
+            className="rounded-[10px] bg-dash-brand px-5 py-2.5 text-[12px] font-semibold text-dash-fg transition hover:bg-[#ff2d55]"
           >
             {promocao.botaoPrimario.label}
           </a>
@@ -214,7 +214,7 @@ function Banner({ promocao }: { promocao: Promocao }) {
             href={promocao.botaoSecundario.href}
             target={promocao.botaoSecundario.externo ? "_blank" : undefined}
             rel={promocao.botaoSecundario.externo ? "noreferrer" : undefined}
-            className="rounded-[10px] border border-[#181c1f] px-5 py-2.5 text-[12px] text-white transition hover:bg-black/10"
+            className="rounded-[10px] border border-dash-side px-5 py-2.5 text-[12px] text-dash-fg transition hover:bg-dash-scrim/10"
           >
             {promocao.botaoSecundario.label}
           </a>
@@ -243,9 +243,9 @@ function UsoTokens({
   const medido = Boolean(resumo?.medido) && (resumo?.tokens_total ?? 0) > 0;
 
   return (
-    <section className="relative h-[240px] overflow-hidden rounded-[30px] border border-white/70 bg-[#161719] text-white">
+    <section className="relative h-[240px] overflow-hidden rounded-[30px] border border-dash-hair/70 bg-dash-card text-dash-fg">
       {/* os blobs do saldo: eram roxos no template, agora o laranja da marca */}
-      <div className="absolute -right-8 -top-12 h-44 w-64 rounded-full bg-[#ff751f] blur-[34px]" />
+      <div className="absolute -right-8 -top-12 h-44 w-64 rounded-full bg-dash-brand blur-[34px]" />
       <div className="absolute right-24 top-10 h-20 w-32 rounded-full bg-[#ff2d55] blur-[25px]" />
       <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-transparent mix-blend-overlay" />
 
@@ -256,7 +256,7 @@ function UsoTokens({
           <button
             onClick={recarregar}
             aria-label="Atualizar a medição de tokens"
-            className="ml-auto text-[#888b93] transition hover:text-white"
+            className="ml-auto text-dash-muted transition hover:text-dash-fg"
           >
             <img src={`${A}/c9864.svg`} alt="" className="h-[14px] w-[4px]" />
           </button>
@@ -264,11 +264,11 @@ function UsoTokens({
 
         <p className="mt-3 public-sans text-[24px] font-medium">
           {carregando && !resumo ? (
-            <span className="text-[#888b93]">—</span>
+            <span className="text-dash-muted">—</span>
           ) : medido ? (
             numero(resumo?.tokens_total ?? 0)
           ) : (
-            <span className="text-[15px] text-[#888b93]">sem medição ainda</span>
+            <span className="text-[15px] text-dash-muted">sem medição ainda</span>
           )}
         </p>
       </div>
@@ -282,18 +282,18 @@ function UsoTokens({
         <img src={`${A}/7618a.svg`} alt="" className="h-[14px] w-[11px]" />
         <span className="public-sans">{medido ? `${numero(resumo?.chamadas ?? 0)} chamadas` : "—"}</span>
         {medido && resumo?.custo ? (
-          <span className="public-sans text-[#ffdd9d]">US$ {resumo.custo.toFixed(2)}</span>
+          <span className="public-sans text-dash-warn">US$ {resumo.custo.toFixed(2)}</span>
         ) : null}
       </div>
 
       <div className="absolute bottom-[17px] right-5 flex -space-x-2">
-        <span className="h-[26px] w-[26px] rounded-full border border-white/50 bg-gradient-to-b from-white/40 to-transparent" />
-        <span className="h-[26px] w-[26px] rounded-full border border-white/50 bg-gradient-to-b from-white/40 to-transparent" />
+        <span className="h-[26px] w-[26px] rounded-full border border-dash-hair/50 bg-gradient-to-b from-white/40 to-transparent" />
+        <span className="h-[26px] w-[26px] rounded-full border border-dash-hair/50 bg-gradient-to-b from-white/40 to-transparent" />
       </div>
 
       {/* a tela nunca inventa número: quando não há medição, ela diz isso */}
       {!medido && (falhou || (!carregando && !resumo)) && (
-        <p className="absolute bottom-[18px] left-[18px] right-[120px] text-[10px] leading-[1.4] text-[#555a5f]">
+        <p className="absolute bottom-[18px] left-[18px] right-[120px] text-[10px] leading-[1.4] text-dash-dim">
           Não consegui ler a medição agora.
         </p>
       )}
@@ -317,10 +317,10 @@ function Destaques({
   onConectarCrm: () => void;
 }) {
   return (
-    <section className="min-w-0 pt-2 text-white">
+    <section className="min-w-0 pt-2 text-dash-fg">
       <header className="mb-[14px] flex items-center justify-between">
         <h2 className="text-[14px] font-bold">Destaques</h2>
-        <a href="#catalogo" className="text-[11px] text-[#888b93] hover:text-white">
+        <a href="#catalogo" className="text-[11px] text-dash-muted hover:text-dash-fg">
           ver todas
         </a>
       </header>
@@ -337,16 +337,16 @@ function Destaques({
               <img src={`${A}/4a796.svg`} alt="" className="h-[43px] w-[43px]" />
               <div className="min-w-0">
                 <p className="truncate text-[12px]">{i.nome}</p>
-                <p className="truncate text-[10px] text-[#555a5f]">{i.empresa}</p>
+                <p className="truncate text-[10px] text-dash-dim">{i.empresa}</p>
               </div>
               {semDestino ? (
-                <span className="rounded-full bg-[#32393e] px-2.5 py-[5px] text-[10px] text-[#888b93]">
+                <span className="rounded-full bg-dash-raise px-2.5 py-[5px] text-[10px] text-dash-muted">
                   interna
                 </span>
               ) : on ? (
                 <button
                   onClick={() => onAbrir(i)}
-                  className="rounded-full bg-[#32393e] px-2.5 py-[5px] text-[10px] text-[#888b93] transition hover:text-white"
+                  className="rounded-full bg-dash-raise px-2.5 py-[5px] text-[10px] text-dash-muted transition hover:text-dash-fg"
                 >
                   ligada
                 </button>
@@ -356,21 +356,21 @@ function Destaques({
                 <span
                   title={p.motivo}
                   aria-label={p.motivo}
-                  className="cursor-not-allowed rounded-full bg-[#32393e] px-2.5 py-[5px] text-[10px] text-[#555a5f]"
+                  className="cursor-not-allowed rounded-full bg-dash-raise px-2.5 py-[5px] text-[10px] text-dash-dim"
                 >
                   indisponível
                 </span>
               ) : ehCrm(i) ? (
                 <button
                   onClick={onConectarCrm}
-                  className="rounded-full bg-[#ff751f] px-2.5 py-[5px] text-[10px] text-white transition hover:bg-[#ff2d55]"
+                  className="rounded-full bg-dash-brand px-2.5 py-[5px] text-[10px] text-dash-fg transition hover:bg-[#ff2d55]"
                 >
                   conectar
                 </button>
               ) : (
                 <button
                   onClick={() => onAbrir(i)}
-                  className="rounded-full bg-[#ff751f] px-2.5 py-[5px] text-[10px] text-white transition hover:bg-[#ff2d55]"
+                  className="rounded-full bg-dash-brand px-2.5 py-[5px] text-[10px] text-dash-fg transition hover:bg-[#ff2d55]"
                 >
                   {i.tipo === "mcp" ? "abrir" : "conectar"}
                 </button>
@@ -403,9 +403,9 @@ function TabelaIntegracoes({
   const grade = "grid grid-cols-[74px_112px_1.7fr_1.35fr_90px_75px_90px]";
 
   return (
-    <div className="overflow-x-auto rounded-t-[20px] bg-[#181c1f]">
+    <div className="overflow-x-auto rounded-t-[20px] bg-dash-side">
       <div className="min-w-[880px]">
-        <div className={`${grade} gap-8 border-b border-[#303438] px-[30px] py-[18px] text-[12px] text-[#888b93]`}>
+        <div className={`${grade} gap-8 border-b border-dash-line px-[30px] py-[18px] text-[12px] text-dash-muted`}>
           {["", "Nome", "Empresa", "Tipo", "Estado", "Desde", "Ação"].map((rotulo, idx) => (
             <span key={idx}>{rotulo}</span>
           ))}
@@ -414,27 +414,27 @@ function TabelaIntegracoes({
         {ligadas.map((i) => (
           <div
             key={i.id}
-            className={`${grade} items-center gap-8 px-[30px] py-[17px] text-[12px] text-[#888b93]`}
+            className={`${grade} items-center gap-8 px-[30px] py-[17px] text-[12px] text-dash-muted`}
           >
             {/* a moldura do "Object" da referência, com a arte do zip (6d39f.svg) */}
             <div className="h-14 w-14 overflow-hidden rounded-[10px] bg-[#c4c4c4]">
               <img src={`${A}/6d39f.svg`} alt="" className="h-full w-full" />
             </div>
-            <span className="truncate text-white">{i.nome}</span>
+            <span className="truncate text-dash-fg">{i.nome}</span>
             <span className="truncate">{i.empresa}</span>
             <span className="uppercase">{i.tipo}</span>
             <span className="flex items-center gap-[7px]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#8effa2]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-dash-ok" />
               ativa
             </span>
             <span className="whitespace-nowrap">{desde(i)}</span>
             <span>
               {i.tipo === "mcp" && !i.site ? (
-                <span className="text-[11px] text-[#555a5f]">interna</span>
+                <span className="text-[11px] text-dash-dim">interna</span>
               ) : (
                 <button
                   onClick={() => onAbrir(i)}
-                  className="rounded-full bg-[#32393e] px-2.5 py-[5px] text-[10px] text-[#888b93] transition hover:text-white"
+                  className="rounded-full bg-dash-raise px-2.5 py-[5px] text-[10px] text-dash-muted transition hover:text-dash-fg"
                 >
                   {i.tipo === "mcp" || i.oauthPath ? "abrir" : "gerenciar"}
                 </button>
@@ -502,21 +502,21 @@ function ModalApi({
       onKeyDown={(e) => {
         if (e.key === "Escape") onClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-dash-scrim/60 px-4 backdrop-blur-sm"
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`Conectar ${item.nome}`}
-        className="relative w-full max-w-md overflow-hidden rounded-[30px] border border-white/[0.18] p-6 text-white"
+        className="relative w-full max-w-md overflow-hidden rounded-[30px] border border-dash-hair/[0.18] p-6 text-dash-fg"
         style={VIDRO}
       >
-        <div className="absolute -right-8 -top-12 h-44 w-64 rounded-full bg-[#ff751f]/60 blur-[34px]" />
+        <div className="absolute -right-8 -top-12 h-44 w-64 rounded-full bg-dash-brand/60 blur-[34px]" />
 
         <button
           onClick={onClose}
           aria-label="Fechar"
-          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-[10px] text-[#888b93] transition hover:bg-white/[0.06] hover:text-white"
+          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-[10px] text-dash-muted transition hover:bg-dash-hair/[0.06] hover:text-dash-fg"
         >
           <IconeFechar className="h-4 w-4" />
         </button>
@@ -524,18 +524,18 @@ function ModalApi({
         <header className="relative z-10 mb-5 flex items-center gap-3.5 pr-8">
           <Logo item={item} />
           <div className="min-w-0">
-            <p className="truncate text-[16px] font-semibold text-white">{item.nome}</p>
-            <p className="truncate text-[12px] text-[#888b93]">{item.empresa}</p>
+            <p className="truncate text-[16px] font-semibold text-dash-fg">{item.nome}</p>
+            <p className="truncate text-[12px] text-dash-muted">{item.empresa}</p>
           </div>
         </header>
 
         <div className="relative z-10 space-y-4">
           {campos.map((c) => (
             <label key={c.chave} className="block">
-              <span className="mb-1.5 flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-[#555a5f]">
+              <span className="mb-1.5 flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-dash-dim">
                 <IconeCadeado className="h-3.5 w-3.5" />
                 {c.rotulo}
-                {c.obrigatorio === false && <span className="normal-case text-[#555a5f]">(opcional)</span>}
+                {c.obrigatorio === false && <span className="normal-case text-dash-dim">(opcional)</span>}
               </span>
               <input
                 type={c.tipo === "senha" ? "password" : "text"}
@@ -547,31 +547,31 @@ function ModalApi({
                 autoFocus={c === campos[0]}
                 autoComplete="off"
                 spellCheck={false}
-                className="w-full rounded-[10px] border border-white/10 bg-[#121416] px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-[#555a5f] focus:border-[#ff751f]/60"
+                className="w-full rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
                 placeholder={`Cole aqui — ${c.rotulo.toLowerCase()}`}
               />
-              {c.dica && <span className="mt-1.5 block text-[11px] text-[#555a5f]">{c.dica}</span>}
+              {c.dica && <span className="mt-1.5 block text-[11px] text-dash-dim">{c.dica}</span>}
             </label>
           ))}
         </div>
 
         {erro && <p className="relative z-10 mt-3 text-[12px] text-[#ff2d55]">{erro}</p>}
 
-        <p className="relative z-10 mt-4 text-[11px] leading-[1.5] text-[#555a5f]">
+        <p className="relative z-10 mt-4 text-[11px] leading-[1.5] text-dash-dim">
           A chave vai para o cofre desta conta (platform_config), só para ela.
         </p>
 
         <div className="relative z-10 mt-5 flex items-center justify-end gap-3">
           <button
             onClick={onClose}
-            className="rounded-[10px] border border-white/12 px-5 py-2.5 text-[12px] font-semibold text-[#888b93] transition hover:text-white"
+            className="rounded-[10px] border border-dash-hair/12 px-5 py-2.5 text-[12px] font-semibold text-dash-muted transition hover:text-dash-fg"
           >
             cancelar
           </button>
           <button
             onClick={() => void enviar()}
             disabled={salvando}
-            className="rounded-[10px] bg-[#ff751f] px-5 py-2.5 text-[12px] font-semibold text-white transition hover:bg-[#ff2d55] disabled:opacity-40"
+            className="rounded-[10px] bg-dash-brand px-5 py-2.5 text-[12px] font-semibold text-dash-fg transition hover:bg-[#ff2d55] disabled:opacity-40"
           >
             {salvando ? "salvando..." : "salvar e ligar"}
           </button>
@@ -633,34 +633,34 @@ function ModalCrm({ onClose, onConectado }: { onClose: () => void; onConectado: 
       onKeyDown={(e) => {
         if (e.key === "Escape") onClose();
       }}
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-dash-scrim/60 px-4 backdrop-blur-sm"
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Conectar meu CRM"
-        className="relative w-full max-w-md overflow-hidden rounded-[30px] border border-white/[0.18] p-6 text-white"
+        className="relative w-full max-w-md overflow-hidden rounded-[30px] border border-dash-hair/[0.18] p-6 text-dash-fg"
         style={VIDRO}
       >
-        <div className="absolute -right-8 -top-12 h-44 w-64 rounded-full bg-[#ff751f]/60 blur-[34px]" />
+        <div className="absolute -right-8 -top-12 h-44 w-64 rounded-full bg-dash-brand/60 blur-[34px]" />
 
         <button
           onClick={onClose}
           aria-label="Fechar"
-          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-[10px] text-[#888b93] transition hover:bg-white/[0.06] hover:text-white"
+          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-[10px] text-dash-muted transition hover:bg-dash-hair/[0.06] hover:text-dash-fg"
         >
           <IconeFechar className="h-4 w-4" />
         </button>
 
         <header className="relative z-10 mb-5 pr-8">
-          <p className="text-[16px] font-semibold text-white">Conectar meu CRM</p>
-          <p className="mt-1 text-[12px] text-[#888b93]">
+          <p className="text-[16px] font-semibold text-dash-fg">Conectar meu CRM</p>
+          <p className="mt-1 text-[12px] text-dash-muted">
             O CRM é seu: a credencial vale só para esta conta e é validada na hora.
           </p>
         </header>
 
         <label className="relative z-10 block">
-          <span className="mb-1.5 flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-[#555a5f]">
+          <span className="mb-1.5 flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-dash-dim">
             <IconeCadeado className="h-3.5 w-3.5" />
             Credencial do CRM
           </span>
@@ -674,17 +674,17 @@ function ModalCrm({ onClose, onConectado }: { onClose: () => void; onConectado: 
             autoFocus
             autoComplete="off"
             spellCheck={false}
-            className="w-full rounded-[10px] border border-white/10 bg-[#121416] px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-[#555a5f] focus:border-[#ff751f]/60"
+            className="w-full rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
             placeholder="Cole aqui — o token que começa com dsk_"
           />
-          <span className="mt-1.5 block text-[11px] text-[#555a5f]">
+          <span className="mt-1.5 block text-[11px] text-dash-dim">
             É o mesmo token de acesso do seu CRM (começa com dsk_).
           </span>
         </label>
 
         {erro && <p className="relative z-10 mt-3 text-[12px] text-[#ff2d55]">{erro}</p>}
 
-        <p className="relative z-10 mt-4 text-[11px] leading-[1.5] text-[#555a5f]">
+        <p className="relative z-10 mt-4 text-[11px] leading-[1.5] text-dash-dim">
           Ao conectar, a Mirai fala com o CRM e só grava a credencial se ele confirmar. Se o CRM não
           responder ou recusar, nada é salvo.
         </p>
@@ -692,14 +692,14 @@ function ModalCrm({ onClose, onConectado }: { onClose: () => void; onConectado: 
         <div className="relative z-10 mt-5 flex items-center justify-end gap-3">
           <button
             onClick={onClose}
-            className="rounded-[10px] border border-white/12 px-5 py-2.5 text-[12px] font-semibold text-[#888b93] transition hover:text-white"
+            className="rounded-[10px] border border-dash-hair/12 px-5 py-2.5 text-[12px] font-semibold text-dash-muted transition hover:text-dash-fg"
           >
             cancelar
           </button>
           <button
             onClick={() => void conectar()}
             disabled={salvando}
-            className="rounded-[10px] bg-[#ff751f] px-5 py-2.5 text-[12px] font-semibold text-white transition hover:bg-[#ff2d55] disabled:opacity-40"
+            className="rounded-[10px] bg-dash-brand px-5 py-2.5 text-[12px] font-semibold text-dash-fg transition hover:bg-[#ff2d55] disabled:opacity-40"
           >
             {salvando ? "validando..." : "validar e conectar"}
           </button>
@@ -760,19 +760,19 @@ function ModalProduto({
       onKeyDown={(e) => {
         if (e.key === "Escape") onClose();
       }}
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 px-4 backdrop-blur-md"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-dash-scrim/55 px-4 backdrop-blur-md"
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`${item.nome} — informações da integração`}
-        className="relative max-h-[90vh] w-full max-w-[520px] overflow-y-auto rounded-[30px] border border-white/[0.18] p-7 text-white"
+        className="relative max-h-[90vh] w-full max-w-[520px] overflow-y-auto rounded-[30px] border border-dash-hair/[0.18] p-7 text-dash-fg"
         style={VIDRO}
       >
         <button
           onClick={onClose}
           aria-label="Fechar"
-          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-[10px] text-white/70 transition hover:bg-white/[0.12] hover:text-white"
+          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-[10px] text-dash-fg/70 transition hover:bg-dash-hair/[0.12] hover:text-dash-fg"
         >
           <IconeFechar className="h-4 w-4" />
         </button>
@@ -787,22 +787,22 @@ function ModalProduto({
             <Figura item={item} tamanho={54} />
           </span>
           <div className="min-w-0">
-            <h3 className="truncate text-[22px] font-semibold text-white">{item.nome}</h3>
-            <p className="mt-1 truncate text-[13px] text-white/70">{item.empresa}</p>
+            <h3 className="truncate text-[22px] font-semibold text-dash-fg">{item.nome}</h3>
+            <p className="mt-1 truncate text-[13px] text-dash-fg/70">{item.empresa}</p>
           </div>
         </div>
 
         {/* TIPO + ESTADO — o estado vem da MESMA fonte do resto da tela. */}
         <div className="mt-6 flex flex-wrap items-center gap-2.5">
-          <span className="rounded-full bg-white/[0.16] px-3 py-[5px] text-[11px] font-semibold uppercase tracking-[0.14em] text-white">
+          <span className="rounded-full bg-dash-hair/[0.16] px-3 py-[5px] text-[11px] font-semibold uppercase tracking-[0.14em] text-dash-fg">
             {item.tipo === "mcp" ? "MCP" : "API"}
           </span>
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/[0.08] px-3 py-[5px] text-[11px] text-white/85">
-            <span className={`h-1.5 w-1.5 rounded-full ${conectada ? "bg-[#8effa2]" : "bg-[#ff2d55]"}`} />
+          <span className="inline-flex items-center gap-2 rounded-full bg-dash-hair/[0.08] px-3 py-[5px] text-[11px] text-dash-fg/85">
+            <span className={`h-1.5 w-1.5 rounded-full ${conectada ? "bg-dash-ok" : "bg-[#ff2d55]"}`} />
             {conectada ? "conectada" : "não conectada"}
           </span>
           {!pronta && (
-            <span className="rounded-full bg-[#ff2d55]/[0.16] px-3 py-[5px] text-[11px] text-[#ff9db2]">
+            <span className="rounded-full bg-[#ff2d55]/[0.16] px-3 py-[5px] text-[11px] text-dash-bad">
               indisponível
             </span>
           )}
@@ -810,24 +810,24 @@ function ModalProduto({
 
         {/* INFORMAÇÕES do produto — o subtítulo do catálogo, sem invenção. */}
         {item.subtitulo ? (
-          <p className="mt-5 text-[13.5px] leading-[1.6] text-white/90">{item.subtitulo}</p>
+          <p className="mt-5 text-[13.5px] leading-[1.6] text-dash-fg/90">{item.subtitulo}</p>
         ) : (
-          <p className="mt-5 text-[13px] text-white/50">Sem descrição no catálogo.</p>
+          <p className="mt-5 text-[13px] text-dash-fg/50">Sem descrição no catálogo.</p>
         )}
 
-        <p className="mt-4 text-[11.5px] leading-[1.5] text-white/60">{comoIntegra}</p>
+        <p className="mt-4 text-[11.5px] leading-[1.5] text-dash-fg/60">{comoIntegra}</p>
 
         <div className="mt-7 flex items-center justify-end gap-3">
           <button
             onClick={onClose}
-            className="rounded-[10px] border border-white/[0.20] px-5 py-2.5 text-[12px] font-semibold text-white/80 transition hover:text-white"
+            className="rounded-[10px] border border-dash-hair/[0.20] px-5 py-2.5 text-[12px] font-semibold text-dash-fg/80 transition hover:text-dash-fg"
           >
             fechar
           </button>
           {podeConectarCrm ? (
             <button
               onClick={onConectar}
-              className="rounded-[10px] bg-[#ff751f] px-6 py-2.5 text-[12px] font-semibold text-white transition hover:bg-[#ff2d55]"
+              className="rounded-[10px] bg-dash-brand px-6 py-2.5 text-[12px] font-semibold text-dash-fg transition hover:bg-[#ff2d55]"
             >
               conectar meu CRM
             </button>
@@ -835,7 +835,7 @@ function ModalProduto({
             <button
               onClick={() => onIntegrar(item)}
               disabled={!pronta}
-              className="rounded-[10px] bg-[#ff751f] px-6 py-2.5 text-[12px] font-semibold text-white transition hover:bg-[#ff2d55] disabled:opacity-40"
+              className="rounded-[10px] bg-dash-brand px-6 py-2.5 text-[12px] font-semibold text-dash-fg transition hover:bg-[#ff2d55] disabled:opacity-40"
             >
               Integrar
             </button>
@@ -843,12 +843,12 @@ function ModalProduto({
         </div>
 
         {!pronta ? (
-          <p className="mt-3 text-right text-[11px] text-white/50">
+          <p className="mt-3 text-right text-[11px] text-dash-fg/50">
             {motivo || "Esta integração ainda não está pronta para conectar neste servidor."}
           </p>
         ) : (
           semDestino && (
-            <p className="mt-3 text-right text-[11px] text-white/50">
+            <p className="mt-3 text-right text-[11px] text-dash-fg/50">
               Esta integração roda dentro do MIRAI OS — ainda sem site próprio.
             </p>
           )
@@ -1111,9 +1111,9 @@ export default function IntegracoesPage() {
       )}
 
       {aviso && (
-        <p className="mb-5 flex items-start justify-between gap-4 rounded-[16px] border border-[#ff751f]/30 bg-[#ff751f]/[0.07] px-5 py-4 text-[13px] text-[#ffb27a]">
+        <p className="mb-5 flex items-start justify-between gap-4 rounded-[16px] border border-dash-brand/30 bg-dash-brand/[0.07] px-5 py-4 text-[13px] text-dash-brandHi">
           <span>{aviso}</span>
-          <button onClick={() => setAviso("")} className="shrink-0 text-[12px] text-[#ffb27a] underline">
+          <button onClick={() => setAviso("")} className="shrink-0 text-[12px] text-dash-brandHi underline">
             ok
           </button>
         </p>
@@ -1137,13 +1137,13 @@ export default function IntegracoesPage() {
         />
       </div>
 
-      <div className="mt-[30px] border-t border-[#24272a]" />
+      <div className="mt-[30px] border-t border-dash-line2" />
 
       {/* o "Live Auctions" da referência: título, busca, filtro, chips e a faixa de cards */}
       <section id="catalogo" className="mt-5 scroll-mt-6">
         <div className="flex flex-wrap items-center gap-5">
-          <h2 className="text-[20px] font-bold text-white">Integrações</h2>
-          <span data-catalogo-contagem className="text-[13px] text-[#888b93]">
+          <h2 className="text-[20px] font-bold text-dash-fg">Integrações</h2>
+          <span data-catalogo-contagem className="text-[13px] text-dash-muted">
             {`${filtradas.length} de ${CATALOGO.length}`}
           </span>
           {/* busca, filtro e o atalho da GRADE completa, todos juntos no canto
@@ -1151,13 +1151,13 @@ export default function IntegracoesPage() {
               08/10/2026). O atalho leva a /dashboard/integracoes, onde os 21
               aparecem em grade, com o mesmo card e o mesmo estado. */}
           <div className="ml-auto flex flex-wrap items-center gap-3">
-            <label className="hidden h-[30px] w-[209px] items-center rounded-full bg-[#181c1f] px-4 md:flex">
+            <label className="hidden h-[30px] w-[209px] items-center rounded-full bg-dash-side px-4 md:flex">
               <input
                 type="search"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar"
-                className="min-w-0 flex-1 bg-transparent text-[10px] italic text-white outline-none placeholder:text-[#888b93]"
+                className="min-w-0 flex-1 bg-transparent text-[10px] italic text-dash-fg outline-none placeholder:text-dash-muted"
               />
               <img src={`${A}/3c6cf.svg`} alt="" className="h-[13px] w-[13px]" />
             </label>
@@ -1167,7 +1167,7 @@ export default function IntegracoesPage() {
               aria-pressed={soSemConexao}
               title={soSemConexao ? "Mostrar todas" : "Só as que ainda não estão conectadas"}
               className={`grid h-[26px] w-[26px] place-items-center rounded-full transition ${
-                soSemConexao ? "bg-[#ff751f]" : "hover:bg-white/[0.06]"
+                soSemConexao ? "bg-dash-brand" : "hover:bg-dash-hair/[0.06]"
               }`}
             >
               <img src={`${A}/e6223.svg`} alt="" className="h-[13px] w-[13px]" />
@@ -1176,7 +1176,7 @@ export default function IntegracoesPage() {
               href="/dashboard/integracoes"
               data-ver-todas-integracoes
               title="Ver o catálogo inteiro em grade"
-              className="rounded-[10px] border border-white/12 px-4 py-2 text-[12px] text-[#888b93] transition hover:text-white"
+              className="rounded-[10px] border border-dash-hair/12 px-4 py-2 text-[12px] text-dash-muted transition hover:text-dash-fg"
             >
               Ver todas as integrações ({CATALOGO.length})
             </Link>
@@ -1189,7 +1189,7 @@ export default function IntegracoesPage() {
               key={c.id}
               onClick={() => setCategoria(c.id)}
               className={`shrink-0 rounded-full px-2.5 py-[5px] text-[10px] transition ${
-                categoria === c.id ? "bg-[#ff751f] text-white" : "bg-[#32393e] text-[#888b93] hover:text-white"
+                categoria === c.id ? "bg-dash-brand text-dash-fg" : "bg-dash-raise text-dash-muted hover:text-dash-fg"
               }`}
             >
               {c.id === "todas" && <img src={`${A}/4006b.svg`} alt="" className="mr-1 inline h-[9px] w-[6px]" />}
@@ -1230,7 +1230,7 @@ export default function IntegracoesPage() {
             </div>
             {/* o "Ver todas" saiu daqui: virou atalho ao lado da busca e leva à
                 grade /dashboard/integracoes. */}
-            <p className="mt-3 text-[11px] text-[#555a5f]">
+            <p className="mt-3 text-[11px] text-dash-dim">
               {filtradas.length > LIMITE_CATALOGO
                 ? `mostrando ${visiveis.length} de ${filtradas.length} — o catálogo inteiro está em “Ver todas as integrações”`
                 : `mostrando ${visiveis.length} de ${filtradas.length}`}
@@ -1242,22 +1242,22 @@ export default function IntegracoesPage() {
       {/* o "Recent History" da referência: título + contagem, e a tabela com as proporções */}
       <section className="mt-[30px]">
         <div className="mb-[19px] flex flex-wrap items-center gap-5">
-          <h2 className="text-[20px] font-bold text-white">Minhas integrações</h2>
-          <span className="text-[13px] text-[#888b93]">{ligadas.length} nesta conta</span>
+          <h2 className="text-[20px] font-bold text-dash-fg">Minhas integrações</h2>
+          <span className="text-[13px] text-dash-muted">{ligadas.length} nesta conta</span>
           <button
             onClick={() => {
               void carregarConta();
               void carregarSaaso();
               void carregarIntegracoes();
             }}
-            className="ml-auto rounded-[10px] border border-white/12 px-4 py-2 text-[12px] text-[#888b93] transition hover:text-white"
+            className="ml-auto rounded-[10px] border border-dash-hair/12 px-4 py-2 text-[12px] text-dash-muted transition hover:text-dash-fg"
           >
             atualizar
           </button>
         </div>
 
         {carregando && !user ? (
-          <p className="text-[12px] text-[#555a5f]">Lendo as integrações desta conta...</p>
+          <p className="text-[12px] text-dash-dim">Lendo as integrações desta conta...</p>
         ) : ligadas.length === 0 ? (
           <Vazio
             icone={<IconePlug className="h-7 w-7" />}

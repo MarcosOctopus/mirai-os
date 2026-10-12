@@ -156,7 +156,7 @@ export default function OrganizacoesPage() {
     <Shell titulo="Organizações" usuario={{ ehDono: true }}>
       <p className="max-w-2xl text-[13px] leading-[1.65] text-dash-muted">
         Cada organização é um cliente (white-label). O e-mail que você amarrar aqui entra{" "}
-        <span className="text-white">só nela</span> — não vê as outras organizações, nem as áreas
+        <span className="text-dash-fg">só nela</span> — não vê as outras organizações, nem as áreas
         internas da plataforma.
       </p>
 
@@ -181,7 +181,7 @@ export default function OrganizacoesPage() {
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 placeholder="Ex.: Clínica Vida"
-                className="rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
+                className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
               />
             </label>
             <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
@@ -190,7 +190,7 @@ export default function OrganizacoesPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="cliente@dominio.com"
-                className="rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
+                className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
               />
             </label>
             <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
@@ -199,7 +199,7 @@ export default function OrganizacoesPage() {
                 value={saasoOrgId}
                 onChange={(e) => setSaasoOrgId(e.target.value)}
                 placeholder="id/uuid da organização no Saaso"
-                className="rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
+                className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
               />
             </label>
             <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
@@ -208,7 +208,7 @@ export default function OrganizacoesPage() {
                 value={saasoToken}
                 onChange={(e) => setSaasoToken(e.target.value)}
                 placeholder="token dsk_... do CRM daquele cliente"
-                className="rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
+                className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
               />
             </label>
           </div>
@@ -235,10 +235,10 @@ export default function OrganizacoesPage() {
           {orgs.map((org) => (
             <article
               key={org.id}
-              className="rounded-[24px] border border-white/[0.07] bg-dash-card p-5"
+              className="rounded-[24px] border border-dash-hair/[0.07] bg-dash-card p-5"
             >
               <div className="flex flex-wrap items-center gap-3">
-                <p className="text-[15px] font-semibold text-white">{org.nome}</p>
+                <p className="text-[15px] font-semibold text-dash-fg">{org.nome}</p>
                 <span className="rounded-full bg-dash-raise px-2.5 py-[3px] text-[11px] text-dash-muted">
                   {org.slug}
                 </span>
@@ -246,7 +246,7 @@ export default function OrganizacoesPage() {
                   className={`rounded-full border px-2.5 py-0.5 text-[11px] ${
                     org.saaso_token
                       ? "border-dash-ok/35 text-dash-ok"
-                      : "border-white/15 text-dash-dim"
+                      : "border-dash-hair/15 text-dash-dim"
                   }`}
                 >
                   {org.saaso_token ? "CRM vinculado" : "sem CRM vinculado"}
@@ -262,7 +262,7 @@ export default function OrganizacoesPage() {
                     <ul className="mt-1.5 flex flex-col gap-1.5">
                       {org.membros.map((m) => (
                         <li key={m.email} className="flex flex-wrap items-center gap-2">
-                          <span className="text-white">{m.email}</span>
+                          <span className="text-dash-fg">{m.email}</span>
                           <span className="rounded-full bg-dash-raise px-2.5 py-[3px] text-[10px] uppercase tracking-[0.14em] text-dash-muted">
                             {m.papel === "admin" ? "admin da empresa" : m.papel === "dono" ? "dono (você)" : "funcionário"}
                           </span>
@@ -281,7 +281,7 @@ export default function OrganizacoesPage() {
                 </div>
                 <p>
                   Organização no CRM:{" "}
-                  <span className="text-white">{org.saaso_org_id || "—"}</span>
+                  <span className="text-dash-fg">{org.saaso_org_id || "—"}</span>
                 </p>
               </div>
 
@@ -296,11 +296,11 @@ export default function OrganizacoesPage() {
                       (e.target as HTMLInputElement).value = "";
                     }
                   }}
-                  className="rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2 text-[12px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
+                  className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2 text-[12px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
                 />
                 <select
                   defaultValue="membro"
-                  className="rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2 text-[12px] text-white outline-none"
+                  className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2 text-[12px] text-dash-fg outline-none"
                 >
                   <option value="membro">funcionário</option>
                   <option value="admin">admin da empresa</option>
@@ -313,7 +313,7 @@ export default function OrganizacoesPage() {
                       (e.target as HTMLInputElement).value = "";
                     }
                   }}
-                  className="min-w-[280px] flex-1 rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2 text-[12px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
+                  className="min-w-[280px] flex-1 rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2 text-[12px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
                 />
               </div>
               <p className="mt-2 text-[11px] text-dash-dim">

@@ -32,7 +32,7 @@ export default function SessaoVencida({
       <span className="grid h-14 w-14 place-items-center rounded-full bg-dash-raise text-dash-muted">
         <IconeCadeado className="h-6 w-6" />
       </span>
-      <h2 className="mt-6 max-w-[560px] text-[22px] leading-tight text-white">Sua sessão expirou.</h2>
+      <h2 className="mt-6 max-w-[560px] text-[22px] leading-tight text-dash-fg">Sua sessão expirou.</h2>
       <p className="mt-3 max-w-[540px] text-[14px] leading-[1.7] text-dash-muted">
         É só entrar de novo para continuar de onde parou — {oQue}
       </p>

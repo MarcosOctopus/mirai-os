@@ -39,7 +39,7 @@ function LinhaRegistro({ nome, valor }: { nome: string; valor: string }) {
       <CopiarTexto
         texto={valor}
         rotulo="copiar"
-        className="shrink-0 rounded-full border border-zinc-700 px-2.5 py-1 text-[10.5px] text-zinc-300 transition hover:border-zinc-500 hover:text-white"
+        className="shrink-0 rounded-full border border-zinc-700 px-2.5 py-1 text-[10.5px] text-zinc-300 transition hover:border-zinc-500 hover:text-dash-fg"
       />
     </div>
   );
@@ -61,7 +61,7 @@ export default async function ConectarDominioPage({
   if (!t) {
     return (
       <Moldura>
-        <h1 className="text-[19px] font-semibold text-white">Este link não vale mais</h1>
+        <h1 className="text-[19px] font-semibold text-dash-fg">Este link não vale mais</h1>
         <p className="text-[13.5px] leading-relaxed text-zinc-400">
           O link de conexão expirou ou foi substituído. Peça um novo a quem te enviou — ele é gerado
           no painel do projeto, na hora.
@@ -75,7 +75,7 @@ export default async function ConectarDominioPage({
   if (!proj || !dominioAtual || dominioAtual !== normalizarDominio(t.dominio)) {
     return (
       <Moldura>
-        <h1 className="text-[19px] font-semibold text-white">Este link não vale mais</h1>
+        <h1 className="text-[19px] font-semibold text-dash-fg">Este link não vale mais</h1>
         <p className="text-[13.5px] leading-relaxed text-zinc-400">
           O domínio deste projeto mudou depois que o link foi criado. Peça um link novo a quem te
           enviou.
@@ -97,7 +97,7 @@ export default async function ConectarDominioPage({
         <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">
           Conectar domínio
         </div>
-        <h1 className="break-all text-[22px] font-semibold leading-tight text-white">
+        <h1 className="break-all text-[22px] font-semibold leading-tight text-dash-fg">
           {dominioAtual}
         </h1>
         <p className="text-[13px] leading-relaxed text-zinc-400">
@@ -120,7 +120,7 @@ export default async function ConectarDominioPage({
       >
         <div className="flex items-center gap-2">
           <span className="text-[15px]">{noAr || pronto ? "✅" : semResposta ? "⏳" : "👉"}</span>
-          <span className="text-[13.5px] font-semibold text-white">
+          <span className="text-[13.5px] font-semibold text-dash-fg">
             {noAr
               ? "Está no ar"
               : pronto
@@ -136,7 +136,7 @@ export default async function ConectarDominioPage({
               O site já abre em{" "}
               <a
                 href={`https://${dominioAtual}`}
-                className="font-medium text-white underline"
+                className="font-medium text-dash-fg underline"
                 rel="noreferrer"
               >
                 {dominioAtual}
@@ -200,7 +200,7 @@ export default async function ConectarDominioPage({
       <div className="flex flex-wrap items-center gap-3">
         <a
           href={`?v=${Date.now()}`}
-          className="rounded-full bg-white px-4 py-2 text-[12.5px] font-semibold text-black transition hover:bg-zinc-200"
+          className="rounded-full bg-dash-fg px-4 py-2 text-[12.5px] font-semibold text-dash-bg transition hover:opacity-90"
         >
           Verificar de novo
         </a>

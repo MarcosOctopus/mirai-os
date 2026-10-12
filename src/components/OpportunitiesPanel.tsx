@@ -36,7 +36,7 @@ export default function OpportunitiesPanel({ opportunities }: { opportunities?: 
         {data.map((o, i) => {
           const pc = PRIORITY_COLORS[o.priority];
           return (
-            <div key={i} className="flex items-center justify-between border-b border-white/5 pb-1.5 last:border-0">
+            <div key={i} className="flex items-center justify-between border-b border-dash-hair/5 pb-1.5 last:border-0">
               <div className="flex-1 min-w-0">
                 <span className="text-[9px] leading-relaxed truncate block opacity-70">{o.label}</span>
               </div>

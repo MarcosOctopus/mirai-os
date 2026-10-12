@@ -37,7 +37,7 @@ export default function RisksPanel({ risks }: { risks?: Risk[] }) {
         {data.map((r, i) => {
           const cfg = LEVEL_CONFIG[r.level];
           return (
-            <div key={i} className="flex items-center justify-between border-b border-white/5 pb-1.5">
+            <div key={i} className="flex items-center justify-between border-b border-dash-hair/5 pb-1.5">
               <div className="flex-1 min-w-0">
                 <div className="text-[9px] leading-relaxed truncate opacity-70">{r.label}</div>
                 <div className="text-[8px] opacity-30 mt-0.5">{r.impact}</div>

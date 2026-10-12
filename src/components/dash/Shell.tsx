@@ -23,6 +23,7 @@ import {
   IconeEstrelaCheia,
   IconeFechar,
   IconeLixeira,
+  IconeLua,
   IconeMais,
   IconeMenu,
   IconeOrganizacoes,
@@ -32,8 +33,10 @@ import {
   IconeSeta,
   IconeSino,
   IconeSistema,
+  IconeSol,
   IconeSynapse,
 } from "./icons";
+import { usarTema } from "@/lib/tema";
 
 type Item = {
   label: string;
@@ -84,7 +87,7 @@ function Marca({ recolhida = false }: { recolhida?: boolean }) {
       <img
         src="/logo-mirai.png"
         alt="MIRAI"
-        className={`h-[26px] w-auto shrink-0 ${recolhida ? "lg:hidden" : ""}`}
+        className={`logo-tema h-[26px] w-auto shrink-0 ${recolhida ? "lg:hidden" : ""}`}
       />
       <img
         src="/logo-mirai-marca.png"
@@ -115,7 +118,7 @@ function ItemMenu({
     ? "bg-dash-brand/12 text-dash-brand"
     : item.destaque
       ? "bg-dash-brand/15 font-semibold text-dash-brand ring-1 ring-dash-brand/25 hover:bg-dash-brand/25"
-      : "text-dash-muted hover:bg-white/[0.04] hover:text-white";
+      : "text-dash-muted hover:bg-dash-hair/[0.04] hover:text-dash-fg";
   const rotulo = `truncate ${recolhida ? "lg:hidden" : ""}`;
   const selo = `ml-auto rounded-full px-2 py-[3px] text-[10px] ${recolhida ? "lg:hidden" : ""}`;
 
@@ -174,8 +177,8 @@ function LinhaConversa({
         title={c.titulo}
         className={`flex w-full items-center gap-2 rounded-[10px] py-2 pl-4 pr-9 text-left text-[13px] transition ${
           ativa
-            ? "bg-dash-brand/12 text-white"
-            : "text-dash-muted hover:bg-white/[0.04] hover:text-white"
+            ? "bg-dash-brand/12 text-dash-fg"
+            : "text-dash-muted hover:bg-dash-hair/[0.04] hover:text-dash-fg"
         }`}
       >
         {!!c.favorita && (
@@ -189,7 +192,7 @@ function LinhaConversa({
         data-menu-conversa
         aria-label={`Opções de "${c.titulo}"`}
         onClick={onMenu}
-        className={`absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-[8px] text-dash-muted transition hover:bg-white/10 hover:text-white ${
+        className={`absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-[8px] text-dash-muted transition hover:bg-dash-hair/10 hover:text-dash-fg ${
           menuAberto ? "opacity-100" : "opacity-0 group-hover:opacity-100 max-lg:opacity-100"
         }`}
       >
@@ -307,7 +310,7 @@ export default function Shell({
   }, [menuConv]);
 
   return (
-    <div className="dash-root min-h-dvh bg-dash-bg text-white">
+    <div className="dash-root min-h-dvh bg-dash-bg text-dash-fg">
       {/* O BOTÃO DE MENU EM TELA CHEIA (dono, 10/10/2026). Em `cheio` o CSS
           esconde o cabeçalho do Shell — onde mora o botão de menu — e a tela
           ficava SEM MENU no celular. O botão tem de viver AQUI (dentro do Shell),
@@ -318,7 +321,7 @@ export default function Shell({
         <button
           aria-label="Abrir menu"
           onClick={() => setAberto(true)}
-          className="fixed left-3 top-3 z-40 grid h-9 w-9 place-items-center rounded-[10px] bg-dash-side/85 text-dash-muted backdrop-blur transition hover:text-white lg:hidden"
+          className="fixed left-3 top-3 z-40 grid h-9 w-9 place-items-center rounded-[10px] bg-dash-side/85 text-dash-muted backdrop-blur transition hover:text-dash-fg lg:hidden"
         >
           <IconeMenu />
         </button>
@@ -340,7 +343,7 @@ export default function Shell({
         <button
           aria-label="Fechar menu"
           onClick={() => setAberto(false)}
-          className="fixed inset-0 z-30 bg-black/60 lg:hidden"
+          className="fixed inset-0 z-30 bg-dash-scrim/60 lg:hidden"
         />
       )}
 
@@ -365,7 +368,7 @@ export default function Shell({
           aria-label={recolhida ? "Expandir menu" : "Recolher menu"}
           title={recolhida ? "Expandir menu" : "Recolher menu"}
           onClick={() => setRecolhida((v) => !v)}
-          className={`mt-5 hidden h-6 w-6 items-center justify-center text-dash-muted transition hover:text-white lg:flex ${
+          className={`mt-5 hidden h-6 w-6 items-center justify-center text-dash-muted transition hover:text-dash-fg lg:flex ${
             recolhida ? "self-center" : "self-end"
           }`}
         >
@@ -455,7 +458,7 @@ export default function Shell({
 
         <div className={`mt-auto pt-8 ${recolhida ? "lg:hidden" : ""}`}>
           <div className="rounded-[20px] bg-dash-raise/70 p-5">
-            <p className="text-[13px] font-semibold text-white">Mirai está de pé</p>
+            <p className="text-[13px] font-semibold text-dash-fg">Mirai está de pé</p>
             <p className="mt-2 text-[12px] leading-[1.5] text-dash-muted">
               Para conversar, é na tela inicial: escrita ou voz, no mesmo lugar.
             </p>
@@ -489,7 +492,7 @@ export default function Shell({
                   void alternarFavorita(menuConv.id);
                   fecharMenuConversa();
                 }}
-                className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[13px] text-dash-muted transition hover:bg-white/[0.05] hover:text-white"
+                className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[13px] text-dash-muted transition hover:bg-dash-hair/[0.05] hover:text-dash-fg"
               >
                 {conversaDoMenu.favorita ? (
                   <IconeEstrelaCheia className="h-4 w-4 text-dash-brand" />
@@ -510,7 +513,7 @@ export default function Shell({
             </>
           ) : (
             <div className="p-2">
-              <p className="text-[12.5px] font-semibold text-white">Apagar esta conversa?</p>
+              <p className="text-[12.5px] font-semibold text-dash-fg">Apagar esta conversa?</p>
               <p className="mt-1 text-[11.5px] leading-[1.45] text-dash-muted">
                 Não tem como voltar atrás.
               </p>
@@ -518,7 +521,7 @@ export default function Shell({
                 <button
                   type="button"
                   onClick={fecharMenuConversa}
-                  className="flex-1 rounded-[10px] bg-dash-raise px-3 py-2 text-[12px] text-dash-muted transition hover:text-white"
+                  className="flex-1 rounded-[10px] bg-dash-raise px-3 py-2 text-[12px] text-dash-muted transition hover:text-dash-fg"
                 >
                   Cancelar
                 </button>
@@ -559,7 +562,7 @@ export default function Shell({
               >
                 <IconeMenu />
               </button>
-              <h1 className="truncate text-[20px] text-white">{titulo}</h1>
+              <h1 className="truncate text-[20px] text-dash-fg">{titulo}</h1>
             </div>
             <div className="flex shrink-0 items-center gap-4">
               {cabecalhoDireita}
@@ -593,6 +596,7 @@ function MenuDaConta({
   const [aberto, setAberto] = useState(false);
   const [saindo, setSaindo] = useState(false);
   const caixa = useRef<HTMLDivElement | null>(null);
+  const { tema, alternar: alternarTema } = usarTema();
   // Mesmo corte por dono do resto do menu (a trava real segue no servidor).
   const itens = SECUNDARIO.filter((i) => !i.soDono || usuario?.ehDono);
 
@@ -627,10 +631,10 @@ function MenuDaConta({
         aria-label="Menu da conta"
         aria-expanded={aberto}
         onClick={() => setAberto((v) => !v)}
-        className={`grid h-[34px] w-[34px] place-items-center rounded-full border text-[13px] text-white transition ${
+        className={`grid h-[34px] w-[34px] place-items-center rounded-full border text-[13px] text-dash-fg transition ${
           aberto
             ? "border-dash-brand bg-dash-raise"
-            : "border-white/15 bg-dash-raise hover:border-dash-brand/60"
+            : "border-dash-hair/15 bg-dash-raise hover:border-dash-brand/60"
         }`}
       >
         {inicial}
@@ -639,7 +643,7 @@ function MenuDaConta({
       {aberto && (
         <div className="absolute right-0 top-[42px] z-50 w-[236px] rounded-[16px] border border-dash-line bg-dash-card p-1.5 shadow-2xl">
           <div className="px-3 py-2.5">
-            <p className="truncate text-[12.5px] font-semibold text-white">
+            <p className="truncate text-[12.5px] font-semibold text-dash-fg">
               {usuario?.nome || "Sua conta"}
             </p>
             {usuario?.email && (
@@ -647,7 +651,7 @@ function MenuDaConta({
             )}
           </div>
 
-          <div className="my-1 h-px bg-white/[0.08]" />
+          <div className="my-1 h-px bg-dash-hair/[0.08]" />
 
           {/* O grupo que saiu da lateral. Mesma ordem e mesmo corte por dono;
               a pílula de ativo segue a rota atual, como no menu antigo. */}
@@ -661,7 +665,7 @@ function MenuDaConta({
                 className={`flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] transition ${
                   i.href === caminho
                     ? "bg-dash-brand/12 text-dash-brand"
-                    : "text-white/85 hover:bg-white/[0.06] hover:text-white"
+                    : "text-dash-fg/85 hover:bg-dash-hair/[0.06] hover:text-dash-fg"
                 }`}
               >
                 <span className="shrink-0">{i.icone}</span>
@@ -670,12 +674,12 @@ function MenuDaConta({
             ))}
           </nav>
 
-          <div className="my-1 h-px bg-white/[0.08]" />
+          <div className="my-1 h-px bg-dash-hair/[0.08]" />
 
           <Link
             href="/perfil"
             onClick={() => setAberto(false)}
-            className="flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] text-white/85 transition hover:bg-white/[0.06] hover:text-white"
+            className="flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] text-dash-fg/85 transition hover:bg-dash-hair/[0.06] hover:text-dash-fg"
           >
             <svg
               viewBox="0 0 24 24"
@@ -691,10 +695,29 @@ function MenuDaConta({
             Perfil
           </Link>
 
+          {/* O TEMA — escuro (padrão, a cara da Mirai) ou claro. O botão mostra
+              o ícone do tema de DESTINO ("sol" = vai para o claro), que é como
+              se lê a ação. A escolha fica guardada e o script do <head> a
+              aplica antes da primeira pintura, sem piscar. */}
+          <button
+            onClick={() => {
+              alternarTema();
+              setAberto(false);
+            }}
+            className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[13px] text-dash-fg/85 transition hover:bg-dash-hair/[0.06] hover:text-dash-fg"
+          >
+            {tema === "claro" ? (
+              <IconeLua className="h-[17px] w-[17px] shrink-0" />
+            ) : (
+              <IconeSol className="h-[17px] w-[17px] shrink-0" />
+            )}
+            {tema === "claro" ? "Tema escuro" : "Tema claro"}
+          </button>
+
           <button
             onClick={sair}
             disabled={saindo}
-            className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[13px] text-dash-bad transition hover:bg-white/[0.06] disabled:opacity-60"
+            className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[13px] text-dash-bad transition hover:bg-dash-hair/[0.06] disabled:opacity-60"
           >
             <svg
               viewBox="0 0 24 24"

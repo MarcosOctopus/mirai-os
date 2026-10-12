@@ -93,7 +93,7 @@ export function CardSkill({
           onAbrir();
         }
       }}
-      className="group relative flex h-[176px] w-[214px] shrink-0 cursor-pointer flex-col overflow-hidden rounded-[14px] border border-white/[0.07] bg-dash-card p-4 text-white transition duration-200 hover:-translate-y-[2px] hover:border-dash-brand/40 hover:bg-[#1a1c1f] focus:outline-none focus-visible:ring-2 focus-visible:ring-dash-brand/60"
+      className="group relative flex h-[176px] w-[214px] shrink-0 cursor-pointer flex-col overflow-hidden rounded-[14px] border border-dash-hair/[0.07] bg-dash-card p-4 text-dash-fg transition duration-200 hover:-translate-y-[2px] hover:border-dash-brand/40 hover:bg-dash-card focus:outline-none focus-visible:ring-2 focus-visible:ring-dash-brand/60"
     >
       {/* o fio da marca na aresta — cresce no hover */}
       <span
@@ -115,7 +115,7 @@ export function CardSkill({
       {/* TÍTULO HUMANO: o cartão mostra "Mirai OS App", não o slug
           "mirai-os-app". O `title` guarda o nome REAL — display só. */}
       <p
-        className="mt-[9px] line-clamp-2 text-[13px] font-semibold leading-[1.25] tracking-[-0.01em] text-white"
+        className="mt-[9px] line-clamp-2 text-[13px] font-semibold leading-[1.25] tracking-[-0.01em] text-dash-fg"
         title={skill.nome}
       >
         {titulo}
@@ -127,7 +127,7 @@ export function CardSkill({
         )}
       </p>
 
-      <div className="mt-auto flex items-center justify-between gap-2 border-t border-white/[0.06] pt-2.5">
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-dash-hair/[0.06] pt-2.5">
         {naConta ? (
           <span
             data-skill-estado="na-conta"
@@ -147,7 +147,7 @@ export function CardSkill({
               onUsarComoBase(skill.nome);
             }}
             title="Cria uma cópia desta skill na sua conta — o original não muda."
-            className="flex items-center gap-1.5 text-[10px] text-dash-muted transition hover:text-white disabled:opacity-40"
+            className="flex items-center gap-1.5 text-[10px] text-dash-muted transition hover:text-dash-fg disabled:opacity-40"
           >
             usar como base
             <span aria-hidden className="transition-transform duration-200 group-hover:translate-x-[2px]">
@@ -210,13 +210,13 @@ export function DetalheSkill({
       onKeyDown={(e) => {
         if (e.key === "Escape") onFechar();
       }}
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 px-4 backdrop-blur-md"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-dash-scrim/55 px-4 backdrop-blur-md"
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`Detalhe da skill ${titulo}`}
-        className="relative max-h-[90vh] w-full max-w-[560px] overflow-y-auto rounded-[30px] border border-white/[0.18] p-7 text-white"
+        className="relative max-h-[90vh] w-full max-w-[560px] overflow-y-auto rounded-[30px] border border-dash-hair/[0.18] p-7 text-dash-fg"
         style={VIDRO}
       >
         <button
@@ -224,7 +224,7 @@ export function DetalheSkill({
           onClick={onFechar}
           aria-label="Fechar"
           autoFocus
-          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-[10px] text-white/70 transition hover:bg-white/[0.12] hover:text-white"
+          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-[10px] text-dash-fg/70 transition hover:bg-dash-hair/[0.12] hover:text-dash-fg"
         >
           <IconeFechar className="h-4 w-4" />
         </button>
@@ -233,10 +233,10 @@ export function DetalheSkill({
             essa caixa laranja com a letra branca. e tras o escrito do nome alinhado
             aqui na esquerda". O nome abre a linha, encostado na margem do card. */}
         <header className="pr-10">
-          <p data-detalhe-nome className="text-[18px] font-semibold text-white" title={nome}>
+          <p data-detalhe-nome className="text-[18px] font-semibold text-dash-fg" title={nome}>
             {titulo}
           </p>
-          <p className="mt-1 text-[11px] text-white/50">
+          <p className="mt-1 text-[11px] text-dash-fg/50">
             <span className="font-mono">{nome}</span>
           </p>
         </header>
@@ -249,7 +249,7 @@ export function DetalheSkill({
           data-detalhe-criador={criador === "mirai" ? "mirai" : "sem-autor"}
           className="mt-4 flex items-center gap-3"
         >
-          <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-white/[0.15] bg-white/[0.06]">
+          <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-dash-hair/[0.15] bg-dash-hair/[0.06]">
             {criador === "mirai" ? (
               <img
                 src="/logo-mirai-marca.png"
@@ -261,12 +261,12 @@ export function DetalheSkill({
             )}
           </span>
           <div className="min-w-0 leading-tight">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-[#8f939a]">criada por</p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-dash-muted">criada por</p>
             <p
               className={
                 criador === "mirai"
-                  ? "text-[13.5px] font-semibold text-white"
-                  : "text-[13px] text-[#83878f]"
+                  ? "text-[13.5px] font-semibold text-dash-fg"
+                  : "text-[13px] text-dash-muted"
               }
             >
               {criador === "mirai" ? "Mirai" : "sem autor"}
@@ -279,13 +279,13 @@ export function DetalheSkill({
           {tema && (
             <span
               data-detalhe-tema={tema}
-              className="rounded-full bg-white/[0.16] px-3 py-[5px] text-[11px] font-semibold uppercase tracking-[0.14em] text-white"
+              className="rounded-full bg-dash-hair/[0.16] px-3 py-[5px] text-[11px] font-semibold uppercase tracking-[0.14em] text-dash-fg"
             >
               {tema}
             </span>
           )}
           {categoria && (
-            <span className="rounded-full bg-white/[0.08] px-3 py-[5px] text-[11px] text-white/70">
+            <span className="rounded-full bg-dash-hair/[0.08] px-3 py-[5px] text-[11px] text-dash-fg/70">
               pasta: {categoria}
             </span>
           )}
@@ -293,16 +293,16 @@ export function DetalheSkill({
 
         {/* DESCRIÇÃO COMPLETA — o que a skill é/faz (nada inventado) */}
         <div className="mt-5">
-          <p className="mb-1.5 text-[11px] uppercase tracking-[0.16em] text-[#8f939a]">
+          <p className="mb-1.5 text-[11px] uppercase tracking-[0.16em] text-dash-muted">
             O que ela faz
           </p>
-          <p data-detalhe-descricao className="text-[13.5px] leading-[1.6] text-white/90">
-            {descricao ?? <span className="italic text-white/50">sem descrição no arquivo (frontmatter sem description)</span>}
+          <p data-detalhe-descricao className="text-[13.5px] leading-[1.6] text-dash-fg/90">
+            {descricao ?? <span className="italic text-dash-fg/50">sem descrição no arquivo (frontmatter sem description)</span>}
           </p>
         </div>
 
         {base && (
-          <p className="mt-4 text-[11.5px] text-white/60">
+          <p className="mt-4 text-[11.5px] text-dash-fg/60">
             a partir de <span className="font-mono">{nomeDaSkill(base)}</span> — o original segue
             intacto e não muda.
           </p>
@@ -312,7 +312,7 @@ export function DetalheSkill({
           <button
             type="button"
             onClick={onFechar}
-            className="rounded-[10px] border border-white/[0.20] px-5 py-2.5 text-[12px] font-semibold text-white/80 transition hover:text-white"
+            className="rounded-[10px] border border-dash-hair/[0.20] px-5 py-2.5 text-[12px] font-semibold text-dash-fg/80 transition hover:text-dash-fg"
           >
             fechar
           </button>
@@ -325,7 +325,7 @@ export function DetalheSkill({
                 onUsarComoBase(nome);
                 onFechar();
               }}
-              className="rounded-[10px] bg-[#ff751f] px-6 py-2.5 text-[12px] font-semibold text-white transition hover:bg-[#ff2d55] disabled:opacity-40"
+              className="rounded-[10px] bg-dash-brand px-6 py-2.5 text-[12px] font-semibold text-dash-fg transition hover:bg-[#ff2d55] disabled:opacity-40"
             >
               usar como base
             </button>
@@ -336,7 +336,7 @@ export function DetalheSkill({
                   type="button"
                   data-detalhe-acao="editar"
                   onClick={() => onEditar(detalhe.skill as SkillCliente)}
-                  className="rounded-[10px] border border-white/[0.20] px-5 py-2.5 text-[12px] font-semibold text-white/80 transition hover:text-white"
+                  className="rounded-[10px] border border-dash-hair/[0.20] px-5 py-2.5 text-[12px] font-semibold text-dash-fg/80 transition hover:text-dash-fg"
                 >
                   editar
                 </button>
@@ -347,7 +347,7 @@ export function DetalheSkill({
                   data-detalhe-acao="apagar"
                   disabled={ocupado}
                   onClick={() => onApagar(detalhe.skill as SkillCliente)}
-                  className="rounded-[10px] border border-[#ff96a0]/40 px-5 py-2.5 text-[12px] font-semibold text-[#ff96a0] transition hover:bg-[#ff96a0]/10 disabled:opacity-40"
+                  className="rounded-[10px] border border-dash-bad/40 px-5 py-2.5 text-[12px] font-semibold text-dash-bad transition hover:bg-dash-bad/10 disabled:opacity-40"
                 >
                   apagar
                 </button>

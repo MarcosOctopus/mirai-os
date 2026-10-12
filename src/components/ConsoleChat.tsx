@@ -63,7 +63,7 @@ export default function ConsoleChat({
           onClick={onMicClick}
           disabled={disabled}
           aria-label="Microfone"
-          className="mb-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-700/50 hover:text-white disabled:opacity-40 disabled:hover:bg-transparent"
+          className="mb-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-700/50 hover:text-dash-fg disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -87,7 +87,7 @@ export default function ConsoleChat({
           onClick={onAttach}
           disabled={disabled}
           aria-label="Anexar"
-          className="mb-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-700/50 hover:text-white disabled:opacity-40 disabled:hover:bg-transparent"
+          className="mb-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-700/50 hover:text-dash-fg disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -114,7 +114,7 @@ export default function ConsoleChat({
             disabled={disabled}
             placeholder={placeholder}
             rows={1}
-            className="block w-full resize-none bg-transparent px-4 py-3 text-sm leading-6 text-white placeholder-gray-500 outline-none scrollbar-thin scrollbar-thumb-gray-700"
+            className="block w-full resize-none bg-transparent px-4 py-3 text-sm leading-6 text-dash-fg placeholder-gray-500 outline-none scrollbar-thin scrollbar-thumb-gray-700"
             style={{ maxHeight: `${24 * 4}px` }}
           />
         </div>
@@ -127,7 +127,7 @@ export default function ConsoleChat({
           aria-label="Enviar"
           className={`mb-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all ${
             hasText && !disabled
-              ? 'bg-[#2b6ef0] text-white hover:bg-[#1e5cd6] shadow-lg shadow-blue-500/20'
+              ? 'bg-[#2b6ef0] text-dash-fg hover:bg-[#1e5cd6] shadow-lg shadow-blue-500/20'
               : 'bg-gray-700/50 text-gray-500'
           }`}
         >

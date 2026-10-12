@@ -75,7 +75,7 @@ export default function ChatInterface({
                   className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
                     isUser
                       ? "bg-blue-600/80 text-white rounded-br-md"
-                      : "bg-white/5 text-gray-200 rounded-bl-md"
+                      : "bg-dash-hair/5 text-gray-200 rounded-bl-md"
                   }`}
                 >
                   {!isUser && (
@@ -108,7 +108,7 @@ export default function ChatInterface({
             animate={{ opacity: 1 }}
             className="flex justify-start"
           >
-            <div className="bg-white/5 rounded-2xl rounded-bl-md px-4 py-3">
+            <div className="bg-dash-hair/5 rounded-2xl rounded-bl-md px-4 py-3">
               <div className="flex gap-1.5">
                 <motion.span
                   className="w-2 h-2 bg-cyan-400 rounded-full"
@@ -136,7 +136,7 @@ export default function ChatInterface({
       {/* Input area */}
       <form
         onSubmit={handleSubmit}
-        className="flex items-center gap-2 px-4 py-3 border-t border-white/5"
+        className="flex items-center gap-2 px-4 py-3 border-t border-dash-hair/5"
       >
         <input
           ref={inputRef}
@@ -145,8 +145,8 @@ export default function ChatInterface({
           onChange={(e) => setInput(e.target.value)}
           placeholder="Digite sua mensagem..."
           disabled={isThinking}
-          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white 
-                     placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 focus:bg-white/[0.07]
+          className="flex-1 bg-dash-hair/5 border border-dash-hair/10 rounded-xl px-4 py-2.5 text-sm text-dash-fg 
+                     placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 focus:bg-dash-hair/[0.07]
                      transition-colors disabled:opacity-40"
         />
         <motion.button

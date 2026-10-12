@@ -112,7 +112,7 @@ export default function Nav({
         ? "bg-cyan-500/15 font-semibold text-cyan-100 hover:bg-cyan-500/25"
         : i.href === atual
           ? "bg-cyan-500/15 text-cyan-200"
-          : "text-white/60 hover:bg-white/5 hover:text-white"
+          : "text-dash-fg/60 hover:bg-dash-hair/5 hover:text-dash-fg"
     }`;
 
   const gaveta = aberto && montado
@@ -129,7 +129,7 @@ export default function Nav({
           type="button"
           onClick={() => setAberto(false)}
           aria-label="Fechar menu"
-          className="rounded-lg border border-white/15 p-2 text-cyan-200 hover:bg-white/5"
+          className="rounded-lg border border-dash-hair/15 p-2 text-cyan-200 hover:bg-dash-hair/5"
         >
           <IconeFechar />
         </button>
@@ -146,18 +146,18 @@ export default function Nav({
                 ? "border-cyan-400/50 bg-cyan-500/10"
                 : i.href === atual
                   ? "border-cyan-400/40 bg-cyan-500/10"
-                  : "border-white/10 hover:bg-white/5"
+                  : "border-dash-hair/10 hover:bg-dash-hair/5"
             }`}
           >
-            <span className={`block text-base ${i.destaque ? "font-semibold text-cyan-100" : "text-white"}`}>
+            <span className={`block text-base ${i.destaque ? "font-semibold text-cyan-100" : "text-dash-fg"}`}>
               {i.label}
             </span>
-            <span className="mt-0.5 block text-xs text-white/40">{i.desc}</span>
+            <span className="mt-0.5 block text-xs text-dash-fg/40">{i.desc}</span>
           </Link>
         ))}
 
         {/* Mesma separação da lateral: o secundário é um grupo à parte. */}
-        {secundarios.length > 0 && <div className="my-1 h-px bg-white/10" />}
+        {secundarios.length > 0 && <div className="my-1 h-px bg-dash-hair/10" />}
 
         {secundarios.map((i) => (
           <Link
@@ -167,11 +167,11 @@ export default function Nav({
             className={`rounded-xl border px-4 py-4 transition-colors ${
               i.href === atual
                 ? "border-cyan-400/40 bg-cyan-500/10"
-                : "border-white/10 hover:bg-white/5"
+                : "border-dash-hair/10 hover:bg-dash-hair/5"
             }`}
           >
-            <span className="block text-base text-white">{i.label}</span>
-            <span className="mt-0.5 block text-xs text-white/40">{i.desc}</span>
+            <span className="block text-base text-dash-fg">{i.label}</span>
+            <span className="mt-0.5 block text-xs text-dash-fg/40">{i.desc}</span>
           </Link>
         ))}
       </div>
@@ -179,7 +179,7 @@ export default function Nav({
       <button
         type="button"
         onClick={sair}
-        className="mt-auto rounded-xl border border-white/10 px-4 py-4 text-left text-sm text-white/50 hover:bg-white/5"
+        className="mt-auto rounded-xl border border-dash-hair/10 px-4 py-4 text-left text-sm text-dash-fg/50 hover:bg-dash-hair/5"
       >
             Sair
           </button>
@@ -200,7 +200,7 @@ export default function Nav({
           }}
           onPointerDown={(e) => e.stopPropagation()}
           aria-label="Abrir menu"
-          className="fixed left-4 top-4 z-50 rounded-xl border border-cyan-300/20 bg-black/40 p-2.5 text-cyan-200/80 backdrop-blur hover:bg-black/70 hover:text-cyan-100"
+          className="fixed left-4 top-4 z-50 rounded-xl border border-cyan-300/20 bg-dash-scrim/40 p-2.5 text-cyan-200/80 backdrop-blur hover:bg-dash-scrim/70 hover:text-cyan-100"
         >
           <IconeMenu />
         </button>
@@ -210,7 +210,7 @@ export default function Nav({
   }
 
   return (
-    <nav className="sticky top-0 z-40 border-b border-white/10 bg-[#03040d]/95 backdrop-blur">
+    <nav className="sticky top-0 z-40 border-b border-dash-hair/10 bg-[#03040d]/95 backdrop-blur">
       {/* celular: título + hambúrguer */}
       <div className="flex items-center justify-between px-4 py-3 md:hidden">
         <Link
@@ -223,7 +223,7 @@ export default function Nav({
           type="button"
           onClick={() => setAberto(true)}
           aria-label="Abrir menu"
-          className="rounded-lg border border-white/15 p-2 text-cyan-200 hover:bg-white/5"
+          className="rounded-lg border border-dash-hair/15 p-2 text-cyan-200 hover:bg-dash-hair/5"
         >
           <IconeMenu />
         </button>
@@ -240,7 +240,7 @@ export default function Nav({
           </Link>
         ))}
 
-        {secundarios.length > 0 && <div className="mx-1.5 h-5 w-px bg-white/10" />}
+        {secundarios.length > 0 && <div className="mx-1.5 h-5 w-px bg-dash-hair/10" />}
 
         {secundarios.map((i) => (
           <Link key={i.href} href={i.href} className={itemClasse(i)}>
@@ -250,7 +250,7 @@ export default function Nav({
         <button
           type="button"
           onClick={sair}
-          className="ml-auto rounded-lg px-3 py-2 text-sm text-white/45 hover:bg-white/5 hover:text-white"
+          className="ml-auto rounded-lg px-3 py-2 text-sm text-dash-fg/45 hover:bg-dash-hair/5 hover:text-dash-fg"
         >
           Sair
         </button>

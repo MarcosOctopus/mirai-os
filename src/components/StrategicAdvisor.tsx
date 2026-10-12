@@ -35,7 +35,7 @@ export default function StrategicAdvisor({ recommendations }: { recommendations?
         {data.map((r, i) => {
           const tc = TYPE_CONFIG[r.type];
           return (
-            <div key={i} className="flex items-start gap-2 border-b border-white/5 pb-1.5 last:border-0">
+            <div key={i} className="flex items-start gap-2 border-b border-dash-hair/5 pb-1.5 last:border-0">
               <span className="flex-shrink-0 text-[10px] mt-[2px]" style={{ color: tc.color }}>
                 {tc.icon}
               </span>

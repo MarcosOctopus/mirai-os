@@ -16,8 +16,8 @@ export function Card({
 }) {
   return (
     <section
-      className={`rounded-[24px] border border-white/[0.07] bg-dash-card p-6 ${
-        interativo ? "transition-colors hover:border-white/15" : ""
+      className={`rounded-[24px] border border-dash-hair/[0.07] bg-dash-card p-6 ${
+        interativo ? "transition-colors hover:border-dash-hair/15" : ""
       } ${className}`}
     >
       {children}
@@ -40,7 +40,7 @@ export function CardTitulo({
         {rotulo && (
           <p className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">{rotulo}</p>
         )}
-        <h2 className="mt-1 truncate text-[17px] font-semibold text-white">{titulo}</h2>
+        <h2 className="mt-1 truncate text-[17px] font-semibold text-dash-fg">{titulo}</h2>
       </div>
       {acao}
     </header>
@@ -78,7 +78,7 @@ export function StatCard({
 
   return (
     <section
-      className={`rounded-[24px] border border-white/[0.07] bg-dash-card p-5 ${className}`}
+      className={`rounded-[24px] border border-dash-hair/[0.07] bg-dash-card p-5 ${className}`}
     >
       <div className="flex items-center gap-2.5">
         {icone && (
@@ -89,7 +89,7 @@ export function StatCard({
         <p className="text-[13px] text-dash-muted">{rotulo}</p>
       </div>
       <p
-        className={`mt-4 truncate font-public leading-none font-semibold text-white ${
+        className={`mt-4 truncate font-public leading-none font-semibold text-dash-fg ${
           tamanho === "medio" ? "text-[22px]" : "text-[30px]"
         }`}
         title={typeof valor === "string" ? valor : undefined}
@@ -114,7 +114,7 @@ export function Chip({
   const classe = `shrink-0 rounded-full px-4 py-[7px] text-[12px] transition ${
     ativo
       ? "bg-dash-brand text-white"
-      : "bg-dash-raise text-dash-muted hover:text-white"
+      : "bg-dash-raise text-dash-muted hover:text-dash-fg"
   }`;
   return onClick ? (
     <button onClick={onClick} className={classe}>
@@ -193,7 +193,7 @@ export function Secao({
   return (
     <section className="mt-8">
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h2 className="text-[19px] font-semibold text-white">{titulo}</h2>
+        <h2 className="text-[19px] font-semibold text-dash-fg">{titulo}</h2>
         {contagem && <span className="text-[13px] text-dash-muted">{contagem}</span>}
         {acao && <div className="ml-auto flex items-center gap-3">{acao}</div>}
       </div>
@@ -217,7 +217,7 @@ export function Tabela({
     <div className="overflow-x-auto rounded-[20px] bg-dash-side">
       <div className="min-w-[820px]">
         <div
-          className="grid gap-6 border-b border-white/[0.07] px-6 py-[15px] text-[12px] text-dash-muted"
+          className="grid gap-6 border-b border-dash-hair/[0.07] px-6 py-[15px] text-[12px] text-dash-muted"
           style={{ gridTemplateColumns: grade }}
         >
           {colunas.map((c) => (
@@ -232,7 +232,7 @@ export function Tabela({
           linhas.map((l) => (
             <div
               key={l.chave}
-              className="grid items-center gap-6 border-b border-white/[0.04] px-6 py-[14px] text-[13px] text-dash-muted last:border-0"
+              className="grid items-center gap-6 border-b border-dash-hair/[0.04] px-6 py-[14px] text-[13px] text-dash-muted last:border-0"
               style={{ gridTemplateColumns: grade }}
             >
               {colunas.map((c) => (
@@ -261,9 +261,9 @@ export function Vazio({
   acao?: { href: string; label: string; externo?: boolean };
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-[24px] border border-dashed border-white/10 bg-dash-card/60 px-6 py-12 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-[24px] border border-dashed border-dash-hair/10 bg-dash-card/60 px-6 py-12 text-center">
       {icone && <span className="text-dash-dim">{icone}</span>}
-      <p className="text-[15px] font-semibold text-white">{titulo}</p>
+      <p className="text-[15px] font-semibold text-dash-fg">{titulo}</p>
       {texto && <p className="max-w-sm text-[13px] leading-[1.6] text-dash-muted">{texto}</p>}
       {acao &&
         (acao.externo ? (
@@ -304,7 +304,7 @@ export function Botao({
   const classe = `inline-flex items-center justify-center gap-2 rounded-[10px] px-5 py-2.5 text-[12px] font-semibold transition ${
     variante === "marca"
       ? "bg-dash-brand text-white hover:bg-dash-brandHi"
-      : "border border-white/12 text-dash-muted hover:text-white"
+      : "border border-dash-hair/12 text-dash-muted hover:text-dash-fg"
   } ${className}`;
   return externo ? (
     <a href={href} target="_blank" rel="noreferrer" className={classe}>

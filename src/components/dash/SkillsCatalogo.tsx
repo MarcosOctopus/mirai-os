@@ -248,7 +248,7 @@ export default function SkillsCatalogo({ mostrarOrigens = false }: { mostrarOrig
       <div className="rounded-[20px] bg-dash-side/50 p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-[15px] font-semibold text-white">Skills do ecossistema</h2>
+            <h2 className="text-[15px] font-semibold text-dash-fg">Skills do ecossistema</h2>
             {/* Sem caminho interno e sem nome de runtime na tela (08/10/2026): o
                 cliente não precisa saber onde nem sobre o que a biblioteca roda. */}
             <p className="mt-1 text-[12px] leading-[1.6] text-dash-muted">
@@ -289,13 +289,13 @@ export default function SkillsCatalogo({ mostrarOrigens = false }: { mostrarOrig
             onChange={(e) => setBusca(e.target.value)}
             data-skills-busca
             placeholder="Buscar por nome, descrição ou categoria…"
-            className="min-w-[220px] flex-1 rounded-[12px] border border-white/10 bg-dash-bg px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
+            className="min-w-[220px] flex-1 rounded-[12px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
           />
           <Link
             href="/dashboard/skills"
             data-ver-todas-skills
             title="Ver todas as skills em grade"
-            className="rounded-[10px] border border-white/12 px-4 py-2.5 text-[12px] text-dash-muted transition hover:text-white"
+            className="rounded-[10px] border border-dash-hair/12 px-4 py-2.5 text-[12px] text-dash-muted transition hover:text-dash-fg"
           >
             Ver todas as skills ({skills.length})
           </Link>
@@ -306,8 +306,8 @@ export default function SkillsCatalogo({ mostrarOrigens = false }: { mostrarOrig
             "comunidade" é mostrada como "em breve". */}
         {mostrarOrigens && !erro && (
           <div data-origens className="mt-4 grid gap-2 sm:grid-cols-3">
-            <div data-origem="nossa" className="rounded-[12px] border border-white/10 bg-dash-bg px-3.5 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white">nossa</p>
+            <div data-origem="nossa" className="rounded-[12px] border border-dash-hair/10 bg-dash-bg px-3.5 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-dash-fg">nossa</p>
               <p className="mt-1 text-[11.5px] leading-[1.5] text-dash-muted">
                 {carregando ? "contando…" : `${skills.length} skills lidas do ecossistema`}
               </p>
@@ -315,9 +315,9 @@ export default function SkillsCatalogo({ mostrarOrigens = false }: { mostrarOrig
             <div
               data-origem="do-cliente"
               data-contagem={minhas.length}
-              className="rounded-[12px] border border-white/10 bg-dash-bg px-3.5 py-2.5"
+              className="rounded-[12px] border border-dash-hair/10 bg-dash-bg px-3.5 py-2.5"
             >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white">do cliente</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-dash-fg">do cliente</p>
               <p className="mt-1 text-[11.5px] leading-[1.5] text-dash-muted">
                 {carregando
                   ? "contando…"
@@ -326,8 +326,8 @@ export default function SkillsCatalogo({ mostrarOrigens = false }: { mostrarOrig
                     : `${minhas.length} ${minhas.length === 1 ? "criada" : "criadas"} por você`}
               </p>
             </div>
-            <div data-origem="comunidade" className="rounded-[12px] border border-white/10 bg-dash-bg px-3.5 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white">comunidade</p>
+            <div data-origem="comunidade" className="rounded-[12px] border border-dash-hair/10 bg-dash-bg px-3.5 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-dash-fg">comunidade</p>
               <p className="mt-1 text-[11.5px] leading-[1.5] text-dash-dim">em breve</p>
             </div>
           </div>
@@ -335,7 +335,7 @@ export default function SkillsCatalogo({ mostrarOrigens = false }: { mostrarOrig
 
         {/* Aviso/erro de ação (copiar base, apagar) — PT-BR, sem tecnicismo. */}
         {avisoAcao && (
-          <p data-acao-aviso className="mt-3 text-[12.5px] leading-[1.6] text-[#8effa2]">
+          <p data-acao-aviso className="mt-3 text-[12.5px] leading-[1.6] text-dash-ok">
             {avisoAcao}
           </p>
         )}
@@ -379,7 +379,7 @@ export default function SkillsCatalogo({ mostrarOrigens = false }: { mostrarOrig
               {mostrarOrigens && minhasFiltradas.length > 0 && (
                 <div data-skills-categoria="Do cliente">
                   <p className="text-[11px] uppercase tracking-[0.16em] text-dash-dim">
-                    Do cliente <span className="text-white/40">· {minhasFiltradas.length}</span>
+                    Do cliente <span className="text-dash-fg/40">· {minhasFiltradas.length}</span>
                   </p>
                   <ul className="mt-2 space-y-1">
                     {minhasFiltradas.map((s) => (
@@ -388,10 +388,10 @@ export default function SkillsCatalogo({ mostrarOrigens = false }: { mostrarOrig
                         data-skill={s.nome}
                         data-skill-origem="do-cliente"
                         data-skill-cliente-id={s.id}
-                        className="rounded-[10px] px-3 py-2.5 transition hover:bg-white/[0.04]"
+                        className="rounded-[10px] px-3 py-2.5 transition hover:bg-dash-hair/[0.04]"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <p className="font-mono text-[12.5px] text-white">{s.nome}</p>
+                          <p className="font-mono text-[12.5px] text-dash-fg">{s.nome}</p>
                           <div className="flex shrink-0 items-center gap-2">
                             <span
                               data-skill-origem-badge="do-cliente"
@@ -404,7 +404,7 @@ export default function SkillsCatalogo({ mostrarOrigens = false }: { mostrarOrig
                               type="button"
                               data-skill-editar={s.id}
                               onClick={() => abrirEdicao(s)}
-                              className="rounded-full border border-white/12 px-2.5 py-[3px] text-[10px] text-dash-muted transition hover:text-white"
+                              className="rounded-full border border-dash-hair/12 px-2.5 py-[3px] text-[10px] text-dash-muted transition hover:text-dash-fg"
                             >
                               editar
                             </button>
@@ -427,7 +427,7 @@ export default function SkillsCatalogo({ mostrarOrigens = false }: { mostrarOrig
                         {s.base && (
                           <p className="mt-1 text-[10.5px] text-dash-dim">
                             a partir de{" "}
-                            <span className="font-mono text-white/60">{s.base}</span> — o original
+                            <span className="font-mono text-dash-fg/60">{s.base}</span> — o original
                             segue intacto e não muda.
                           </p>
                         )}
@@ -442,17 +442,17 @@ export default function SkillsCatalogo({ mostrarOrigens = false }: { mostrarOrig
               {grupos.map(([categoria, itens]) => (
                 <div key={categoria} data-skills-categoria={categoria}>
                   <p className="text-[11px] uppercase tracking-[0.16em] text-dash-dim">
-                    {categoria} <span className="text-white/40">· {itens.length}</span>
+                    {categoria} <span className="text-dash-fg/40">· {itens.length}</span>
                   </p>
                   <ul className="mt-2 space-y-0.5">
                     {itens.map((s) => (
                       <li
                         key={`${categoria}/${s.nome}`}
                         data-skill={s.nome}
-                        className="rounded-[10px] px-3 py-2 transition hover:bg-white/[0.04]"
+                        className="rounded-[10px] px-3 py-2 transition hover:bg-dash-hair/[0.04]"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <p className="font-mono text-[12.5px] text-white">{s.nome}</p>
+                          <p className="font-mono text-[12.5px] text-dash-fg">{s.nome}</p>
                           <div className="flex shrink-0 items-center gap-2">
                             {mostrarOrigens && (
                               <button
@@ -461,7 +461,7 @@ export default function SkillsCatalogo({ mostrarOrigens = false }: { mostrarOrig
                                 disabled={ocupado}
                                 onClick={() => void usarComoBase(s.nome)}
                                 title="Cria uma cópia desta skill na sua conta — o original não muda."
-                                className="rounded-full border border-white/12 px-2.5 py-[3px] text-[10px] text-dash-muted transition hover:text-white disabled:opacity-40"
+                                className="rounded-full border border-dash-hair/12 px-2.5 py-[3px] text-[10px] text-dash-muted transition hover:text-dash-fg disabled:opacity-40"
                               >
                                 usar como base
                               </button>
@@ -543,7 +543,7 @@ function FormularioSkill({
 }) {
   const overlay = useRef<HTMLDivElement>(null);
   const campoClasse =
-    "w-full rounded-[10px] border border-white/10 bg-[#121416] px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-[#555a5f] focus:border-[#ff751f]/60";
+    "w-full rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60";
 
   return (
     <div
@@ -554,34 +554,34 @@ function FormularioSkill({
       onKeyDown={(e) => {
         if (e.key === "Escape") onFechar();
       }}
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 px-4 backdrop-blur-md"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-dash-scrim/55 px-4 backdrop-blur-md"
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={editando ? "Editar skill" : "Nova skill"}
         data-skill-form
-        className="relative max-h-[90vh] w-full max-w-[560px] overflow-y-auto rounded-[30px] border border-white/[0.18] p-7 text-white"
+        className="relative max-h-[90vh] w-full max-w-[560px] overflow-y-auto rounded-[30px] border border-dash-hair/[0.18] p-7 text-dash-fg"
         style={VIDRO}
       >
         <button
           type="button"
           onClick={onFechar}
           aria-label="Fechar"
-          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-[10px] text-white/70 transition hover:bg-white/[0.12] hover:text-white"
+          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-[10px] text-dash-fg/70 transition hover:bg-dash-hair/[0.12] hover:text-dash-fg"
         >
           <IconeFechar className="h-4 w-4" />
         </button>
 
         <header className="flex items-center gap-3.5 pr-10">
           <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-dash-brand/80">
-            <IconeSkills className="h-5 w-5 text-white" />
+            <IconeSkills className="h-5 w-5 text-dash-fg" />
           </span>
           <div>
-            <p className="text-[17px] font-semibold text-white">
+            <p className="text-[17px] font-semibold text-dash-fg">
               {editando ? "Editar skill" : "Nova skill"}
             </p>
-            <p className="mt-0.5 text-[12px] text-white/60">
+            <p className="mt-0.5 text-[12px] text-dash-fg/60">
               Instruções que a sua Mirai segue. É só texto — nada de código roda a partir daqui.
             </p>
           </div>
@@ -589,7 +589,7 @@ function FormularioSkill({
 
         <div className="mt-6 space-y-4">
           <label className="block">
-            <span className="mb-1.5 block text-[11px] uppercase tracking-[0.16em] text-[#8f939a]">
+            <span className="mb-1.5 block text-[11px] uppercase tracking-[0.16em] text-dash-muted">
               Nome
             </span>
             <input
@@ -607,8 +607,8 @@ function FormularioSkill({
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-[11px] uppercase tracking-[0.16em] text-[#8f939a]">
-              Descrição <span className="normal-case text-[#555a5f]">(o que é, curta)</span>
+            <span className="mb-1.5 block text-[11px] uppercase tracking-[0.16em] text-dash-muted">
+              Descrição <span className="normal-case text-dash-dim">(o que é, curta)</span>
             </span>
             <input
               type="text"
@@ -623,7 +623,7 @@ function FormularioSkill({
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-[11px] uppercase tracking-[0.16em] text-[#8f939a]">
+            <span className="mb-1.5 block text-[11px] uppercase tracking-[0.16em] text-dash-muted">
               Instruções
             </span>
             <textarea
@@ -640,7 +640,7 @@ function FormularioSkill({
         {/* A REGRA, dita na tela, em PT-BR (item obrigatório da fase). */}
         <p
           data-aviso-sem-segredo
-          className="mt-5 rounded-[12px] border border-[#ff751f]/30 bg-[#ff751f]/[0.07] px-4 py-3 text-[11.5px] leading-[1.6] text-[#ffb27a]"
+          className="mt-5 rounded-[12px] border border-dash-brand/30 bg-dash-brand/[0.07] px-4 py-3 text-[11.5px] leading-[1.6] text-dash-brandHi"
         >
           Uma skill é instruções que o assistente segue — <b>nunca uma senha, token ou chave de
           API</b>. Não há campo para credencial aqui, e o servidor recusa o que parecer segredo.
@@ -657,7 +657,7 @@ function FormularioSkill({
           <button
             type="button"
             onClick={onFechar}
-            className="rounded-[10px] border border-white/[0.20] px-5 py-2.5 text-[12px] font-semibold text-white/80 transition hover:text-white"
+            className="rounded-[10px] border border-dash-hair/[0.20] px-5 py-2.5 text-[12px] font-semibold text-dash-fg/80 transition hover:text-dash-fg"
           >
             cancelar
           </button>
@@ -666,7 +666,7 @@ function FormularioSkill({
             onClick={onSalvar}
             disabled={salvando}
             data-skill-salvar
-            className="rounded-[10px] bg-[#ff751f] px-6 py-2.5 text-[12px] font-semibold text-white transition hover:bg-[#ff2d55] disabled:opacity-40"
+            className="rounded-[10px] bg-dash-brand px-6 py-2.5 text-[12px] font-semibold text-dash-fg transition hover:bg-[#ff2d55] disabled:opacity-40"
           >
             {salvando ? "salvando…" : editando ? "salvar" : "criar skill"}
           </button>

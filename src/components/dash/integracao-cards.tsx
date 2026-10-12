@@ -29,7 +29,7 @@ export function Logo({ item, tamanho = 46 }: { item: Integracao; tamanho?: numbe
 
   return (
     <span
-      className="grid shrink-0 place-items-center overflow-hidden rounded-[12px] bg-[#32393e] text-[#888b93]"
+      className="grid shrink-0 place-items-center overflow-hidden rounded-[12px] bg-dash-raise text-dash-muted"
       style={{ height: tamanho, width: tamanho }}
     >
       {falhou ? (
@@ -58,7 +58,7 @@ export function Figura({ item, tamanho }: { item: Integracao; tamanho: number })
   if (falhou) {
     return (
       <span
-        className="grid shrink-0 place-items-center rounded-[4px] bg-white/10 font-semibold text-[#ff751f]"
+        className="grid shrink-0 place-items-center rounded-[4px] bg-dash-hair/10 font-semibold text-dash-brand"
         style={{ height: tamanho, width: tamanho, fontSize: Math.round(tamanho * 0.6) }}
       >
         {inicial}
@@ -145,21 +145,21 @@ export function CardIntegracao({
       </span>
 
       {/* o NOME da integração, UMA única vez, na faixa de baixo do card */}
-      <span className="absolute left-[10px] right-[10px] top-[103px] block truncate text-[11px] text-[#ff751f]">
+      <span className="absolute left-[10px] right-[10px] top-[103px] block truncate text-[11px] text-dash-brand">
         {item.nome}
       </span>
 
       {/* UMA linha HONESTA do que a integração É (08/10/2026). Quando não há
           linha, nada é mostrado — nunca se inventa descrição. */}
       {item.explicacao && (
-        <span className="absolute left-[10px] right-[10px] top-[121px] line-clamp-2 text-[8.5px] leading-[1.2] text-[#888b93]">
+        <span className="absolute left-[10px] right-[10px] top-[121px] line-clamp-2 text-[8.5px] leading-[1.2] text-dash-muted">
           {item.explicacao}
         </span>
       )}
 
       <div className="public-sans absolute bottom-[10px] left-[10px] right-[10px] flex justify-between text-[10px]">
-        <span className="text-[#888b93]">Tipo</span>
-        <span className="text-white">{item.tipo === "mcp" ? "MCP" : "API"}</span>
+        <span className="text-dash-muted">Tipo</span>
+        <span className="text-dash-fg">{item.tipo === "mcp" ? "MCP" : "API"}</span>
       </div>
 
       {/* ESTADO do card — o MESMO estado de Destaques e da tabela (uma fonte
@@ -169,12 +169,12 @@ export function CardIntegracao({
           "indisponível" COM o motivo no title — igual à lista Destaques: nunca
           um card que parece igual aos outros e leva a um beco sem saída. */}
       <div
-        className="absolute left-1 top-0.5 flex items-center gap-[7px] text-[10px] text-white"
+        className="absolute left-1 top-0.5 flex items-center gap-[7px] text-[10px] text-dash-fg"
         title={!conectada && !pronta ? motivo : undefined}
       >
         <span
           className={`h-1.5 w-1.5 rounded-full ${
-            conectada ? "bg-[#8effa2]" : !pronta ? "bg-[#888b93]" : "bg-[#ff2d55]"
+            conectada ? "bg-dash-ok" : !pronta ? "bg-dash-muted" : "bg-[#ff2d55]"
           }`}
         />
         {conectada ? "conectada" : !pronta ? "indisponível" : "não conectada"}

@@ -11,6 +11,80 @@
   --pink: #ff2d78;
   --orange: #ff6b35;
   --bg-deep: #03040d;
+
+  /* ─── TEMA DO PADRÃO DASH (o escuro é o padrão) ───────────────────────────
+     Canais RGB, sem `rgb()` e sem vírgulas: é o formato que o Tailwind exige
+     para conseguir aplicar alfa (`bg-dash-fg/85`, `border-dash-hair/10`).
+     Trocar de tema = trocar estes números (ver `html.light` abaixo). NENHUMA
+     classe do app precisa mudar — foi para isso que os tokens viraram
+     variáveis no tailwind.config.
+
+     `fg` é a TINTA (o que era `text-white`) e `hair` é o FIO (o que era
+     `border-white/`, `bg-white/`). São os dois que INVERTEM no tema claro:
+     branco vira preto. Os demais só mudam de tom. */
+  --dash-bg: 18 20 22;
+  --dash-side: 24 28 31;
+  --dash-card: 22 23 25;
+  --dash-raise: 50 57 62;
+  --dash-line: 37 41 44;
+  --dash-line2: 36 39 42;
+  --dash-fg: 255 255 255;
+  --dash-hair: 255 255 255;
+  --dash-scrim: 0 0 0;
+  --dash-muted: 136 139 147;
+  --dash-dim: 85 90 95;
+  --dash-brand: 255 117 31;
+  --dash-brandHi: 255 143 77;
+  --dash-ok: 142 255 162;
+  --dash-warn: 255 221 157;
+  --dash-bad: 255 150 160;
+
+  /* controles NATIVOS (barra de rolagem, seletor de data, autofill) seguem o
+     tema — sem isto o claro ficaria com barra de rolagem escura */
+  color-scheme: dark;
+}
+
+/* ─── TEMA CLARO ──────────────────────────────────────────────────────────
+   A classe `light` entra no <html> (o script do layout a aplica ANTES da 1ª
+   pintura, senão a tela pisca escura ao abrir). Só os valores mudam.
+
+   Três decisões que não são óbvias:
+   1. o fundo NÃO é branco puro (245 245 243, levemente quente) — branco puro
+      em tela grande cansa a vista e faz o cartão branco sumir;
+   2. o cartão É branco puro, então ele "levanta" do fundo sem precisar de
+      sombra pesada;
+   3. o laranja da marca ESCURECE (230 88 12): o laranja do tema escuro sobre
+      fundo claro fica lavado e o texto branco em cima dele perde contraste. */
+html.light {
+  --dash-bg: 245 245 243;
+  --dash-side: 252 252 251;
+  --dash-card: 255 255 255;
+  --dash-raise: 240 240 238;
+  --dash-line: 226 226 223;
+  --dash-line2: 232 232 229;
+  --dash-fg: 24 25 28;
+  --dash-hair: 0 0 0;
+  --dash-scrim: 0 0 0;
+  --dash-muted: 98 102 110;
+  --dash-dim: 138 143 150;
+  --dash-brand: 230 88 12;
+  --dash-brandHi: 255 117 31;
+  --dash-ok: 21 128 61;
+  --dash-warn: 161 98 7;
+  --dash-bad: 190 40 55;
+
+  color-scheme: light;
+}
+
+/* ─── A LOGO NO TEMA CLARO ────────────────────────────────────────────────
+   `logo-mirai.png` é símbolo laranja + a palavra MIRAI em contorno BRANCO —
+   feita para fundo escuro. Sobre fundo claro o texto some (medido: branco
+   sobre branco). O filtro abaixo inverte e gira a matiz: o branco vira PRETO
+   e o laranja volta a ser laranja (a inversão sozinha trocaria o laranja por
+   azul; o `hue-rotate(180deg)` desfaz isso). É o mesmo truque que preserva a
+   cor da marca sem precisar de um segundo arquivo de imagem. */
+html.light .logo-tema {
+  filter: invert(1) hue-rotate(180deg);
 }
 
 /* Padrão Dash — tipografia das páginas internas (o Orb continua com a dele) */

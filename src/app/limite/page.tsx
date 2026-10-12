@@ -40,10 +40,10 @@ export default function LimitePage() {
         <img
           src="/logo-mirai.png"
           alt="Mirai"
-          className="mx-auto h-[26px] w-auto max-w-none object-contain"
+          className="logo-tema mx-auto h-[26px] w-auto max-w-none object-contain"
         />
 
-        <h1 className="mt-8 text-[19px] font-semibold leading-[1.45] text-white">
+        <h1 className="mt-8 text-[19px] font-semibold leading-[1.45] text-dash-fg">
           Desculpe, você chegou no limite do seu plano.
         </h1>
 
@@ -53,7 +53,7 @@ export default function LimitePage() {
           ) : (
             <>
               O seu plano inclui{" "}
-              <span className="text-white">{limite} acessos simultâneos</span>. Assim que a
+              <span className="text-dash-fg">{limite} acessos simultâneos</span>. Assim que a
               concorrência baixar, é só tentar de novo.
             </>
           )}

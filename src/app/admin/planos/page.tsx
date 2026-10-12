@@ -166,7 +166,7 @@ function Chave({
       onClick={onToggle}
       title={ligado ? "Ligado — clique para desligar" : "Desligado — clique para ligar"}
       className={`inline-flex h-[22px] w-[40px] shrink-0 items-center rounded-full border px-[3px] transition disabled:opacity-50 ${
-        ligado ? "border-dash-brand/70 bg-dash-brand/25" : "border-white/15 bg-dash-raise"
+        ligado ? "border-dash-brand/70 bg-dash-brand/25" : "border-dash-hair/15 bg-dash-raise"
       }`}
     >
       <span
@@ -179,7 +179,7 @@ function Chave({
 }
 
 const campoClasse =
-  "rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60";
+  "rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60";
 
 /* ── Tela ────────────────────────────────────────────────────────────────── */
 export default function PlanosPage() {
@@ -483,10 +483,10 @@ export default function PlanosPage() {
     return {
       chave: primeiro(u.user_id, u.id, u.email) || `u${i}`,
       celulas: {
-        nome: <span className="text-white">{primeiro(u.nome, u.name) || "—"}</span>,
+        nome: <span className="text-dash-fg">{primeiro(u.nome, u.name) || "—"}</span>,
         email: <span className="truncate">{u.email || "—"}</span>,
         organizacao: (
-          <span className="text-white">
+          <span className="text-dash-fg">
             {primeiro(u.organizacao, u.org_nome, u.tenant_id) || "—"}
           </span>
         ),
@@ -502,7 +502,7 @@ export default function PlanosPage() {
               {extras.slice(0, 4).map((x) => (
                 <span
                   key={x}
-                  className="rounded-full border border-white/12 px-2 py-[2px] text-[10px] text-dash-muted"
+                  className="rounded-full border border-dash-hair/12 px-2 py-[2px] text-[10px] text-dash-muted"
                 >
                   {x}
                 </span>
@@ -523,7 +523,7 @@ export default function PlanosPage() {
   return (
     <Shell titulo="Planos" usuario={{ nome: conta.nome, email: conta.email, ehDono: true }}>
       <p className="max-w-2xl text-[13px] leading-[1.65] text-dash-muted">
-        O plano vive no <span className="text-white">plano de controle</span> (identidade) — aqui só
+        O plano vive no <span className="text-dash-fg">plano de controle</span> (identidade) — aqui só
         se mostra e se edita. Só o e-mail autorizado muda preço e plano; conceder e revogar add-on
         também passa por ele.
       </p>
@@ -577,11 +577,11 @@ export default function PlanosPage() {
                         className={`rounded-[24px] border p-5 text-left transition ${
                           ativo
                             ? "border-dash-brand/60 bg-dash-card"
-                            : "border-white/[0.07] bg-dash-card hover:border-white/15"
+                            : "border-dash-hair/[0.07] bg-dash-card hover:border-dash-hair/15"
                         }`}
                       >
                         <div className="flex items-center gap-2">
-                          <p className="text-[15px] font-semibold text-white">{p.nome || p.plan_id}</p>
+                          <p className="text-[15px] font-semibold text-dash-fg">{p.nome || p.plan_id}</p>
                           {!p.ativo && (
                             <span className="rounded-full bg-dash-raise px-2.5 py-[3px] text-[10px] uppercase tracking-[0.14em] text-dash-dim">
                               inativo
@@ -590,7 +590,7 @@ export default function PlanosPage() {
                         </div>
                         <p className="mt-1 font-mono text-[11px] text-dash-dim">{p.plan_id}</p>
                         <div className="mt-3 flex items-baseline gap-2">
-                          <span className="text-[20px] font-semibold text-white">
+                          <span className="text-[20px] font-semibold text-dash-fg">
                             {reais(p.preco_centavos)}
                           </span>
                           <span className="text-[12px] text-dash-muted">
@@ -710,7 +710,7 @@ export default function PlanosPage() {
                       ) : (
                         grupos.map(([produto, areas]) => (
                           <div key={produto} className="mt-5">
-                            <p className="text-[12.5px] font-semibold text-white">{produto}</p>
+                            <p className="text-[12.5px] font-semibold text-dash-fg">{produto}</p>
                             {Array.from(areas.entries()).map(([area, caps]) => (
                               <div key={area} className="mt-3">
                                 <p className="text-[11px] uppercase tracking-[0.14em] text-dash-dim">
@@ -723,7 +723,7 @@ export default function PlanosPage() {
                                       className="flex items-center justify-between gap-3 rounded-[12px] bg-dash-bg px-3.5 py-2.5"
                                     >
                                       <div className="min-w-0">
-                                        <p className="truncate text-[13px] text-white">
+                                        <p className="truncate text-[13px] text-dash-fg">
                                           {c.nome || c.capability_id}
                                         </p>
                                         <p className="truncate font-mono text-[11px] text-dash-dim">
@@ -836,10 +836,10 @@ export default function PlanosPage() {
                 return (
                   <article
                     key={org.tenant_id}
-                    className="rounded-[24px] border border-white/[0.07] bg-dash-card p-5"
+                    className="rounded-[24px] border border-dash-hair/[0.07] bg-dash-card p-5"
                   >
                     <div className="flex flex-wrap items-center gap-3">
-                      <p className="text-[15px] font-semibold text-white">{org.nome || org.tenant_id}</p>
+                      <p className="text-[15px] font-semibold text-dash-fg">{org.nome || org.tenant_id}</p>
                       <span className="font-mono text-[11px] text-dash-dim">{org.tenant_id}</span>
                       <span className="ml-auto text-[11px] text-dash-muted">
                         desde {org.desde ? org.desde.slice(0, 10) : "—"}
@@ -851,7 +851,7 @@ export default function PlanosPage() {
                       <select
                         value={org.plan_id || ""}
                         onChange={(e) => void mudarPlanoDaOrg(org, e.target.value)}
-                        className="rounded-[10px] border border-white/10 bg-dash-bg px-3.5 py-2 text-[12px] text-white outline-none focus:border-dash-brand/60"
+                        className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-3.5 py-2 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60"
                       >
                         {!planos.some((p) => p.plan_id === org.plan_id) && org.plan_id && (
                           <option value={org.plan_id}>{org.plan_id}</option>
@@ -877,7 +877,7 @@ export default function PlanosPage() {
                           {extras.map((c) => (
                             <li
                               key={c}
-                              className="flex items-center gap-2 rounded-full border border-white/12 px-3 py-1 text-[11px] text-white"
+                              className="flex items-center gap-2 rounded-full border border-dash-hair/12 px-3 py-1 text-[11px] text-dash-fg"
                             >
                               {c}
                               <button
@@ -897,7 +897,7 @@ export default function PlanosPage() {
                       <select
                         id={`add-${org.tenant_id}`}
                         defaultValue=""
-                        className="min-w-[240px] flex-1 rounded-[10px] border border-white/10 bg-dash-bg px-3.5 py-2 text-[12px] text-white outline-none focus:border-dash-brand/60"
+                        className="min-w-[240px] flex-1 rounded-[10px] border border-dash-hair/10 bg-dash-bg px-3.5 py-2 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60"
                       >
                         <option value="">+ conceder add-on…</option>
                         {disponiveis.map((c) => (
@@ -911,7 +911,7 @@ export default function PlanosPage() {
                           const sel = document.getElementById(`add-${org.tenant_id}`) as HTMLSelectElement | null;
                           if (sel?.value) void mudarCapacidadeDaOrg(org, sel.value, true);
                         }}
-                        className="rounded-[10px] border border-white/12 px-5 py-2.5 text-[12px] font-semibold text-dash-muted transition hover:text-white"
+                        className="rounded-[10px] border border-dash-hair/12 px-5 py-2.5 text-[12px] font-semibold text-dash-muted transition hover:text-dash-fg"
                       >
                         Conceder
                       </button>
@@ -928,19 +928,19 @@ export default function PlanosPage() {
       {aba === "usuarios" && !carregando && (
         <Secao titulo="Usuários" contagem={`${usuariosFiltrados.length} de ${usuarios.length}`}>
           <div className="mb-4 flex flex-wrap items-center gap-3">
-            <label className="flex flex-1 items-center gap-2 rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2.5">
+            <label className="flex flex-1 items-center gap-2 rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5">
               <IconeBusca className="h-[16px] w-[16px] text-dash-dim" />
               <input
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar por nome, e-mail ou organização"
-                className="w-full bg-transparent text-[13px] text-white outline-none placeholder:text-dash-dim"
+                className="w-full bg-transparent text-[13px] text-dash-fg outline-none placeholder:text-dash-dim"
               />
             </label>
             <select
               value={filtroPlano}
               onChange={(e) => setFiltroPlano(e.target.value)}
-              className="rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2.5 text-[12px] text-white outline-none focus:border-dash-brand/60"
+              className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60"
             >
               <option value="">Todos os planos</option>
               {planosParaFiltro.map((p) => (

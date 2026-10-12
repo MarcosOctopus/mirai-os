@@ -138,7 +138,7 @@ function CartaoOrganizacao() {
       <div className="grid gap-x-8 gap-y-4 sm:grid-cols-3">
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">Seu papel</p>
-          <p className="mt-1 text-[13px] text-white">
+          <p className="mt-1 text-[13px] text-dash-fg">
             {dados.papel === "admin" ? "Admin da organização" : dados.papel === "dono" ? "Dono da plataforma" : "Funcionário"}
           </p>
         </div>
@@ -150,16 +150,16 @@ function CartaoOrganizacao() {
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">Quem entra</p>
-          <p className="mt-1 font-public text-[13px] text-white">
+          <p className="mt-1 font-public text-[13px] text-dash-fg">
             {dados.membros.length} {dados.membros.length === 1 ? "pessoa" : "pessoas"}
           </p>
         </div>
       </div>
 
-      <ul className="mt-5 space-y-2 border-t border-white/[0.07] pt-5">
+      <ul className="mt-5 space-y-2 border-t border-dash-hair/[0.07] pt-5">
         {dados.membros.map((m) => (
           <li key={m.email} className="flex flex-wrap items-center gap-3 text-[13px]">
-            <span className="break-all text-white">{m.email}</span>
+            <span className="break-all text-dash-fg">{m.email}</span>
             <span className="rounded-full bg-dash-raise px-2.5 py-[3px] text-[10px] uppercase tracking-[0.14em] text-dash-muted">
               {m.papel === "admin" ? "admin" : m.papel === "dono" ? "dono" : "funcionário"}
             </span>
@@ -176,19 +176,19 @@ function CartaoOrganizacao() {
       </ul>
 
       {dados.podeGerir && (
-        <div className="mt-5 border-t border-white/[0.07] pt-5">
+        <div className="mt-5 border-t border-dash-hair/[0.07] pt-5">
           <p className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">Adicionar gente da empresa</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="funcionario@empresa.com"
-              className="min-w-[200px] flex-1 rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
+              className="min-w-[200px] flex-1 rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
             />
             <select
               value={papel}
               onChange={(e) => setPapel(e.target.value === "admin" ? "admin" : "membro")}
-              className="rounded-[10px] border border-white/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-muted outline-none"
+              className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-muted outline-none"
             >
               <option value="membro">funcionário</option>
               <option value="admin">admin</option>
@@ -315,11 +315,11 @@ export default function PainelPage() {
           <dl className="space-y-4">
             <div>
               <dt className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">Nome</dt>
-              <dd className="mt-1 text-[13px] text-white">{user?.name || "—"}</dd>
+              <dd className="mt-1 text-[13px] text-dash-fg">{user?.name || "—"}</dd>
             </div>
             <div>
               <dt className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">E-mail</dt>
-              <dd className="mt-1 break-all text-[13px] text-white">{user?.email || "—"}</dd>
+              <dd className="mt-1 break-all text-[13px] text-dash-fg">{user?.email || "—"}</dd>
             </div>
             <div>
               <dt className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">Conta</dt>
@@ -387,7 +387,7 @@ export default function PainelPage() {
               <span className="grid h-9 w-9 place-items-center rounded-[11px] bg-dash-raise text-dash-brand">
                 {e.icone}
               </span>
-              <p className="mt-4 text-[15px] font-semibold text-white">{e.nome}</p>
+              <p className="mt-4 text-[15px] font-semibold text-dash-fg">{e.nome}</p>
               <p className="mt-1.5 text-[12px] leading-[1.55] text-dash-muted">{e.texto}</p>
               <span className="mt-4 w-fit rounded-full bg-dash-raise px-2.5 py-[3px] text-[10px] text-dash-dim">
                 em breve

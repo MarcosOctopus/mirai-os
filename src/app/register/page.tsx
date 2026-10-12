@@ -65,9 +65,9 @@ export default function RegisterPage() {
   }
 
   const botaoSocial =
-    "flex w-full items-center justify-center gap-3 rounded-[10px] border border-white/[0.24] bg-white/[0.10] px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-white/[0.18]"
+    "flex w-full items-center justify-center gap-3 rounded-[10px] border border-dash-hair/[0.24] bg-dash-hair/[0.10] px-4 py-3 text-[13px] font-semibold text-dash-fg transition hover:bg-dash-hair/[0.18]"
   const campo =
-    "w-full rounded-[10px] border border-white/[0.20] bg-black/20 px-4 py-3 text-[13.5px] text-white outline-none transition placeholder:text-white/60 focus:border-dash-brand/70"
+    "w-full rounded-[10px] border border-dash-hair/[0.20] bg-dash-scrim/20 px-4 py-3 text-[13.5px] text-dash-fg outline-none transition placeholder:text-dash-fg/60 focus:border-dash-brand/70"
 
   return (
     <main
@@ -82,7 +82,7 @@ export default function RegisterPage() {
       <div className="relative grid flex-1 grid-cols-1 lg:grid-cols-[1fr_minmax(380px,480px)]">
         {/* ── ESQUERDA: só a frase e as redes — mais nada escrito ──── */}
         <section className="order-2 flex flex-col justify-center px-7 py-10 sm:px-10 lg:order-1 lg:px-14">
-          <h1 className="max-w-[18ch] text-[34px] font-light leading-[1.15] text-white sm:text-[46px]">
+          <h1 className="max-w-[18ch] text-[34px] font-light leading-[1.15] text-dash-fg sm:text-[46px]">
             Sua <span className="font-bold">parceira</span> na sua viagem para o futuro
           </h1>
 
@@ -92,7 +92,7 @@ export default function RegisterPage() {
                 key={r.nome}
                 title={r.nome}
                 aria-label={r.nome}
-                className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.22] bg-black/25 text-white/85 backdrop-blur-md"
+                className="grid h-10 w-10 place-items-center rounded-full border border-dash-hair/[0.22] bg-dash-scrim/25 text-dash-fg/85 backdrop-blur-md"
               >
                 <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
                   <path d={r.d} />
@@ -104,18 +104,18 @@ export default function RegisterPage() {
 
         {/* ── DIREITA: a caixa do formulário, de cima até embaixo ──── */}
         <section
-          className="order-1 flex flex-col justify-center border-white/[0.18] px-7 py-10 sm:px-10 lg:order-2 lg:border-l"
+          className="order-1 flex flex-col justify-center border-dash-hair/[0.18] px-7 py-10 sm:px-10 lg:order-2 lg:border-l"
           style={VIDRO}
         >
           <img
             src="/logo-mirai.png"
             alt="MIRAI"
-            className="h-[32px] w-auto max-w-none shrink-0 self-start object-contain"
+            className="logo-tema h-[32px] w-auto max-w-none shrink-0 self-start object-contain"
           />
 
           <div className="mt-9">
-            <h2 className="text-[22px] font-semibold text-white">Criar conta</h2>
-            <p className="mt-1.5 text-[12.5px] text-white/70">
+            <h2 className="text-[22px] font-semibold text-dash-fg">Criar conta</h2>
+            <p className="mt-1.5 text-[12.5px] text-dash-fg/70">
               Já tem conta?{" "}
               <a href="/login" className="font-semibold text-dash-brand hover:text-dash-brandHi">
                 Entrar
@@ -162,9 +162,9 @@ export default function RegisterPage() {
           </form>
 
           <div className="my-6 flex items-center gap-3">
-            <span className="h-px flex-1 bg-white/[0.22]" />
-            <span className="text-[11px] uppercase tracking-[0.16em] text-white/55">ou</span>
-            <span className="h-px flex-1 bg-white/[0.22]" />
+            <span className="h-px flex-1 bg-dash-hair/[0.22]" />
+            <span className="text-[11px] uppercase tracking-[0.16em] text-dash-fg/55">ou</span>
+            <span className="h-px flex-1 bg-dash-hair/[0.22]" />
           </div>
 
           <div className="flex flex-col gap-3">

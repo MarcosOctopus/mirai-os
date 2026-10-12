@@ -82,7 +82,7 @@ function LinhaPlano({ texto }: { texto: string }) {
       {partes.map((p, i) => {
         if (p.startsWith("**") && p.endsWith("**") && p.length > 4) {
           return (
-            <strong key={i} className="font-semibold text-white">
+            <strong key={i} className="font-semibold text-dash-fg">
               {p.slice(2, -2)}
             </strong>
           );
@@ -91,7 +91,7 @@ function LinhaPlano({ texto }: { texto: string }) {
           return (
             <code
               key={i}
-              className="rounded bg-white/[0.08] px-1 py-0.5 font-mono text-[11.5px] text-dash-brandHi"
+              className="rounded bg-dash-hair/[0.08] px-1 py-0.5 font-mono text-[11.5px] text-dash-brandHi"
             >
               {p.slice(1, -1)}
             </code>
@@ -173,9 +173,9 @@ function RespostaPlano({ texto }: { texto: string }) {
         if (b.t === "h") {
           const cls =
             b.nivel <= 1
-              ? "text-[14px] font-semibold text-white"
+              ? "text-[14px] font-semibold text-dash-fg"
               : b.nivel === 2
-                ? "text-[13px] font-semibold text-white"
+                ? "text-[13px] font-semibold text-dash-fg"
                 : "text-[11px] font-semibold uppercase tracking-[0.08em] text-dash-muted";
           return (
             <p key={i} className={cls}>
@@ -185,7 +185,7 @@ function RespostaPlano({ texto }: { texto: string }) {
         }
         if (b.t === "p") {
           return (
-            <p key={i} className="text-[13px] leading-[1.65] text-white/85">
+            <p key={i} className="text-[13px] leading-[1.65] text-dash-fg/85">
               <LinhaPlano texto={b.txt} />
             </p>
           );
@@ -194,7 +194,7 @@ function RespostaPlano({ texto }: { texto: string }) {
           return (
             <ul key={i} className="flex flex-col gap-1.5">
               {b.itens.map((it, j) => (
-                <li key={j} className="flex gap-2 text-[13px] leading-[1.6] text-white/85">
+                <li key={j} className="flex gap-2 text-[13px] leading-[1.6] text-dash-fg/85">
                   <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-dash-dim" />
                   <span className="min-w-0 flex-1">
                     <LinhaPlano texto={it} />
@@ -207,8 +207,8 @@ function RespostaPlano({ texto }: { texto: string }) {
         return (
           <ol key={i} className="flex flex-col gap-1.5">
             {b.itens.map((it, j) => (
-              <li key={j} className="flex gap-2.5 text-[13px] leading-[1.6] text-white/85">
-                <span className="mt-[1px] grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full border border-white/[0.14] text-[10px] text-dash-muted">
+              <li key={j} className="flex gap-2.5 text-[13px] leading-[1.6] text-dash-fg/85">
+                <span className="mt-[1px] grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full border border-dash-hair/[0.14] text-[10px] text-dash-muted">
                   {j + 1}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -641,7 +641,7 @@ function NaoLiberado() {
       <span className="grid h-14 w-14 place-items-center rounded-full bg-dash-raise text-dash-muted">
         <IconeCadeado className="h-6 w-6" />
       </span>
-      <h2 className="mt-6 max-w-[560px] text-[22px] leading-tight text-white">
+      <h2 className="mt-6 max-w-[560px] text-[22px] leading-tight text-dash-fg">
         O Arquiteto não está liberado para esta conta.
       </h2>
       <p className="mt-3 max-w-[540px] text-[14px] leading-[1.7] text-dash-muted">
@@ -670,7 +670,7 @@ function SessaoVencida() {
       <span className="grid h-14 w-14 place-items-center rounded-full bg-dash-raise text-dash-muted">
         <IconeCadeado className="h-6 w-6" />
       </span>
-      <h2 className="mt-6 max-w-[560px] text-[22px] leading-tight text-white">Sua sessão expirou.</h2>
+      <h2 className="mt-6 max-w-[560px] text-[22px] leading-tight text-dash-fg">Sua sessão expirou.</h2>
       <p className="mt-3 max-w-[540px] text-[14px] leading-[1.7] text-dash-muted">
         É só entrar de novo para continuar de onde parou — seu projeto está salvo e nada foi perdido.
       </p>
@@ -691,7 +691,7 @@ function LinhaCamada({ rotulo, valor, mono }: { rotulo: string; valor: string; m
       <span className="w-[58px] shrink-0 pt-[1px] text-[10px] uppercase tracking-[0.12em] text-dash-dim">
         {rotulo}
       </span>
-      <span className={`min-w-0 flex-1 break-words text-[11px] leading-[1.5] text-white/85 ${mono ? "font-mono" : ""}`}>
+      <span className={`min-w-0 flex-1 break-words text-[11px] leading-[1.5] text-dash-fg/85 ${mono ? "font-mono" : ""}`}>
         {valor}
       </span>
     </div>
@@ -3603,9 +3603,9 @@ function Arquiteto() {
     return (
       <aside
         data-arquiteto-camadas
-        className="flex w-[222px] shrink-0 flex-col border-l border-white/[0.07] bg-dash-side/30 sm:w-[276px]"
+        className="flex w-[222px] shrink-0 flex-col border-l border-dash-hair/[0.07] bg-dash-side/30 sm:w-[276px]"
       >
-        <div className="flex shrink-0 items-center gap-2 border-b border-white/[0.07] px-3 py-2.5">
+        <div className="flex shrink-0 items-center gap-2 border-b border-dash-hair/[0.07] px-3 py-2.5">
           <p className="text-[10px] uppercase tracking-[0.16em] text-dash-dim">Camadas</p>
           {ponte === "ok" && (
             <span className="shrink-0 text-[10px] text-dash-dim">
@@ -3616,7 +3616,7 @@ function Arquiteto() {
             onClick={pedirArvore}
             title="Reler a prévia"
             aria-label="Reler a prévia"
-            className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-[7px] bg-dash-raise text-dash-muted transition hover:text-white"
+            className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-[7px] bg-dash-raise text-dash-muted transition hover:text-dash-fg"
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M20 11a8 8 0 10-2.3 5.7" />
@@ -3660,7 +3660,7 @@ function Arquiteto() {
                   <div
                     key={n.i}
                     data-camada-indice={n.i}
-                    className={`flex items-center rounded-[8px] ${ativo ? "bg-dash-brand/15" : "hover:bg-white/[0.04]"}`}
+                    className={`flex items-center rounded-[8px] ${ativo ? "bg-dash-brand/15" : "hover:bg-dash-hair/[0.04]"}`}
                     style={{ paddingLeft: 4 + Math.min(n.prof, 12) * 10 }}
                   >
                     <button
@@ -3669,7 +3669,7 @@ function Arquiteto() {
                       title={filhos ? (aberto ? "Fechar" : "Abrir") : undefined}
                       aria-label={filhos ? (aberto ? `Fechar ${n.tag}` : `Abrir ${n.tag}`) : undefined}
                       className={`grid h-5 w-5 shrink-0 place-items-center rounded-[6px] text-dash-dim transition ${
-                        filhos ? "hover:text-white" : "invisible"
+                        filhos ? "hover:text-dash-fg" : "invisible"
                       }`}
                     >
                       <svg viewBox="0 0 24 24" className={`h-3 w-3 transition-transform ${aberto ? "rotate-90" : ""}`} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -3681,7 +3681,7 @@ function Arquiteto() {
                       title={`${n.tag}${rot ? " " + rot : ""}`}
                       className="flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-1 text-left"
                     >
-                      <span className={`shrink-0 font-mono text-[11px] ${ativo ? "text-dash-brand" : "text-white/85"}`}>
+                      <span className={`shrink-0 font-mono text-[11px] ${ativo ? "text-dash-brand" : "text-dash-fg/85"}`}>
                         {n.tag}
                       </span>
                       {rot && (
@@ -3701,7 +3701,7 @@ function Arquiteto() {
             </div>
 
             {/* Os DETALHES da camada clicada — honestos, campo a campo. */}
-            <div data-arquiteto-camada-detalhe className="shrink-0 border-t border-white/[0.07] px-3 py-3">
+            <div data-arquiteto-camada-detalhe className="shrink-0 border-t border-dash-hair/[0.07] px-3 py-3">
               {!noSelecionado ? (
                 <p className="text-[11px] leading-[1.6] text-dash-dim">
                   Clique numa camada para contorná-la no preview e ver os detalhes dela.
@@ -3709,14 +3709,14 @@ function Arquiteto() {
               ) : (
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
-                    <p className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-white">
+                    <p className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-dash-fg">
                       {noSelecionado.tag}
                       {noSelecionado.id ? `#${noSelecionado.id}` : ""}
                       {noSelecionado.cls.length ? `.${noSelecionado.cls.join(".")}` : ""}
                     </p>
                     <button
                       onClick={limparCamada}
-                      className="shrink-0 rounded-[7px] border border-white/12 px-2 py-1 text-[10.5px] text-dash-muted transition hover:text-white"
+                      className="shrink-0 rounded-[7px] border border-dash-hair/12 px-2 py-1 text-[10.5px] text-dash-muted transition hover:text-dash-fg"
                     >
                       limpar
                     </button>
@@ -3758,14 +3758,14 @@ function Arquiteto() {
                       aplica quando o casamento no arquivo é ÚNICO: no resto, a tela
                       diz que não deu em vez de chutar. */}
                   {textoCheio.length > 0 && (
-                    <div className="mt-2 rounded-[10px] border border-white/[0.08] bg-dash-raise/60 p-2.5">
+                    <div className="mt-2 rounded-[10px] border border-dash-hair/[0.08] bg-dash-raise/60 p-2.5">
                       <p className="text-[10px] uppercase tracking-wide text-dash-dim">editar o texto</p>
                       <textarea
                         data-arquiteto-editar-texto
                         value={textoEdicao}
                         onChange={(e) => setTextoEdicao(e.target.value)}
                         rows={2}
-                        className="mt-1.5 w-full resize-y rounded-[8px] border border-white/10 bg-black/30 px-2 py-1.5 text-[11.5px] text-white/90 outline-none focus:border-dash-brand/50"
+                        className="mt-1.5 w-full resize-y rounded-[8px] border border-dash-hair/10 bg-dash-scrim/30 px-2 py-1.5 text-[11.5px] text-dash-fg/90 outline-none focus:border-dash-brand/50"
                       />
                       <button
                         onClick={aplicarTextoNoElemento}
@@ -3777,7 +3777,7 @@ function Arquiteto() {
                     </div>
                   )}
                   {Object.keys(atributosEdicao).length > 0 && (
-                    <div className="mt-2 rounded-[10px] border border-white/[0.08] bg-dash-raise/60 p-2.5">
+                    <div className="mt-2 rounded-[10px] border border-dash-hair/[0.08] bg-dash-raise/60 p-2.5">
                       <p className="text-[10px] uppercase tracking-wide text-dash-dim">editar atributos</p>
                       {Object.entries(atributosEdicao).map(([nome, valor]) => (
                         <div key={nome} className="mt-1.5 flex items-center gap-1.5">
@@ -3786,7 +3786,7 @@ function Arquiteto() {
                             data-arquiteto-editar-atributo={nome}
                             value={valor}
                             onChange={(e) => setAtributosEdicao((a) => ({ ...a, [nome]: e.target.value }))}
-                            className="min-w-0 flex-1 rounded-[8px] border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-white/90 outline-none focus:border-dash-brand/50"
+                            className="min-w-0 flex-1 rounded-[8px] border border-dash-hair/10 bg-dash-scrim/30 px-2 py-1.5 text-[11px] text-dash-fg/90 outline-none focus:border-dash-brand/50"
                           />
                           <button
                             onClick={() => aplicarAtributo(nome, atributosOriginais[nome] ?? "", valor)}
@@ -3819,7 +3819,7 @@ function Arquiteto() {
             gravar e desfaz a seleção — dentro do bloco do elemento, o "aplicado em
             index.html" sumia na mesma hora em que aparecia. */}
         {edicaoAviso && (
-          <div data-arquiteto-edicao-aviso className="shrink-0 border-t border-white/[0.07] px-3 py-2.5">
+          <div data-arquiteto-edicao-aviso className="shrink-0 border-t border-dash-hair/[0.07] px-3 py-2.5">
             <p className="text-[10.5px] leading-snug text-dash-brand">{edicaoAviso}</p>
           </div>
         )}
@@ -3833,9 +3833,9 @@ function Arquiteto() {
     return (
       <aside
         data-arquiteto-tokens-painel
-        className="flex w-[222px] shrink-0 flex-col border-l border-white/[0.07] bg-dash-side/30 sm:w-[268px]"
+        className="flex w-[222px] shrink-0 flex-col border-l border-dash-hair/[0.07] bg-dash-side/30 sm:w-[268px]"
       >
-        <div className="flex shrink-0 items-center gap-2 border-b border-white/[0.07] px-3 py-2.5">
+        <div className="flex shrink-0 items-center gap-2 border-b border-dash-hair/[0.07] px-3 py-2.5">
           <p className="text-[10px] uppercase tracking-[0.16em] text-dash-dim">Tokens</p>
           <span className="hidden shrink-0 font-mono text-[10px] text-dash-dim sm:inline">
             var(--cor-primaria)
@@ -3845,7 +3845,7 @@ function Arquiteto() {
             disabled={!projeto}
             title="Restaurar os tokens padrão"
             aria-label="Restaurar os tokens padrão"
-            className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-[7px] bg-dash-raise text-dash-muted transition hover:text-white disabled:opacity-35"
+            className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-[7px] bg-dash-raise text-dash-muted transition hover:text-dash-fg disabled:opacity-35"
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M3 12a9 9 0 1 0 3-6.7" />
@@ -3879,7 +3879,7 @@ function Arquiteto() {
                       onChange={(e) => editarToken(nome, e.target.value)}
                       data-arquiteto-token={nome}
                       aria-label={ROTULO_TOKEN[nome]}
-                      className="h-7 w-9 shrink-0 cursor-pointer rounded-[7px] border border-white/10 bg-dash-bg p-0.5"
+                      className="h-7 w-9 shrink-0 cursor-pointer rounded-[7px] border border-dash-hair/10 bg-dash-bg p-0.5"
                     />
                   </label>
                 ))}
@@ -3893,7 +3893,7 @@ function Arquiteto() {
                     data-arquiteto-token="fonte"
                     aria-label={ROTULO_TOKEN.fonte}
                     spellCheck={false}
-                    className="w-full rounded-[7px] border border-white/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-white outline-none focus:border-dash-brand/60"
+                    className="w-full rounded-[7px] border border-dash-hair/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-dash-fg outline-none focus:border-dash-brand/60"
                   />
                 </label>
 
@@ -3911,7 +3911,7 @@ function Arquiteto() {
                       onChange={(e) => editarToken(nome, e.target.value)}
                       data-arquiteto-token={nome}
                       aria-label={ROTULO_TOKEN[nome]}
-                      className="w-[64px] rounded-[7px] border border-white/10 bg-dash-bg px-2 py-1 font-mono text-[11px] text-white outline-none focus:border-dash-brand/60"
+                      className="w-[64px] rounded-[7px] border border-dash-hair/10 bg-dash-bg px-2 py-1 font-mono text-[11px] text-dash-fg outline-none focus:border-dash-brand/60"
                     />
                     <span className="text-[10.5px] text-dash-dim">px</span>
                   </label>
@@ -3919,10 +3919,10 @@ function Arquiteto() {
               </div>
             </div>
 
-            <div className="shrink-0 border-t border-white/[0.07] px-3 py-2.5">
+            <div className="shrink-0 border-t border-dash-hair/[0.07] px-3 py-2.5">
               <p className="text-[10.5px] leading-[1.55] text-dash-dim">
                 Os tokens entram na prévia como variáveis na raiz. No CSS do projeto, use{" "}
-                <span className="font-mono text-white/80">var(--cor-primaria)</span>.
+                <span className="font-mono text-dash-fg/80">var(--cor-primaria)</span>.
               </p>
               <p
                 data-arquiteto-tokens-estado
@@ -3972,7 +3972,7 @@ function Arquiteto() {
           degrau feio): o conteúdo começa AO LADO do botão, como no ChatGPT.
           O MESMO recuo à DIREITA (`pr-[52px]`) reserva o lugar do avatar, que
           agora também aparece fixo no topo direito das telas cheias. */}
-      <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-white/[0.07] bg-dash-side/40 py-2 pl-[52px] pr-[52px] sm:flex-nowrap sm:gap-3 lg:pl-4">
+      <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-dash-hair/[0.07] bg-dash-side/40 py-2 pl-[52px] pr-[52px] sm:flex-nowrap sm:gap-3 lg:pl-4">
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] bg-dash-brand/15 text-dash-brand">
           <IconeRobo className="h-4 w-4" />
         </span>
@@ -3990,9 +3990,9 @@ function Arquiteto() {
             onClick={() => setMenuAberto((v) => !v)}
             title="Seus projetos"
             aria-expanded={menuAberto}
-            className="-ml-1 flex min-w-0 items-center gap-1.5 rounded-[9px] px-2 py-1 transition hover:bg-white/[0.05]"
+            className="-ml-1 flex min-w-0 items-center gap-1.5 rounded-[9px] px-2 py-1 transition hover:bg-dash-hair/[0.05]"
           >
-            <p className="truncate text-[13px] text-white">{tituloExibido}</p>
+            <p className="truncate text-[13px] text-dash-fg">{tituloExibido}</p>
             <svg
               viewBox="0 0 24 24"
               className={`h-3.5 w-3.5 shrink-0 text-dash-dim transition-transform ${menuAberto ? "rotate-180" : ""}`}
@@ -4028,7 +4028,7 @@ function Arquiteto() {
                     <div
                       key={p.id}
                       className={`group flex items-center gap-1 rounded-[10px] pr-1 ${
-                        atual ? "bg-dash-brand/12" : "hover:bg-white/[0.05]"
+                        atual ? "bg-dash-brand/12" : "hover:bg-dash-hair/[0.05]"
                       }`}
                     >
                       {renomeandoId === p.id ? (
@@ -4044,7 +4044,7 @@ function Arquiteto() {
                             if (e.key === "Escape") setRenomeandoId(null);
                           }}
                           onBlur={() => void renomearProjeto(p.id, nomeTemp)}
-                          className="m-1 min-w-0 flex-1 rounded-[8px] border border-white/10 bg-dash-bg px-2 py-1.5 text-[12.5px] text-white outline-none focus:border-dash-brand/60"
+                          className="m-1 min-w-0 flex-1 rounded-[8px] border border-dash-hair/10 bg-dash-bg px-2 py-1.5 text-[12.5px] text-dash-fg outline-none focus:border-dash-brand/60"
                         />
                       ) : (
                         <>
@@ -4057,7 +4057,7 @@ function Arquiteto() {
                               className={`h-4 w-4 shrink-0 ${atual ? "text-dash-brand" : "text-dash-dim"}`}
                             />
                             <span
-                              className={`truncate text-[12.5px] ${atual ? "text-dash-brand" : "text-white/85"}`}
+                              className={`truncate text-[12.5px] ${atual ? "text-dash-brand" : "text-dash-fg/85"}`}
                             >
                               {p.titulo}
                             </span>
@@ -4069,7 +4069,7 @@ function Arquiteto() {
                             }}
                             title="Renomear"
                             aria-label={`Renomear ${p.titulo}`}
-                            className="grid h-6 w-6 shrink-0 place-items-center rounded-[7px] text-dash-dim opacity-0 transition hover:text-white group-hover:opacity-100"
+                            className="grid h-6 w-6 shrink-0 place-items-center rounded-[7px] text-dash-dim opacity-0 transition hover:text-dash-fg group-hover:opacity-100"
                           >
                             <svg
                               viewBox="0 0 24 24"
@@ -4118,8 +4118,8 @@ function Arquiteto() {
                   onClick={() => void escolherPasta(null)}
                   className={`rounded-full border px-2.5 py-1 text-[11.5px] transition ${
                     pastaDoProjeto === null
-                      ? "border-dash-brand/60 bg-dash-brand/15 text-white"
-                      : "border-white/10 bg-white/[0.04] text-dash-muted hover:text-white"
+                      ? "border-dash-brand/60 bg-dash-brand/15 text-dash-fg"
+                      : "border-dash-hair/10 bg-dash-hair/[0.04] text-dash-muted hover:text-dash-fg"
                   }`}
                 >
                   Sem pasta
@@ -4132,8 +4132,8 @@ function Arquiteto() {
                     title={pa.nome}
                     className={`max-w-[190px] truncate rounded-full border px-2.5 py-1 text-[11.5px] transition ${
                       pastaDoProjeto === pa.id
-                        ? "border-dash-brand/60 bg-dash-brand/15 text-white"
-                        : "border-white/10 bg-white/[0.04] text-dash-muted hover:text-white"
+                        ? "border-dash-brand/60 bg-dash-brand/15 text-dash-fg"
+                        : "border-dash-hair/10 bg-dash-hair/[0.04] text-dash-muted hover:text-dash-fg"
                     }`}
                   >
                     {pa.nome}
@@ -4158,13 +4158,13 @@ function Arquiteto() {
                       if (!nomePastaNova.trim()) setCriandoPasta(false);
                     }}
                     placeholder="Nome da categoria"
-                    className="min-w-0 flex-1 rounded-full border border-dash-brand/50 bg-dash-bg px-2.5 py-1 text-[11.5px] text-white outline-none placeholder:text-dash-dim"
+                    className="min-w-0 flex-1 rounded-full border border-dash-brand/50 bg-dash-bg px-2.5 py-1 text-[11.5px] text-dash-fg outline-none placeholder:text-dash-dim"
                   />
                 ) : (
                   <button
                     type="button"
                     onClick={() => setCriandoPasta(true)}
-                    className="flex items-center gap-1 rounded-full border border-dashed border-white/20 px-2.5 py-1 text-[11.5px] text-dash-muted transition hover:border-dash-brand/50 hover:text-white"
+                    className="flex items-center gap-1 rounded-full border border-dashed border-dash-hair/20 px-2.5 py-1 text-[11.5px] text-dash-muted transition hover:border-dash-brand/50 hover:text-dash-fg"
                   >
                     <IconeMais className="h-3 w-3" />
                     Nova categoria
@@ -4174,10 +4174,10 @@ function Arquiteto() {
               {erroPasta && (
                 <p className="px-3 pb-1 text-[11px] text-dash-bad">{erroPasta}</p>
               )}
-              <div className="my-1 h-px bg-white/[0.08]" />
+              <div className="my-1 h-px bg-dash-hair/[0.08]" />
               <button
                 onClick={novoProjeto}
-                className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2.5 text-[13px] text-white/85 transition hover:bg-white/[0.06] hover:text-white"
+                className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2.5 text-[13px] text-dash-fg/85 transition hover:bg-dash-hair/[0.06] hover:text-dash-fg"
               >
                 <IconeMais className="h-4 w-4" />
                 Novo projeto
@@ -4194,7 +4194,7 @@ function Arquiteto() {
             disabled={!passado.length}
             title="Desfazer (Ctrl+Z)"
             aria-label="Desfazer"
-            className="grid h-7 w-7 place-items-center rounded-[8px] bg-dash-raise text-dash-muted transition hover:text-white disabled:opacity-35"
+            className="grid h-7 w-7 place-items-center rounded-[8px] bg-dash-raise text-dash-muted transition hover:text-dash-fg disabled:opacity-35"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M9 14L4 9l5-5" />
@@ -4206,7 +4206,7 @@ function Arquiteto() {
             disabled={!futuro.length}
             title="Refazer (Ctrl+Shift+Z)"
             aria-label="Refazer"
-            className="grid h-7 w-7 place-items-center rounded-[8px] bg-dash-raise text-dash-muted transition hover:text-white disabled:opacity-35"
+            className="grid h-7 w-7 place-items-center rounded-[8px] bg-dash-raise text-dash-muted transition hover:text-dash-fg disabled:opacity-35"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M15 14l5-5-5-5" />
@@ -4219,7 +4219,7 @@ function Arquiteto() {
             title="Histórico de versões"
             aria-label="Histórico de versões"
             aria-expanded={menuHistorico}
-            className="flex h-7 shrink-0 items-center gap-1 rounded-[8px] bg-dash-raise px-2 text-dash-muted transition hover:text-white disabled:opacity-35"
+            className="flex h-7 shrink-0 items-center gap-1 rounded-[8px] bg-dash-raise px-2 text-dash-muted transition hover:text-dash-fg disabled:opacity-35"
           >
             <IconeRelogio className="h-4 w-4" />
             <span className="hidden text-[10.5px] sm:inline">{versoes.length || "histórico"}</span>
@@ -4239,13 +4239,13 @@ function Arquiteto() {
                     return (
                       <div
                         key={v.numero}
-                        className="group flex items-center gap-2 rounded-[10px] px-3 py-2 hover:bg-white/[0.05]"
+                        className="group flex items-center gap-2 rounded-[10px] px-3 py-2 hover:bg-dash-hair/[0.05]"
                       >
                         <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-dash-raise text-[10px] text-dash-muted">
                           {v.numero}
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[12px] text-white/85">
+                          <p className="truncate text-[12px] text-dash-fg/85">
                             {ehAtual ? "Versão atual" : `Versão ${v.numero}`}
                             <span className="ml-2 text-[10.5px] text-dash-dim">{formatarData(v.criado_em)}</span>
                           </p>
@@ -4256,7 +4256,7 @@ function Arquiteto() {
                             onClick={() => void restaurarVersaoServidor(v.numero)}
                             title={`Restaurar a versão ${v.numero}`}
                             aria-label={`Restaurar a versão ${v.numero}`}
-                            className="shrink-0 rounded-[7px] border border-white/12 px-2 py-1 text-[10.5px] text-dash-muted transition hover:text-white"
+                            className="shrink-0 rounded-[7px] border border-dash-hair/12 px-2 py-1 text-[10.5px] text-dash-muted transition hover:text-dash-fg"
                           >
                             restaurar
                           </button>
@@ -4285,7 +4285,7 @@ function Arquiteto() {
               aria-pressed={modo === m}
               data-arquiteto-modo={m}
               className={`grid h-7 w-7 place-items-center rounded-full transition ${
-                modo === m ? "bg-dash-brand text-white" : "bg-dash-raise text-dash-muted hover:text-white"
+                modo === m ? "bg-dash-brand text-white" : "bg-dash-raise text-dash-muted hover:text-dash-fg"
               }`}
             >
               {m === "responsivo" ? (
@@ -4307,7 +4307,7 @@ function Arquiteto() {
           className={`grid h-7 w-7 shrink-0 place-items-center rounded-full transition ${
             mostrarCamadas
               ? "bg-dash-brand/20 text-dash-brand ring-1 ring-dash-brand/40"
-              : "bg-dash-raise text-dash-muted hover:text-white"
+              : "bg-dash-raise text-dash-muted hover:text-dash-fg"
           }`}
         >
           <IconeCamadas className="h-3.5 w-3.5" />
@@ -4324,7 +4324,7 @@ function Arquiteto() {
           className={`grid h-7 w-7 shrink-0 place-items-center rounded-full transition ${
             mostrarTokens
               ? "bg-dash-brand/20 text-dash-brand ring-1 ring-dash-brand/40"
-              : "bg-dash-raise text-dash-muted hover:text-white"
+              : "bg-dash-raise text-dash-muted hover:text-dash-fg"
           }`}
         >
           <IconeTokens className="h-3.5 w-3.5" />
@@ -4343,7 +4343,7 @@ function Arquiteto() {
             className={`grid h-7 w-7 shrink-0 place-items-center rounded-full transition ${
               menuBlocos
                 ? "bg-dash-brand/20 text-dash-brand ring-1 ring-dash-brand/40"
-                : "bg-dash-raise text-dash-muted hover:text-white"
+                : "bg-dash-raise text-dash-muted hover:text-dash-fg"
             }`}
           >
             <IconeBlocos className="h-3.5 w-3.5" />
@@ -4362,10 +4362,10 @@ function Arquiteto() {
                   <div
                     key={b.id}
                     data-arquiteto-bloco={b.id}
-                    className="group flex items-start gap-2 rounded-[10px] px-3 py-2 hover:bg-white/[0.05]"
+                    className="group flex items-start gap-2 rounded-[10px] px-3 py-2 hover:bg-dash-hair/[0.05]"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-[12.5px] text-white/90">{b.nome}</p>
+                      <p className="text-[12.5px] text-dash-fg/90">{b.nome}</p>
                       <p className="text-[10.5px] leading-[1.45] text-dash-dim">{b.descricao}</p>
                     </div>
                     <button
@@ -4373,14 +4373,14 @@ function Arquiteto() {
                       data-arquiteto-bloco-inserir={b.id}
                       title={`Inserir ${b.nome}`}
                       aria-label={`Inserir ${b.nome}`}
-                      className="shrink-0 rounded-[7px] border border-white/12 px-2 py-1 text-[10.5px] text-dash-muted transition hover:text-white group-hover:border-dash-brand/50"
+                      className="shrink-0 rounded-[7px] border border-dash-hair/12 px-2 py-1 text-[10.5px] text-dash-muted transition hover:text-dash-fg group-hover:border-dash-brand/50"
                     >
                       inserir
                     </button>
                   </div>
                 ))}
               </div>
-              <p className="border-t border-white/[0.07] px-3 py-2 text-[10px] leading-[1.5] text-dash-dim">
+              <p className="border-t border-dash-hair/[0.07] px-3 py-2 text-[10px] leading-[1.5] text-dash-dim">
                 {projeto
                   ? "Os blocos usam os tokens do projeto (var(--cor-primaria)…), entram antes do </body> e o CSS vai para a folha do projeto. Cada inserção vira uma versão."
                   : "Ainda não há projeto: inserir um bloco cria o projeto base (index.html + styles.css). Os blocos usam os tokens (var(--cor-primaria)…)."}
@@ -4410,7 +4410,7 @@ function Arquiteto() {
             data-arquiteto-baixar-pronto={projetoId ? "sim" : "nao"}
             className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition ${
               projetoId
-                ? "bg-dash-raise text-dash-muted hover:text-white"
+                ? "bg-dash-raise text-dash-muted hover:text-dash-fg"
                 : "cursor-not-allowed bg-dash-raise/50 text-dash-dim"
             }`}
           >
@@ -4443,7 +4443,7 @@ function Arquiteto() {
             aria-expanded={menuConfig}
             data-arquiteto-config-toggle
             data-arquiteto-config-tem-endereco={endSlug ? "sim" : "nao"}
-            className="flex h-7 shrink-0 items-center gap-1.5 rounded-full bg-dash-raise px-2.5 text-[10.5px] text-dash-muted transition hover:text-white sm:px-3"
+            className="flex h-7 shrink-0 items-center gap-1.5 rounded-full bg-dash-raise px-2.5 text-[10.5px] text-dash-muted transition hover:text-dash-fg sm:px-3"
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <circle cx="12" cy="12" r="3" />
@@ -4467,7 +4467,7 @@ function Arquiteto() {
                     onClick={() => setAbaConfig(aba)}
                     data-arquiteto-config-aba={aba}
                     className={`rounded-full px-2.5 py-1 text-[11px] transition ${
-                      abaConfig === aba ? "bg-dash-raise text-white" : "text-dash-dim hover:text-white"
+                      abaConfig === aba ? "bg-dash-raise text-dash-fg" : "text-dash-dim hover:text-dash-fg"
                     }`}
                   >
                     {aba === "dominios" ? "Domínios" : aba === "fontes" ? "Fontes" : "Integrações"}
@@ -4497,14 +4497,14 @@ function Arquiteto() {
                           }}
                           placeholder={endSugerido || "meu-projeto"}
                           data-arquiteto-config-endereco
-                          className="min-w-0 flex-1 rounded-[8px] border border-white/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-white/90 outline-none"
+                          className="min-w-0 flex-1 rounded-[8px] border border-dash-hair/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-dash-fg/90 outline-none"
                         />
                         <span className="shrink-0 font-mono text-[10.5px] text-dash-dim">.miraitohope.com</span>
                         <button
                           onClick={() => void salvarEndereco(endTexto)}
                           disabled={endSalvando}
                           data-arquiteto-config-salvar
-                          className="shrink-0 rounded-[8px] border border-white/12 px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-white disabled:opacity-50"
+                          className="shrink-0 rounded-[8px] border border-dash-hair/12 px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-dash-fg disabled:opacity-50"
                         >
                           {endSalvando ? "salvando…" : "salvar"}
                         </button>
@@ -4544,7 +4544,7 @@ function Arquiteto() {
                           data-arquiteto-config-publicar
                           className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] transition disabled:opacity-50 ${
                             publicarToken
-                              ? "bg-dash-raise text-dash-muted hover:text-white"
+                              ? "bg-dash-raise text-dash-muted hover:text-dash-fg"
                               : "bg-dash-ok/15 text-dash-ok ring-1 ring-dash-ok/40"
                           }`}
                         >
@@ -4559,19 +4559,19 @@ function Arquiteto() {
                             value={urlDoEndereco()}
                             onFocus={(e) => e.currentTarget.select()}
                             data-arquiteto-config-url
-                            className="min-w-0 flex-1 rounded-[8px] border border-white/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-white/90 outline-none"
+                            className="min-w-0 flex-1 rounded-[8px] border border-dash-hair/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-dash-fg/90 outline-none"
                           />
                           <button
                             onClick={() => void copiarEndereco()}
                             data-arquiteto-config-copiar
-                            className="shrink-0 rounded-[8px] border border-white/12 px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-white"
+                            className="shrink-0 rounded-[8px] border border-dash-hair/12 px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-dash-fg"
                           >
                             {endCopiado ? "copiado" : "copiar"}
                           </button>
                           <button
                             onClick={() => abrirEndereco()}
                             data-arquiteto-config-abrir
-                            className="shrink-0 rounded-[8px] border border-white/12 px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-white"
+                            className="shrink-0 rounded-[8px] border border-dash-hair/12 px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-dash-fg"
                           >
                             abrir
                           </button>
@@ -4589,7 +4589,7 @@ function Arquiteto() {
                           guardado ≠ no ar — e a conferência do DNS é ao vivo. */}
                       <div
                         data-arquiteto-config-conectar
-                        className="rounded-[10px] border border-dashed border-white/12 px-2.5 py-2"
+                        className="rounded-[10px] border border-dashed border-dash-hair/12 px-2.5 py-2"
                       >
                         <p className="text-[11px] text-dash-muted">Conectar um domínio</p>
 
@@ -4608,13 +4608,13 @@ function Arquiteto() {
                                 }}
                                 placeholder="minhaloja.com.br"
                                 data-arquiteto-config-dominio
-                                className="min-w-0 flex-1 rounded-[8px] border border-white/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-white/90 outline-none"
+                                className="min-w-0 flex-1 rounded-[8px] border border-dash-hair/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-dash-fg/90 outline-none"
                               />
                               <button
                                 onClick={() => void salvarDominio(domTexto)}
                                 disabled={domSalvando}
                                 data-arquiteto-config-dominio-salvar
-                                className="shrink-0 rounded-[8px] border border-white/12 px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-white disabled:opacity-50"
+                                className="shrink-0 rounded-[8px] border border-dash-hair/12 px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-dash-fg disabled:opacity-50"
                               >
                                 {domSalvando ? "…" : "conectar"}
                               </button>
@@ -4629,7 +4629,7 @@ function Arquiteto() {
                             <div className="flex items-center justify-between gap-2">
                               <span
                                 data-arquiteto-config-dominio-atual
-                                className="min-w-0 truncate font-mono text-[11px] text-white/90"
+                                className="min-w-0 truncate font-mono text-[11px] text-dash-fg/90"
                               >
                                 {domSalvo}
                               </span>
@@ -4686,8 +4686,8 @@ function Arquiteto() {
                                   site abre nele.
                                 </p>
                                 {/* O REGISTRO PRONTO — ninguém digita IP à mão. */}
-                                <div className="flex items-center justify-between gap-2 rounded-[8px] border border-white/10 bg-black/20 px-2 py-1.5">
-                                  <span className="min-w-0 truncate font-mono text-[10.5px] text-white/85">
+                                <div className="flex items-center justify-between gap-2 rounded-[8px] border border-dash-hair/10 bg-dash-scrim/20 px-2 py-1.5">
+                                  <span className="min-w-0 truncate font-mono text-[10.5px] text-dash-fg/85">
                                     A · @ · {domIpBorda || "…"}
                                   </span>
                                   <CopiarTexto
@@ -4701,7 +4701,7 @@ function Arquiteto() {
                             {/* LINK DO CLIENTE + MENSAGEM PRONTA (dono, 09/10/2026): o fluxo
                                 entrega TUDO — o registro, o link e o texto para mandar. */}
                             {domLink && (
-                              <div className="mt-1.5 flex flex-col gap-1.5 rounded-[8px] border border-white/10 bg-black/20 px-2 py-2">
+                              <div className="mt-1.5 flex flex-col gap-1.5 rounded-[8px] border border-dash-hair/10 bg-dash-scrim/20 px-2 py-2">
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="text-[10.5px] font-medium text-dash-muted">
                                     Link para o cliente
@@ -4731,7 +4731,7 @@ function Arquiteto() {
                             {/* CLOUDFLARE — o BOTÃO (dono, 09/10/2026): conecta por
                                 OAuth e cria o registro A sozinho, em DNS-only. */}
                             {domSalvo && (
-                              <div className="mt-1.5 flex flex-col gap-1.5 rounded-[8px] border border-white/10 bg-black/20 px-2 py-2">
+                              <div className="mt-1.5 flex flex-col gap-1.5 rounded-[8px] border border-dash-hair/10 bg-dash-scrim/20 px-2 py-2">
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="text-[10.5px] font-medium text-dash-muted">
                                     Cloudflare
@@ -4761,7 +4761,7 @@ function Arquiteto() {
                                         onClick={() => void esquecerCloudflare()}
                                         disabled={cfOcupado}
                                         data-arquiteto-config-cf-esquecer
-                                        className="rounded-[8px] border border-white/12 px-2.5 py-1 text-[10.5px] text-dash-dim transition hover:text-white disabled:opacity-50"
+                                        className="rounded-[8px] border border-dash-hair/12 px-2.5 py-1 text-[10.5px] text-dash-dim transition hover:text-dash-fg disabled:opacity-50"
                                       >
                                         desconectar
                                       </button>
@@ -4797,14 +4797,14 @@ function Arquiteto() {
                               <button
                                 onClick={() => void carregarDominio(projetoIdRef.current || "")}
                                 data-arquiteto-config-dominio-verificar
-                                className="rounded-[8px] border border-white/12 px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-white"
+                                className="rounded-[8px] border border-dash-hair/12 px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-dash-fg"
                               >
                                 verificar de novo
                               </button>
                               <button
                                 onClick={() => void salvarDominio("")}
                                 data-arquiteto-config-dominio-tirar
-                                className="rounded-[8px] border border-white/12 px-2.5 py-1 text-[10.5px] text-dash-dim transition hover:text-white"
+                                className="rounded-[8px] border border-dash-hair/12 px-2.5 py-1 text-[10.5px] text-dash-dim transition hover:text-dash-fg"
                               >
                                 desconectar
                               </button>
@@ -4857,7 +4857,7 @@ function Arquiteto() {
                     onClick={() => fonteRef.current?.click()}
                     disabled={enviandoAsset || !projetoId}
                     data-arquiteto-config-fonte-subir
-                    className="rounded-[9px] border border-white/12 px-3 py-1.5 text-[11.5px] text-dash-muted transition hover:text-white disabled:opacity-50"
+                    className="rounded-[9px] border border-dash-hair/12 px-3 py-1.5 text-[11.5px] text-dash-muted transition hover:text-dash-fg disabled:opacity-50"
                   >
                     {enviandoAsset ? "subindo…" : "subir uma fonte"}
                   </button>
@@ -4879,7 +4879,7 @@ function Arquiteto() {
                           className="flex items-center justify-between gap-2 rounded-[9px] border border-dash-line px-2.5 py-1.5"
                         >
                           <div className="min-w-0">
-                            <p className="truncate text-[11.5px] text-white/90">
+                            <p className="truncate text-[11.5px] text-dash-fg/90">
                               {familiaDaFonte(f.caminho)}
                             </p>
                             <p className="truncate font-mono text-[10px] text-dash-dim">
@@ -4891,7 +4891,7 @@ function Arquiteto() {
                               onClick={() => void copiarFontFace(f.caminho)}
                               data-arquiteto-config-fonte-css={f.caminho}
                               title="Copiar o @font-face para colar no CSS do projeto"
-                              className="rounded-[8px] border border-white/12 px-2 py-1 text-[10.5px] text-dash-muted transition hover:text-white"
+                              className="rounded-[8px] border border-dash-hair/12 px-2 py-1 text-[10.5px] text-dash-muted transition hover:text-dash-fg"
                             >
                               {fonteCopiada === f.caminho ? "copiado" : "@font-face"}
                             </button>
@@ -4899,7 +4899,7 @@ function Arquiteto() {
                               onClick={() => void removerAsset(f.caminho)}
                               data-arquiteto-config-fonte-tirar={f.caminho}
                               title="Tirar a fonte do projeto"
-                              className="rounded-[8px] border border-white/12 px-2 py-1 text-[10.5px] text-dash-dim transition hover:text-white"
+                              className="rounded-[8px] border border-dash-hair/12 px-2 py-1 text-[10.5px] text-dash-dim transition hover:text-dash-fg"
                             >
                               tirar
                             </button>
@@ -4930,8 +4930,8 @@ function Arquiteto() {
                   {/* O QUE ESTE PROJETO USA (dono, 09/10/2026: "não precisa mostrar
                       tudo que está integrado, só o que foi usado no projeto").
                       Curto e direto: o que ele escolheu, e a lista de onde escolher. */}
-                  <div className="rounded-[8px] border border-white/[0.09] bg-black/20 px-2.5 py-2">
-                    <p className="text-[11px] text-white/85">Este projeto usa</p>
+                  <div className="rounded-[8px] border border-dash-hair/[0.09] bg-dash-scrim/20 px-2.5 py-2">
+                    <p className="text-[11px] text-dash-fg/85">Este projeto usa</p>
                     {carregandoInteg ? (
                       <p className="mt-1 text-[10px] text-dash-dim">lendo…</p>
                     ) : usadas.length ? (
@@ -4942,7 +4942,7 @@ function Arquiteto() {
                           return (
                             <li
                               key={id}
-                              className="flex flex-col gap-1.5 rounded-[8px] px-1.5 py-1.5 transition hover:bg-white/[0.03]"
+                              className="flex flex-col gap-1.5 rounded-[8px] px-1.5 py-1.5 transition hover:bg-dash-hair/[0.03]"
                             >
                               <div className="flex items-center justify-between gap-2 text-[10.5px]">
                                 <span className="flex min-w-0 flex-col">
@@ -4959,7 +4959,7 @@ function Arquiteto() {
                                         setFormInteg({ id, cred: "", url: "" });
                                       }}
                                       data-arquiteto-config-integracoes-conectar={id}
-                                      className="rounded-full bg-dash-raise px-2 py-0.5 text-[10px] text-dash-muted transition hover:text-white"
+                                      className="rounded-full bg-dash-raise px-2 py-0.5 text-[10px] text-dash-muted transition hover:text-dash-fg"
                                     >
                                       conectar
                                     </button>
@@ -4977,14 +4977,14 @@ function Arquiteto() {
                               {/* A CHAVE desta integração. Campo de senha (nunca fica à vista),
                                   some da tela ao salvar e NÃO volta nunca na leitura. */}
                               {formInteg?.id === id && (
-                                <div className="flex flex-col gap-1.5 rounded-[8px] border border-white/10 bg-black/25 px-2 py-1.5">
+                                <div className="flex flex-col gap-1.5 rounded-[8px] border border-dash-hair/10 bg-dash-scrim/25 px-2 py-1.5">
                                   {id === "supabase" && (
                                     <input
                                       value={formInteg.url}
                                       onChange={(e) => setFormInteg({ ...formInteg, url: e.target.value })}
                                       placeholder="endereço do projeto (https://xxxx.supabase.co)"
                                       data-arquiteto-integracao-url={id}
-                                      className="w-full rounded-[7px] border border-white/10 bg-black/30 px-2 py-1 text-[10.5px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/50"
+                                      className="w-full rounded-[7px] border border-dash-hair/10 bg-dash-scrim/30 px-2 py-1 text-[10.5px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/50"
                                     />
                                   )}
                                   <input
@@ -4994,7 +4994,7 @@ function Arquiteto() {
                                     onChange={(e) => setFormInteg({ ...formInteg, cred: e.target.value })}
                                     placeholder="cola a chave aqui"
                                     data-arquiteto-integracao-chave={id}
-                                    className="w-full rounded-[7px] border border-white/10 bg-black/30 px-2 py-1 text-[10.5px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/50"
+                                    className="w-full rounded-[7px] border border-dash-hair/10 bg-dash-scrim/30 px-2 py-1 text-[10.5px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/50"
                                   />
                                   <div className="flex flex-wrap items-center gap-2">
                                     <button
@@ -5010,7 +5010,7 @@ function Arquiteto() {
                                         setFormInteg(null);
                                         setAvisoInteg("");
                                       }}
-                                      className="rounded-full px-1.5 py-0.5 text-[10px] text-dash-dim transition hover:text-white"
+                                      className="rounded-full px-1.5 py-0.5 text-[10px] text-dash-dim transition hover:text-dash-fg"
                                     >
                                       cancelar
                                     </button>
@@ -5039,8 +5039,8 @@ function Arquiteto() {
                   </div>
 
                   {/* ADICIONAR — lista curta, e vai crescendo conforme existirem. */}
-                  <div className="rounded-[8px] border border-white/[0.09] bg-black/20 px-2.5 py-2">
-                    <p className="text-[11px] text-white/85">Adicionar ao projeto</p>
+                  <div className="rounded-[8px] border border-dash-hair/[0.09] bg-dash-scrim/20 px-2.5 py-2">
+                    <p className="text-[11px] text-dash-fg/85">Adicionar ao projeto</p>
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       {INTEGRACOES_DO_PROJETO.filter((o) => !usadas.includes(o.id)).map((o) => (
                         <button
@@ -5048,7 +5048,7 @@ function Arquiteto() {
                           onClick={() => void porIntegracao(o.id)}
                           title={o.para}
                           data-arquiteto-config-integracao-add={o.id}
-                          className="rounded-full bg-dash-raise px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-white"
+                          className="rounded-full bg-dash-raise px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-dash-fg"
                         >
                           {o.nome}
                         </button>
@@ -5064,7 +5064,7 @@ function Arquiteto() {
                         setVerTodas(true);
                       }}
                       data-arquiteto-config-integracoes-ver-todas
-                      className="mt-2 text-[10.5px] text-dash-dim underline transition hover:text-white"
+                      className="mt-2 text-[10.5px] text-dash-dim underline transition hover:text-dash-fg"
                     >
                       ver todas as integrações
                     </button>
@@ -5074,15 +5074,15 @@ function Arquiteto() {
                       Ele clica uma vez no GitHub, marca os repositórios e a chave privada
                       chega direto no nosso servidor, cifrada. */}
                   {usadas.includes("github") && (
-                    <div className="rounded-[8px] border border-white/[0.09] bg-black/20 px-2.5 py-2">
+                    <div className="rounded-[8px] border border-dash-hair/[0.09] bg-dash-scrim/20 px-2.5 py-2">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] text-white/85">GitHub</span>
+                        <span className="text-[11px] text-dash-fg/85">GitHub</span>
                         <span className="hidden text-[10px] text-dash-dim sm:inline">editar projeto que já existe</span>
                       </div>
                       <a
                         href="/api/oauth/github/manifesto"
                         data-arquiteto-config-github
-                        className="mt-1.5 inline-flex w-fit items-center gap-1.5 rounded-full bg-dash-raise px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-white"
+                        className="mt-1.5 inline-flex w-fit items-center gap-1.5 rounded-full bg-dash-raise px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-dash-fg"
                       >
                         criar o app e escolher os repositórios
                       </a>
@@ -5107,20 +5107,20 @@ function Arquiteto() {
                       O que ainda não dá para usar diz "ainda não" — sem promessa falsa. */}
                   {verTodas && (
                     <div
-                      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center sm:p-6"
+                      className="fixed inset-0 z-50 flex items-end justify-center bg-dash-scrim/70 sm:items-center sm:p-6"
                       onClick={() => setVerTodas(false)}
                     >
                       <div
                         onClick={(e) => e.stopPropagation()}
                         data-arquiteto-integracoes-popup
-                        className="flex max-h-[85vh] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[16px] border border-white/10 bg-dash-side shadow-2xl sm:rounded-[16px]"
+                        className="flex max-h-[85vh] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[16px] border border-dash-hair/10 bg-dash-side shadow-2xl sm:rounded-[16px]"
                       >
-                        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.07] px-4 py-3">
-                          <p className="text-[12.5px] text-white">Integrações</p>
+                        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-dash-hair/[0.07] px-4 py-3">
+                          <p className="text-[12.5px] text-dash-fg">Integrações</p>
                           <button
                             onClick={() => setVerTodas(false)}
                             aria-label="Fechar"
-                            className="rounded-full px-2 py-0.5 text-[11px] text-dash-dim transition hover:text-white"
+                            className="rounded-full px-2 py-0.5 text-[11px] text-dash-dim transition hover:text-dash-fg"
                           >
                             fechar
                           </button>
@@ -5132,7 +5132,7 @@ function Arquiteto() {
                             onChange={(e) => setBuscaInteg(e.target.value)}
                             placeholder="buscar (ex.: banco, voz, vídeo)"
                             data-arquiteto-integracoes-busca
-                            className="w-full rounded-[10px] border border-white/10 bg-black/25 px-3 py-2 text-[12px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/50"
+                            className="w-full rounded-[10px] border border-dash-hair/10 bg-dash-scrim/25 px-3 py-2 text-[12px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/50"
                           />
                         </div>
                         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
@@ -5152,10 +5152,10 @@ function Arquiteto() {
                                     return (
                                       <li
                                         key={i.id}
-                                        className="flex items-center justify-between gap-3 rounded-[9px] px-2 py-1.5 hover:bg-white/[0.04]"
+                                        className="flex items-center justify-between gap-3 rounded-[9px] px-2 py-1.5 hover:bg-dash-hair/[0.04]"
                                       >
                                         <span className="flex min-w-0 flex-col">
-                                          <span className="truncate text-[11.5px] text-white/90">{i.nome}</span>
+                                          <span className="truncate text-[11.5px] text-dash-fg/90">{i.nome}</span>
                                           <span className="truncate text-[10px] text-dash-dim">{i.para}</span>
                                         </span>
                                         {dentro ? (
@@ -5163,7 +5163,7 @@ function Arquiteto() {
                                         ) : fazSentido ? (
                                           <button
                                             onClick={() => void porIntegracao(i.id)}
-                                            className="shrink-0 rounded-full bg-dash-raise px-2.5 py-1 text-[10px] text-dash-muted transition hover:text-white"
+                                            className="shrink-0 rounded-full bg-dash-raise px-2.5 py-1 text-[10px] text-dash-muted transition hover:text-dash-fg"
                                           >
                                             usar
                                           </button>
@@ -5178,7 +5178,7 @@ function Arquiteto() {
                             );
                           })}
                         </div>
-                        <p className="shrink-0 border-t border-white/[0.07] px-4 py-2.5 text-[10px] leading-[1.5] text-dash-dim">
+                        <p className="shrink-0 border-t border-dash-hair/[0.07] px-4 py-2.5 text-[10px] leading-[1.5] text-dash-dim">
                           &quot;ainda não&quot; = existe na sua conta, mas o projeto ainda não sabe usar as chaves
                           dela. Nada aqui é apagado da sua conta.
                         </p>
@@ -5205,7 +5205,7 @@ function Arquiteto() {
             className={`flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[10.5px] transition sm:px-3 ${
               publicarToken
                 ? "bg-dash-ok/15 text-dash-ok ring-1 ring-dash-ok/40"
-                : "bg-dash-raise text-dash-muted hover:text-white"
+                : "bg-dash-raise text-dash-muted hover:text-dash-fg"
             }`}
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -5239,12 +5239,12 @@ function Arquiteto() {
                       value={urlPublica()}
                       data-arquiteto-publicar-link
                       onFocus={(e) => e.currentTarget.select()}
-                      className="min-w-0 flex-1 rounded-[8px] border border-white/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-white/90 outline-none"
+                      className="min-w-0 flex-1 rounded-[8px] border border-dash-hair/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-dash-fg/90 outline-none"
                     />
                     <button
                       onClick={() => void copiarLink()}
                       data-arquiteto-publicar-copiar
-                      className="shrink-0 rounded-[8px] border border-white/12 px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-white"
+                      className="shrink-0 rounded-[8px] border border-dash-hair/12 px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-dash-fg"
                     >
                       {linkCopiado ? "copiado" : "copiar"}
                     </button>
@@ -5258,7 +5258,7 @@ function Arquiteto() {
                       onClick={() => void publicar()}
                       disabled={publicando}
                       data-arquiteto-publicar-republicar
-                      className="rounded-[8px] bg-dash-raise px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-white disabled:opacity-40"
+                      className="rounded-[8px] bg-dash-raise px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-dash-fg disabled:opacity-40"
                     >
                       {publicando ? "publicando…" : "republicar"}
                     </button>
@@ -5312,13 +5312,13 @@ function Arquiteto() {
       />
 
       {/* ── abas do CELULAR: conversa e projeto, nada sobreposto ── */}
-      <div className="flex shrink-0 gap-1.5 border-b border-white/[0.07] px-3 py-2 lg:hidden">
+      <div className="flex shrink-0 gap-1.5 border-b border-dash-hair/[0.07] px-3 py-2 lg:hidden">
         {(["conversa", "projeto"] as const).map((a) => (
           <button
             key={a}
             onClick={() => setAbaMobile(a)}
             className={`flex-1 rounded-[10px] px-4 py-2 text-[12px] transition ${
-              abaMobile === a ? "bg-dash-brand text-white" : "bg-dash-raise text-dash-muted hover:text-white"
+              abaMobile === a ? "bg-dash-brand text-white" : "bg-dash-raise text-dash-muted hover:text-dash-fg"
             }`}
           >
             {a === "conversa" ? "Conversa" : "Projeto"}
@@ -5332,7 +5332,7 @@ function Arquiteto() {
         <section
           className={`${
             abaMobile === "conversa" ? "flex" : "hidden"
-          } min-w-0 flex-1 flex-col bg-dash-side/30 lg:flex lg:w-[360px] lg:flex-none lg:border-r lg:border-white/[0.07]`}
+          } min-w-0 flex-1 flex-col bg-dash-side/30 lg:flex lg:w-[360px] lg:flex-none lg:border-r lg:border-dash-hair/[0.07]`}
         >
           {/* FAIXA DE PRÉVIA no CELULAR: a MESMA prévia em espelho SÓ-LEITURA.
               Sem ponte (os recados dele são ignorados: o handler só aceita do
@@ -5346,12 +5346,15 @@ function Arquiteto() {
                 <button
                   onClick={() => setVerPreviaCelular(false)}
                   aria-label="Esconder a prévia"
-                  className="rounded-full px-1.5 text-[11px] text-dash-dim transition hover:text-white"
+                  className="rounded-full px-1.5 text-[11px] text-dash-dim transition hover:text-dash-fg"
                 >
                   esconder
                 </button>
               </div>
-              <div className="mx-3 mb-2 h-[130px] overflow-hidden rounded-[12px] border border-white/10 bg-white">
+              {/* O PAPEL DA PRÉVIA fica BRANCO nos dois temas: é a página do
+                  usuário aparecendo (a página dele é branca). Pintar isto com
+                  o token do tema deixaria o "papel" preto no tema claro. */}
+              <div className="mx-3 mb-2 h-[130px] overflow-hidden rounded-[12px] border border-dash-hair/10 bg-white">
                 <iframe
                   title="Prévia (espelho)"
                   srcDoc={previa.html}
@@ -5372,7 +5375,7 @@ function Arquiteto() {
                   ) : (
                     <>
                       Descreva o projeto que você quer. Ex.:{" "}
-                      <span className="text-white/85">
+                      <span className="text-dash-fg/85">
                         “uma página de vendas para o meu CRM, com cabeçalho, preço e botão de compra”
                       </span>
                       .
@@ -5388,10 +5391,10 @@ function Arquiteto() {
                   key={i}
                   className={
                     t.papel === "voce"
-                      ? "ml-auto max-w-[88%] rounded-[18px] rounded-br-sm bg-dash-brand/18 px-4 py-3 text-[13px] text-white"
+                      ? "ml-auto max-w-[88%] rounded-[18px] rounded-br-sm bg-dash-brand/18 px-4 py-3 text-[13px] text-dash-fg"
                       : t.erro
                         ? "mr-auto max-w-[92%] rounded-[18px] rounded-bl-sm border border-dash-bad/30 bg-dash-bad/[0.08] px-4 py-3 text-[13px] text-dash-bad"
-                        : "mr-auto max-w-[92%] rounded-[18px] rounded-bl-sm border border-white/[0.07] bg-dash-side px-4 py-3 text-[13px] text-white/85"
+                        : "mr-auto max-w-[92%] rounded-[18px] rounded-bl-sm border border-dash-hair/[0.07] bg-dash-side px-4 py-3 text-[13px] text-dash-fg/85"
                   }
                 >
                   <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-dash-dim">
@@ -5403,7 +5406,7 @@ function Arquiteto() {
                       {/* A AÇÃO que torna o modo Plano funcional: executar o
                           plano = mandar o texto ao caminho de CONSTRUIR. Só
                           este clique altera o projeto — e o aviso diz isso. */}
-                      <div className="mt-3 border-t border-white/[0.07] pt-2.5">
+                      <div className="mt-3 border-t border-dash-hair/[0.07] pt-2.5">
                         <button
                           type="button"
                           data-arquiteto-executar-plano
@@ -5411,7 +5414,7 @@ function Arquiteto() {
                           disabled={gerando}
                           title="Executar plano: constrói o projeto a partir deste plano (cria uma versão nova)"
                           aria-label="Executar plano: constrói o projeto a partir deste plano e cria uma versão nova"
-                          className="inline-flex items-center gap-1.5 rounded-[10px] border border-dash-brand/40 bg-dash-brand/15 px-3 py-1.5 text-[12px] text-white transition hover:bg-dash-brand/25 disabled:opacity-40"
+                          className="inline-flex items-center gap-1.5 rounded-[10px] border border-dash-brand/40 bg-dash-brand/15 px-3 py-1.5 text-[12px] text-dash-fg transition hover:bg-dash-brand/25 disabled:opacity-40"
                         >
                           <IconeEnviar className="h-3.5 w-3.5" />
                           Executar plano
@@ -5453,7 +5456,7 @@ function Arquiteto() {
             </div>
           </div>
 
-          <div className="border-t border-white/[0.07] px-4 py-3">
+          <div className="border-t border-dash-hair/[0.07] px-4 py-3">
             {/* ── A CAIXA do compositor ──────────────────────────────────────
                 A ESTRUTURA é a da referência que o dono pediu para imitar
                 (caixa arredondada, campo em cima, linha de controles embaixo),
@@ -5463,20 +5466,20 @@ function Arquiteto() {
                 `rounded-[20px]` (a família arredondada do chat). */}
             <div
               data-arquiteto-composer
-              className="rounded-[20px] border border-white/10 bg-dash-side px-3.5 pb-3 pt-3.5 shadow-[0_12px_36px_rgba(0,0,0,0.35)]"
+              className="rounded-[20px] border border-dash-hair/10 bg-dash-side px-3.5 pb-3 pt-3.5 shadow-[0_12px_36px_rgba(0,0,0,0.35)]"
             >
               {/* O QUE VAI JUNTO COM O PEDIDO: a foto do pedaço marcado — a VISÃO do
                   construtor. Fica discreta aqui e dá para tirar. */}
               {foto && (
                 <div
                   data-arquiteto-foto-anexada
-                  className="mb-2 flex items-center gap-2.5 rounded-[12px] border border-white/10 bg-black/20 p-2"
+                  className="mb-2 flex items-center gap-2.5 rounded-[12px] border border-dash-hair/10 bg-dash-scrim/20 p-2"
                 >
                   <img
                     src={foto.imagem}
                     alt="Pedaço marcado na prévia"
                     data-arquiteto-foto
-                    className="h-[46px] w-auto max-w-[160px] shrink-0 rounded-[7px] border border-white/10 bg-white object-cover"
+                    className="h-[46px] w-auto max-w-[160px] shrink-0 rounded-[7px] border border-dash-hair/10 bg-white object-cover"
                   />
                   <p className="min-w-0 flex-1 text-[10.5px] leading-snug text-dash-muted">
                     foto do pedaço marcado vai junto neste pedido — é assim que o construtor enxerga.
@@ -5486,7 +5489,7 @@ function Arquiteto() {
                     data-arquiteto-foto-tirar
                     title="Tirar a foto do pedido"
                     aria-label="Tirar a foto do pedido"
-                    className="shrink-0 rounded-[7px] bg-dash-raise px-2 py-1 text-[10px] text-dash-muted transition hover:text-white"
+                    className="shrink-0 rounded-[7px] bg-dash-raise px-2 py-1 text-[10px] text-dash-muted transition hover:text-dash-fg"
                   >
                     tirar
                   </button>
@@ -5507,7 +5510,7 @@ function Arquiteto() {
                   }
                 }}
                 placeholder={modoChat === "plano" ? "Descreva o que planejar…" : "Descreva sua ideia"}
-                className="max-h-32 min-h-[40px] w-full resize-none border-0 bg-transparent px-1 text-[14px] leading-[1.6] text-white outline-none placeholder:text-dash-dim"
+                className="max-h-32 min-h-[40px] w-full resize-none border-0 bg-transparent px-1 text-[14px] leading-[1.6] text-dash-fg outline-none placeholder:text-dash-dim"
               />
 
               {/* A LINHA de baixo, esquerda→direita: "+" · PÍLULA do modo ·
@@ -5524,8 +5527,8 @@ function Arquiteto() {
                     onClick={() => setMenuMais((v) => !v)}
                     className={`grid h-9 w-9 shrink-0 place-items-center rounded-full transition ${
                       menuMais
-                        ? "bg-dash-raise text-white"
-                        : "text-dash-muted hover:bg-white/[0.06] hover:text-white"
+                        ? "bg-dash-raise text-dash-fg"
+                        : "text-dash-muted hover:bg-dash-hair/[0.06] hover:text-dash-fg"
                     }`}
                   >
                     <IconeMais className="h-[18px] w-[18px]" />
@@ -5548,11 +5551,11 @@ function Arquiteto() {
                           setMenuMais(false);
                           entradaImagemRef.current?.click();
                         }}
-                        className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left transition hover:bg-white/[0.06]"
+                        className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left transition hover:bg-dash-hair/[0.06]"
                       >
                         <IconeImagem className="h-[17px] w-[17px] shrink-0 text-dash-muted" />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-[12.5px] text-white/90">Anexar imagem</span>
+                          <span className="block text-[12.5px] text-dash-fg/90">Anexar imagem</span>
                           <span className="block text-[10.5px] leading-[1.4] text-dash-dim">
                             {projetoId
                               ? "vai para os assets do projeto (PNG, JPG, WEBP, GIF, SVG)"
@@ -5567,11 +5570,11 @@ function Arquiteto() {
                         data-arquiteto-mais-blocos
                         aria-expanded={menuMaisBlocos}
                         onClick={() => setMenuMaisBlocos((v) => !v)}
-                        className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left transition hover:bg-white/[0.06]"
+                        className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left transition hover:bg-dash-hair/[0.06]"
                       >
                         <IconeBlocos className="h-[17px] w-[17px] shrink-0 text-dash-muted" />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-[12.5px] text-white/90">Usar um bloco</span>
+                          <span className="block text-[12.5px] text-dash-fg/90">Usar um bloco</span>
                           <span className="block text-[10.5px] leading-[1.4] text-dash-dim">
                             {BLOCOS.length} blocos prontos entram no projeto
                           </span>
@@ -5584,7 +5587,7 @@ function Arquiteto() {
                       </button>
 
                       {menuMaisBlocos && (
-                        <div className="mt-1 max-h-[240px] overflow-y-auto border-t border-white/[0.07] pt-1">
+                        <div className="mt-1 max-h-[240px] overflow-y-auto border-t border-dash-hair/[0.07] pt-1">
                           {BLOCOS.map((b) => (
                             <button
                               key={b.id}
@@ -5595,16 +5598,16 @@ function Arquiteto() {
                                 setMenuMaisBlocos(false);
                                 inserirBlocoNoProjeto(b, "conversa");
                               }}
-                              className="flex w-full flex-col items-start rounded-[10px] px-3 py-2 text-left transition hover:bg-white/[0.06]"
+                              className="flex w-full flex-col items-start rounded-[10px] px-3 py-2 text-left transition hover:bg-dash-hair/[0.06]"
                             >
-                              <span className="text-[12px] text-white/90">{b.nome}</span>
+                              <span className="text-[12px] text-dash-fg/90">{b.nome}</span>
                               <span className="text-[10.5px] leading-[1.4] text-dash-dim">{b.descricao}</span>
                             </button>
                           ))}
                         </div>
                       )}
 
-                      <p className="border-t border-white/[0.07] px-3 py-2 text-[10px] leading-[1.5] text-dash-dim">
+                      <p className="border-t border-dash-hair/[0.07] px-3 py-2 text-[10px] leading-[1.5] text-dash-dim">
                         Só ações que funcionam de verdade — nada desabilitado nem promessa.
                       </p>
                     </div>
@@ -5642,8 +5645,8 @@ function Arquiteto() {
                     }}
                     className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[12px] transition ${
                       menuModo
-                        ? "border-dash-brand/60 bg-dash-brand/25 text-white"
-                        : "border-dash-brand/35 bg-dash-brand/[0.16] text-white hover:bg-dash-brand/25"
+                        ? "border-dash-brand/60 bg-dash-brand/25 text-dash-fg"
+                        : "border-dash-brand/35 bg-dash-brand/[0.16] text-dash-fg hover:bg-dash-brand/25"
                     }`}
                   >
                     {modoChat === "construir" ? (
@@ -5651,7 +5654,7 @@ function Arquiteto() {
                     ) : (
                       <IconeDocumento className="h-3.5 w-3.5 text-dash-brand" />
                     )}
-                    <span className="text-white/90">
+                    <span className="text-dash-fg/90">
                       {modoChat === "construir" ? "Construir" : "Plano"}
                     </span>
                     <IconeCaret
@@ -5684,13 +5687,13 @@ function Arquiteto() {
                         aria-label="Construir: o pedido vira projeto (cria uma versão nova)"
                         className={`flex w-full items-start gap-2.5 rounded-[10px] px-3 py-2.5 text-left transition ${
                           modoChat === "construir"
-                            ? "bg-dash-brand/15 text-white"
-                            : "text-dash-muted hover:bg-white/[0.06] hover:text-white"
+                            ? "bg-dash-brand/15 text-dash-fg"
+                            : "text-dash-muted hover:bg-dash-hair/[0.06] hover:text-dash-fg"
                         }`}
                       >
                         <IconeRobo className="mt-0.5 h-[16px] w-[16px] shrink-0 text-dash-brand" />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-[12.5px] text-white/90">Construir</span>
+                          <span className="block text-[12.5px] text-dash-fg/90">Construir</span>
                           <span className="block text-[10.5px] leading-[1.4] text-dash-dim">
                             o pedido vira projeto (cria uma versão nova)
                           </span>
@@ -5710,13 +5713,13 @@ function Arquiteto() {
                         aria-label="Plano: só planeja, não altera o projeto"
                         className={`flex w-full items-start gap-2.5 rounded-[10px] px-3 py-2.5 text-left transition ${
                           modoChat === "plano"
-                            ? "bg-dash-brand/15 text-white"
-                            : "text-dash-muted hover:bg-white/[0.06] hover:text-white"
+                            ? "bg-dash-brand/15 text-dash-fg"
+                            : "text-dash-muted hover:bg-dash-hair/[0.06] hover:text-dash-fg"
                         }`}
                       >
                         <IconeDocumento className="mt-0.5 h-[16px] w-[16px] shrink-0 text-dash-brand" />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-[12.5px] text-white/90">Plano</span>
+                          <span className="block text-[12.5px] text-dash-fg/90">Plano</span>
                           <span className="block text-[10.5px] leading-[1.4] text-dash-dim">
                             só planeja: não altera o projeto
                           </span>
@@ -5780,7 +5783,7 @@ function Arquiteto() {
                       ? "cursor-not-allowed text-dash-dim opacity-50"
                       : ouvindo
                         ? "bg-dash-bad/20 text-dash-bad ring-1 ring-dash-bad/50"
-                        : "text-dash-muted hover:bg-white/[0.06] hover:text-white"
+                        : "text-dash-muted hover:bg-dash-hair/[0.06] hover:text-dash-fg"
                   }`}
                 >
                   <IconeMicrofone className="h-[18px] w-[18px]" />
@@ -5796,7 +5799,7 @@ function Arquiteto() {
                   data-arquiteto-enviar={modoChat}
                   aria-label={modoChat === "plano" ? "Planejar" : "Construir"}
                   title={modoChat === "plano" ? "Planejar (Enter)" : "Construir (Enter)"}
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-dash-raise text-white transition hover:brightness-125 disabled:opacity-40"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-dash-raise text-dash-fg transition hover:brightness-125 disabled:opacity-40"
                 >
                   <IconeSetaCima className="h-[17px] w-[17px]" />
                 </button>
@@ -5864,7 +5867,7 @@ function Arquiteto() {
                 <div className="flex min-w-0 flex-1 flex-col">
                   {/* BARRA DA PRÉVIA — um controle só: presets de largura, largura
                       exata (px) e zoom. Quieta, na mesma linguagem dos modos. */}
-                  <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-white/[0.07] bg-dash-side/20 px-3 py-1.5 sm:px-4">
+                  <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-dash-hair/[0.07] bg-dash-side/20 px-3 py-1.5 sm:px-4">
                     <div className="flex items-center gap-1.5">
                       {(["desktop", "tablet", "celular"] as const).map((d) => (
                         <button
@@ -5877,7 +5880,7 @@ function Arquiteto() {
                           className={`grid h-7 w-7 place-items-center rounded-full transition ${
                             presetAtivo === d
                               ? "bg-dash-brand/20 text-dash-brand ring-1 ring-dash-brand/40"
-                              : "bg-dash-raise text-dash-muted hover:text-white"
+                              : "bg-dash-raise text-dash-muted hover:text-dash-fg"
                           }`}
                         >
                           {d === "desktop" ? (
@@ -5904,7 +5907,7 @@ function Arquiteto() {
                         placeholder="auto"
                         aria-label="Largura da prévia em pixels"
                         data-arquiteto-largura
-                        className="w-[64px] rounded-[7px] border border-white/10 bg-dash-bg px-2 py-1 font-mono text-[11px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
+                        className="w-[64px] rounded-[7px] border border-dash-hair/10 bg-dash-bg px-2 py-1 font-mono text-[11px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
                       />
                       px
                     </label>
@@ -5930,7 +5933,7 @@ function Arquiteto() {
                       className={`flex h-7 w-7 items-center justify-center rounded-full transition ${
                         escolhendo
                           ? "bg-dash-brand/20 text-dash-brand ring-1 ring-dash-brand/40"
-                          : "bg-dash-raise text-dash-muted hover:text-white"
+                          : "bg-dash-raise text-dash-muted hover:text-dash-fg"
                       }`}
                     >
                       <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -5962,7 +5965,7 @@ function Arquiteto() {
                       className={`flex h-7 w-7 items-center justify-center rounded-full transition ${
                         riscando
                           ? "bg-dash-brand/20 text-dash-brand ring-1 ring-dash-brand/40"
-                          : "bg-dash-raise text-dash-muted hover:text-white"
+                          : "bg-dash-raise text-dash-muted hover:text-dash-fg"
                       }`}
                     >
                       <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -5975,7 +5978,7 @@ function Arquiteto() {
                         onClick={limparRiscos}
                         data-arquiteto-limpar-riscos
                         title="Tirar as marcas da tela (elas não fazem parte do projeto)"
-                        className="flex items-center gap-1 rounded-full bg-dash-raise px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-white"
+                        className="flex items-center gap-1 rounded-full bg-dash-raise px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-dash-fg"
                       >
                         limpar riscos
                       </button>
@@ -5994,7 +5997,7 @@ function Arquiteto() {
                       }
                       aria-label="Enviar imagem para o projeto"
                       data-arquiteto-enviar-imagem-preview
-                      className="flex items-center gap-1 rounded-full bg-dash-raise px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-white disabled:opacity-35"
+                      className="flex items-center gap-1 rounded-full bg-dash-raise px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-dash-fg disabled:opacity-35"
                     >
                       <IconeImagem className="h-3.5 w-3.5" />
                       <span className="hidden sm:inline">imagem</span>
@@ -6008,7 +6011,7 @@ function Arquiteto() {
                         title="Diminuir zoom"
                         aria-label="Diminuir zoom"
                         data-arquiteto-zoom-menos
-                        className="grid h-6 w-6 place-items-center rounded-[7px] bg-dash-raise text-dash-muted transition hover:text-white disabled:opacity-35"
+                        className="grid h-6 w-6 place-items-center rounded-[7px] bg-dash-raise text-dash-muted transition hover:text-dash-fg disabled:opacity-35"
                       >
                         <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden>
                           <path d="M5 12h14" />
@@ -6019,7 +6022,7 @@ function Arquiteto() {
                         title="Zoom 100%"
                         aria-label="Redefinir zoom"
                         data-arquiteto-zoom-valor
-                        className="h-6 min-w-[44px] rounded-[7px] bg-dash-raise px-1.5 text-[10.5px] tabular-nums text-white/85 transition hover:text-white"
+                        className="h-6 min-w-[44px] rounded-[7px] bg-dash-raise px-1.5 text-[10.5px] tabular-nums text-dash-fg/85 transition hover:text-dash-fg"
                       >
                         {zoom}%
                       </button>
@@ -6029,7 +6032,7 @@ function Arquiteto() {
                         title="Aumentar zoom"
                         aria-label="Aumentar zoom"
                         data-arquiteto-zoom-mais
-                        className="grid h-6 w-6 place-items-center rounded-[7px] bg-dash-raise text-dash-muted transition hover:text-white disabled:opacity-35"
+                        className="grid h-6 w-6 place-items-center rounded-[7px] bg-dash-raise text-dash-muted transition hover:text-dash-fg disabled:opacity-35"
                       >
                         <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden>
                           <path d="M12 5v14" />
@@ -6057,7 +6060,7 @@ function Arquiteto() {
                     </div>
                   )}
                   {enviandoAsset && (
-                    <div className="shrink-0 border-b border-white/[0.07] px-4 py-2">
+                    <div className="shrink-0 border-b border-dash-hair/[0.07] px-4 py-2">
                       <p className="text-[11px] text-dash-dim">enviando imagem…</p>
                     </div>
                   )}
@@ -6085,7 +6088,7 @@ function Arquiteto() {
                   >
                     {arrastando && (
                       <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-dash-bg/70">
-                        <p className="rounded-[12px] border border-dash-brand/40 bg-dash-card px-4 py-3 text-[12.5px] text-white">
+                        <p className="rounded-[12px] border border-dash-brand/40 bg-dash-card px-4 py-3 text-[12.5px] text-dash-fg">
                           solte a imagem para enviá-la ao projeto (até {MAX_ASSET_ROTULO})
                         </p>
                       </div>
@@ -6103,7 +6106,7 @@ function Arquiteto() {
                           <div
                             ref={moldura}
                             data-arquiteto-moldura
-                            className="relative flex h-full w-full flex-col overflow-hidden rounded-[16px] border border-white/10 bg-white shadow-2xl"
+                            className="relative flex h-full w-full flex-col overflow-hidden rounded-[16px] border border-dash-hair/10 bg-white shadow-2xl"
                             style={{
                               width: medida !== null ? medida : "100%",
                               height: alturaDisponivel !== null ? alturaDisponivel : "100%",
@@ -6146,7 +6149,7 @@ function Arquiteto() {
                   {/* Rótulo medido — honesto: se o painel limitou, ele DIZ. */}
                   <p
                     data-arquiteto-medida
-                    className="shrink-0 border-t border-white/[0.07] px-4 py-2 text-[10.5px] text-dash-dim"
+                    className="shrink-0 border-t border-dash-hair/[0.07] px-4 py-2 text-[10.5px] text-dash-dim"
                   >
                     {larguraBase === null
                       ? `largura total · ${medida ?? "—"}px`
@@ -6162,8 +6165,8 @@ function Arquiteto() {
               /* ═══ MODO CÓDIGO: árvore de arquivos à esquerda, o arquivo à direita ═══ */
               <div className="flex h-full min-h-0">
                 {/* A ÁRVORE do projeto: cada arquivo real, com a ENTRADA marcada. */}
-                <aside className="flex w-[168px] shrink-0 flex-col border-r border-white/[0.07] bg-dash-side/30 sm:w-[204px]">
-                  <div className="flex items-center gap-1 border-b border-white/[0.07] px-3 py-2.5">
+                <aside className="flex w-[168px] shrink-0 flex-col border-r border-dash-hair/[0.07] bg-dash-side/30 sm:w-[204px]">
+                  <div className="flex items-center gap-1 border-b border-dash-hair/[0.07] px-3 py-2.5">
                     <p className="text-[10px] uppercase tracking-[0.16em] text-dash-dim">Arquivos</p>
                     <div className="ml-auto flex items-center gap-1">
                       {/* ENVIAR IMAGEM — o controle discreto da lista de arquivos. */}
@@ -6173,7 +6176,7 @@ function Arquiteto() {
                         title={projetoId ? `Enviar imagem (até ${MAX_ASSET_ROTULO})` : "Construa o projeto antes de enviar imagens"}
                         aria-label="Enviar imagem para o projeto"
                         data-arquiteto-enviar-imagem
-                        className="grid h-6 w-6 place-items-center rounded-[7px] bg-dash-raise text-dash-muted transition hover:text-white disabled:opacity-35"
+                        className="grid h-6 w-6 place-items-center rounded-[7px] bg-dash-raise text-dash-muted transition hover:text-dash-fg disabled:opacity-35"
                       >
                         <IconeImagem className="h-3.5 w-3.5" />
                       </button>
@@ -6185,7 +6188,7 @@ function Arquiteto() {
                         }}
                         title="Adicionar arquivo"
                         aria-label="Adicionar arquivo"
-                        className="grid h-6 w-6 place-items-center rounded-[7px] bg-dash-raise text-dash-muted transition hover:text-white"
+                        className="grid h-6 w-6 place-items-center rounded-[7px] bg-dash-raise text-dash-muted transition hover:text-dash-fg"
                       >
                         <IconeMais className="h-3.5 w-3.5" />
                       </button>
@@ -6194,7 +6197,7 @@ function Arquiteto() {
 
                   {/* Adicionar à mão: um arquivo VAZIO. Nada inventado no conteúdo. */}
                   {adicionando && (
-                    <div className="border-b border-white/[0.07] p-2">
+                    <div className="border-b border-dash-hair/[0.07] p-2">
                       <input
                         autoFocus
                         value={novoNome}
@@ -6210,7 +6213,7 @@ function Arquiteto() {
                           }
                         }}
                         placeholder="nome-do-arquivo.css"
-                        className="w-full rounded-[8px] border border-white/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
+                        className="w-full rounded-[8px] border border-dash-hair/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
                       />
                       <p className="mt-1.5 text-[10px] leading-[1.4] text-dash-dim">
                         Enter cria um arquivo vazio · Esc cancela
@@ -6226,7 +6229,7 @@ function Arquiteto() {
                         <div
                           key={a.nome}
                           className={`group flex items-center gap-1 rounded-[9px] pr-1 transition ${
-                            ativo ? "bg-dash-brand/12" : "hover:bg-white/[0.04]"
+                            ativo ? "bg-dash-brand/12" : "hover:bg-dash-hair/[0.04]"
                           }`}
                         >
                           <button
@@ -6242,7 +6245,7 @@ function Arquiteto() {
                               className={`h-4 w-4 shrink-0 ${ativo ? "text-dash-brand" : "text-dash-dim"}`}
                             />
                             <span
-                              className={`truncate font-mono text-[11.5px] ${ativo ? "text-dash-brand" : "text-white/85"}`}
+                              className={`truncate font-mono text-[11.5px] ${ativo ? "text-dash-brand" : "text-dash-fg/85"}`}
                             >
                               {a.nome}
                             </span>
@@ -6272,7 +6275,7 @@ function Arquiteto() {
                     {/* IMAGENS do projeto — embaixo da pasta assets/, como no
                         projeto de verdade. Clicar mostra o aviso de binário. */}
                     {(assets.length > 0 || enviandoAsset) && (
-                      <div className="mt-2 border-t border-white/[0.06] pt-1.5" data-arquiteto-assets>
+                      <div className="mt-2 border-t border-dash-hair/[0.06] pt-1.5" data-arquiteto-assets>
                         <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-dash-dim">
                           <span className="grid h-4 w-4 place-items-center rounded-[4px] bg-dash-raise/70">
                             <IconeImagem className="h-2.5 w-2.5" />
@@ -6290,7 +6293,7 @@ function Arquiteto() {
                               key={a.caminho}
                               data-arquiteto-asset={a.caminho}
                               className={`group ml-3 flex items-center gap-1 rounded-[9px] pr-1 transition ${
-                                ativoA ? "bg-dash-brand/12" : "hover:bg-white/[0.04]"
+                                ativoA ? "bg-dash-brand/12" : "hover:bg-dash-hair/[0.04]"
                               }`}
                             >
                               <button
@@ -6306,7 +6309,7 @@ function Arquiteto() {
                                   className={`h-4 w-4 shrink-0 ${ativoA ? "text-dash-brand" : "text-dash-dim"}`}
                                 />
                                 <span
-                                  className={`truncate font-mono text-[11.5px] ${ativoA ? "text-dash-brand" : "text-white/85"}`}
+                                  className={`truncate font-mono text-[11.5px] ${ativoA ? "text-dash-brand" : "text-dash-fg/85"}`}
                                 >
                                   {nome}
                                 </span>
@@ -6344,14 +6347,14 @@ function Arquiteto() {
                     arquivo, a prévia re-monta (debounce) e salva sozinho, virando
                     uma versão. O Ctrl+Z DENTRO daqui é o undo NATIVO do navegador. */}
                 <div className="flex min-w-0 flex-1 flex-col">
-                  <div className="flex shrink-0 items-center gap-2 border-b border-white/[0.07] px-4 py-2.5">
+                  <div className="flex shrink-0 items-center gap-2 border-b border-dash-hair/[0.07] px-4 py-2.5">
                     {assetSelecionado ? (
                       <IconeImagem className="h-4 w-4 shrink-0 text-dash-muted" />
                     ) : (
                       <IconeDocumento className="h-4 w-4 shrink-0 text-dash-muted" />
                     )}
                     <p
-                      className="truncate font-mono text-[11.5px] text-white"
+                      className="truncate font-mono text-[11.5px] text-dash-fg"
                       title={assetSelecionado?.caminho || arquivoAtual?.nome}
                     >
                       {assetSelecionado?.caminho || arquivoAtual?.nome || "—"}
@@ -6383,7 +6386,7 @@ function Arquiteto() {
                         </span>
                         <button
                           onClick={() => void copiar()}
-                          className="shrink-0 rounded-[8px] border border-white/12 px-3 py-1.5 text-[11px] text-dash-muted transition hover:text-white"
+                          className="shrink-0 rounded-[8px] border border-dash-hair/12 px-3 py-1.5 text-[11px] text-dash-muted transition hover:text-dash-fg"
                         >
                           {copiado ? "copiado" : "copiar"}
                         </button>
@@ -6401,14 +6404,14 @@ function Arquiteto() {
                         <IconeImagem className="h-6 w-6" />
                       </span>
                       <div>
-                        <p className="text-[14px] text-white">arquivo binário</p>
+                        <p className="text-[14px] text-dash-fg">arquivo binário</p>
                         <p className="mt-2 max-w-[440px] text-[12px] leading-[1.7] text-dash-muted">
                           “{assetSelecionado.caminho}” é uma imagem (
                           {rotuloDeMimeAsset(assetSelecionado.mime)} · {tamanhoLegivel(assetSelecionado.tamanho)}) e
                           não é editável como texto aqui. Ela é guardada no projeto e usada no código por{" "}
-                          <span className="font-mono text-white/85">&lt;img src=&quot;{assetSelecionado.caminho}&quot;&gt;</span>{" "}
+                          <span className="font-mono text-dash-fg/85">&lt;img src=&quot;{assetSelecionado.caminho}&quot;&gt;</span>{" "}
                           ou no CSS com{" "}
-                          <span className="font-mono text-white/85">url(&quot;{assetSelecionado.caminho}&quot;)</span>.
+                          <span className="font-mono text-dash-fg/85">url(&quot;{assetSelecionado.caminho}&quot;)</span>.
                         </p>
                       </div>
                       {assetsBase && (
@@ -6416,7 +6419,7 @@ function Arquiteto() {
                           src={urlDoAsset(assetSelecionado, assetsBase)}
                           alt={assetSelecionado.caminho}
                           data-arquiteto-asset-thumb
-                          className="max-h-40 max-w-full rounded-[10px] border border-white/10 bg-white/5 object-contain"
+                          className="max-h-40 max-w-full rounded-[10px] border border-dash-hair/10 bg-dash-hair/5 object-contain"
                         />
                       )}
                       <button
@@ -6436,7 +6439,7 @@ function Arquiteto() {
                       wrap="off"
                       aria-label={`Editar ${arquivoAtual?.nome || "arquivo"}`}
                       placeholder="Escreva o conteúdo do arquivo aqui…"
-                      className="min-h-0 flex-1 resize-none overflow-auto bg-transparent px-4 py-4 font-mono text-[12px] leading-[1.6] text-white/85 caret-white outline-none placeholder:text-dash-dim"
+                      className="min-h-0 flex-1 resize-none overflow-auto bg-transparent px-4 py-4 font-mono text-[12px] leading-[1.6] text-dash-fg/85 caret-white outline-none placeholder:text-dash-dim"
                     />
                   )}
                 </div>

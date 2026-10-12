@@ -54,6 +54,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="x-build" content={buildNoAr()} />
+        {/* O TEMA, ANTES DA PRIMEIRA PINTURA. Este script roda antes de o
+            navegador desenhar qualquer coisa: ele lê a escolha guardada e põe a
+            classe `light` no <html>. Feito aqui (e não no React) porque o React
+            só monta depois — e a tela abriria escura para depois virar clara na
+            frente do dono. Sem escolha guardada, nada acontece: o padrão é o
+            escuro. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem('mirai-tema')==='claro'){document.documentElement.classList.add('light')}}catch(e){}`,
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `

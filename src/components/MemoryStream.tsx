@@ -25,7 +25,7 @@ export default function MemoryStream() {
         <div className="scroll-text absolute inset-0">
           <div className="space-y-2 pr-1">
             {[...MOCK_MEMORIES, ...MOCK_MEMORIES].map((m, i) => (
-              <div key={i} className="border-b border-white/5 pb-1.5">
+              <div key={i} className="border-b border-dash-hair/5 pb-1.5">
                 <div className="text-[8px] tracking-wider opacity-30" style={{ color: "#b026ff" }}>
                   {m.time}
                 </div>

@@ -85,6 +85,8 @@ function Miniatura({ id, titulo }: { id: string; titulo: string }) {
     return () => ro.disconnect();
   }, []);
 
+  // O PAPEL da miniatura é branco nos DOIS temas: é a página do projeto
+  // aparecendo ali dentro.
   return (
     <div ref={caixa} className="relative aspect-[4/3] w-full overflow-hidden bg-white">
       <iframe
@@ -260,8 +262,8 @@ export default function ProjetosPage() {
         onClick={() => setFiltro(id)}
         className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[12.5px] transition ${
           ativo
-            ? "border-dash-brand bg-dash-brand/15 text-white"
-            : "border-dash-line bg-dash-raise/40 text-dash-muted hover:text-white"
+            ? "border-dash-brand bg-dash-brand/15 text-dash-fg"
+            : "border-dash-line bg-dash-raise/40 text-dash-muted hover:text-dash-fg"
         }`}
       >
         {id !== TODAS && id !== SEM_PASTA && <IconePasta className="h-[14px] w-[14px] shrink-0 opacity-80" />}
@@ -287,7 +289,7 @@ export default function ProjetosPage() {
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Pesquisar projeto…"
             aria-label="Pesquisar projeto"
-            className="w-full rounded-[10px] border border-dash-line bg-dash-side py-2.5 pl-9 pr-3 text-[13px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand"
+            className="w-full rounded-[10px] border border-dash-line bg-dash-side py-2.5 pl-9 pr-3 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand"
           />
         </div>
         <button
@@ -320,7 +322,7 @@ export default function ProjetosPage() {
       ) : filtrados.length === 0 ? (
         <div className="rounded-[16px] border border-dash-line bg-dash-card/50 px-6 py-16 text-center">
           <IconeRobo className="mx-auto mb-3 h-8 w-8 text-dash-dim" />
-          <p className="text-[14px] text-white/85">
+          <p className="text-[14px] text-dash-fg/85">
             {projetos.length === 0
               ? "Nenhum projeto ainda."
               : "Nada encontrado com esse filtro."}
@@ -368,7 +370,7 @@ export default function ProjetosPage() {
                   <div className="min-w-0 flex-1">
                     <Link
                       href={`/arquiteto?projeto=${encodeURIComponent(p.id)}`}
-                      className="block truncate text-[13.5px] font-medium text-white hover:text-dash-brand"
+                      className="block truncate text-[13.5px] font-medium text-dash-fg hover:text-dash-brand"
                       title={p.titulo}
                     >
                       {p.titulo}
@@ -395,7 +397,7 @@ export default function ProjetosPage() {
                         e.stopPropagation();
                         setMenuAberto((m) => (m === p.id ? null : p.id));
                       }}
-                      className="grid h-7 w-7 place-items-center rounded-[8px] text-dash-muted transition hover:bg-white/[0.07] hover:text-white"
+                      className="grid h-7 w-7 place-items-center rounded-[8px] text-dash-muted transition hover:bg-dash-hair/[0.07] hover:text-dash-fg"
                     >
                       <span className="text-[16px] leading-none">⋯</span>
                     </button>
@@ -406,7 +408,7 @@ export default function ProjetosPage() {
                       >
                         <Link
                           href={`/arquiteto?projeto=${encodeURIComponent(p.id)}`}
-                          className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[12.5px] text-dash-muted transition hover:bg-white/[0.06] hover:text-white"
+                          className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[12.5px] text-dash-muted transition hover:bg-dash-hair/[0.06] hover:text-dash-fg"
                         >
                           <IconeRobo className="h-[15px] w-[15px]" /> Abrir no Arquiteto
                         </Link>
@@ -417,7 +419,7 @@ export default function ProjetosPage() {
                             setNomeProjeto(p.titulo);
                             setMenuAberto(null);
                           }}
-                          className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[12.5px] text-dash-muted transition hover:bg-white/[0.06] hover:text-white"
+                          className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[12.5px] text-dash-muted transition hover:bg-dash-hair/[0.06] hover:text-dash-fg"
                         >
                           <IconeCaret className="h-[15px] w-[15px] rotate-90" /> Renomear
                         </button>
@@ -427,7 +429,7 @@ export default function ProjetosPage() {
                             setMovendo(p);
                             setMenuAberto(null);
                           }}
-                          className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[12.5px] text-dash-muted transition hover:bg-white/[0.06] hover:text-white"
+                          className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[12.5px] text-dash-muted transition hover:bg-dash-hair/[0.06] hover:text-dash-fg"
                         >
                           <IconePasta className="h-[15px] w-[15px]" /> Mover para pasta…
                         </button>
@@ -464,7 +466,7 @@ export default function ProjetosPage() {
             onChange={(e) => setNomePasta(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && void criarPasta()}
             placeholder="Ex.: Projeto Mirai OS"
-            className="w-full rounded-[10px] border border-dash-line bg-dash-side px-3 py-2.5 text-[13px] text-white outline-none placeholder:text-dash-dim focus:border-dash-brand"
+            className="w-full rounded-[10px] border border-dash-line bg-dash-side px-3 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand"
           />
           <div className="mt-4 flex justify-end gap-2">
             <BotaoSecundario onClick={() => setModalPasta(false)}>Cancelar</BotaoSecundario>
@@ -483,7 +485,7 @@ export default function ProjetosPage() {
             value={nomeProjeto}
             onChange={(e) => setNomeProjeto(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && void renomear()}
-            className="w-full rounded-[10px] border border-dash-line bg-dash-side px-3 py-2.5 text-[13px] text-white outline-none focus:border-dash-brand"
+            className="w-full rounded-[10px] border border-dash-line bg-dash-side px-3 py-2.5 text-[13px] text-dash-fg outline-none focus:border-dash-brand"
           />
           <div className="mt-4 flex justify-end gap-2">
             <BotaoSecundario onClick={() => setRenomeando(null)}>Cancelar</BotaoSecundario>
@@ -502,7 +504,7 @@ export default function ProjetosPage() {
             <button
               type="button"
               onClick={() => void mover(movendo, null)}
-              className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-left text-[13px] text-dash-muted transition hover:bg-white/[0.06] hover:text-white"
+              className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-left text-[13px] text-dash-muted transition hover:bg-dash-hair/[0.06] hover:text-dash-fg"
             >
               <IconeFechar className="h-[15px] w-[15px]" /> Sem pasta
               {!movendo.pasta_id && <IconeCheck className="ml-auto h-[15px] w-[15px] text-dash-brand" />}
@@ -512,7 +514,7 @@ export default function ProjetosPage() {
                 key={p.id}
                 type="button"
                 onClick={() => void mover(movendo, p.id)}
-                className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-left text-[13px] text-dash-muted transition hover:bg-white/[0.06] hover:text-white"
+                className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-left text-[13px] text-dash-muted transition hover:bg-dash-hair/[0.06] hover:text-dash-fg"
               >
                 <IconePasta className="h-[15px] w-[15px]" />
                 <span className="truncate">{p.nome}</span>
@@ -532,7 +534,7 @@ export default function ProjetosPage() {
       {apagando && (
         <Modal titulo="Apagar projeto" onFechar={() => setApagando(null)}>
           <p className="text-[13px] text-dash-muted">
-            Apagar <span className="text-white">“{apagando.titulo}”</span>? Isto remove o projeto e seus
+            Apagar <span className="text-dash-fg">“{apagando.titulo}”</span>? Isto remove o projeto e seus
             arquivos. Não dá para desfazer.
           </p>
           <div className="mt-4 flex justify-end gap-2">
@@ -564,18 +566,18 @@ function Modal({
   children: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onFechar}>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-dash-scrim/60 p-4" onClick={onFechar}>
       <div
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-[440px] rounded-[16px] border border-dash-line bg-dash-card p-5 shadow-2xl"
       >
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[15px] text-white">{titulo}</h2>
+          <h2 className="text-[15px] text-dash-fg">{titulo}</h2>
           <button
             type="button"
             onClick={onFechar}
             aria-label="Fechar"
-            className="grid h-8 w-8 place-items-center rounded-[9px] text-dash-muted transition hover:bg-white/[0.07] hover:text-white"
+            className="grid h-8 w-8 place-items-center rounded-[9px] text-dash-muted transition hover:bg-dash-hair/[0.07] hover:text-dash-fg"
           >
             <IconeFechar className="h-[16px] w-[16px]" />
           </button>
@@ -612,7 +614,7 @@ function BotaoSecundario({ children, onClick }: { children: React.ReactNode; onC
     <button
       type="button"
       onClick={onClick}
-      className="rounded-[10px] border border-dash-line px-4 py-2.5 text-[13px] text-dash-muted transition hover:text-white"
+      className="rounded-[10px] border border-dash-line px-4 py-2.5 text-[13px] text-dash-muted transition hover:text-dash-fg"
     >
       {children}
     </button>

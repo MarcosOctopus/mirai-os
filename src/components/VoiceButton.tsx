@@ -21,7 +21,7 @@ export default function VoiceButton({
         ${
           isListening
             ? "bg-red-500/20 text-red-400"
-            : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
+            : "bg-dash-hair/5 text-gray-400 hover:bg-dash-hair/10 hover:text-dash-fg"
         }
         ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}
       `}

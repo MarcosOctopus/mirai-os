@@ -13,12 +13,12 @@ export default function EmConstrucao({
   nota?: string;
 }) {
   return (
-    <div className="rounded-[20px] border border-dashed border-white/[0.12] bg-dash-card/60 px-6 py-8">
+    <div className="rounded-[20px] border border-dashed border-dash-hair/[0.12] bg-dash-card/60 px-6 py-8">
       <span className="inline-flex rounded-full bg-dash-raise px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-dash-muted">
         em construção
       </span>
 
-      <p className="mt-4 max-w-[560px] text-[15px] leading-[1.6] text-white/85">{oQueE}</p>
+      <p className="mt-4 max-w-[560px] text-[15px] leading-[1.6] text-dash-fg/85">{oQueE}</p>
 
       <ul className="mt-6 space-y-2.5">
         {vaiTer.map((t) => (
