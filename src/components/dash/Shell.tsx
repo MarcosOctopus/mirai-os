@@ -285,23 +285,19 @@ export default function Shell({
           </div>
         </div>
 
-        {/* No CELULAR o grupo secundário ainda precisa de um caminho pela
-            gaveta (no desktop ele vive no menu do PERFIL, topo à direita). Fica
-            abaixo das Recentes e escondido em tela larga: nada some no telefone
-            e nada duplica na lateral do desktop. */}
-        <div className="my-6 border-t border-white/[0.07] lg:hidden" />
+        {/* O GRUPO SECUNDÁRIO SAIU DA GAVETA (dono, 12/10/2026): "Voltou esses menus
+            laterais ... Explorar, organizações… já tínhamos tirado isso."
 
-        <nav className="space-y-1.5 lg:hidden">
-          {visiveis(SECUNDARIO).map((i) => (
-            <ItemMenu
-              key={i.label}
-              item={i}
-              ativo={!!i.href && caminho === i.href}
-              onNavegar={() => setAberto(false)}
-              recolhida={recolhida}
-            />
-          ))}
-        </nav>
+            A decisão registrada acima é que ele NÃO fica na lateral — vive no menu
+            do AVATAR (topo à direita, como ChatGPT/Claude), em qualquer tamanho de
+            tela. Ele estava DUPLICADO aqui: no celular aparecia na gaveta E no menu
+            do avatar. Agora tem UM lugar só.
+
+            Consequência honesta: nas telas de TELA CHEIA (início e Arquiteto) o
+            cabeçalho da casca é escondido no celular, então o avatar não aparece
+            nelas — dali se chega a estes itens abrindo "Projetos" (aí o cabeçalho
+            existe). Se o dono quiser o atalho direto nessas telas, o caminho é pôr
+            o avatar fixo no topo à direita — NÃO devolver a gaveta. */}
 
         <div className={`mt-auto pt-8 ${recolhida ? "lg:hidden" : ""}`}>
           <div className="rounded-[20px] bg-dash-raise/70 p-5">
