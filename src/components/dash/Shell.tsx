@@ -203,6 +203,18 @@ export default function Shell({
           <IconeMenu />
         </button>
       )}
+      {/* O MENU DA CONTA NO TOPO DIREITO DAS TELAS CHEIAS (dono, 12/10/2026):
+          "O menu estava dentro do perfil, né? Eu clico na foto. ... Tá em cima, no
+          chat." Em `cheio` o cabeçalho da casca é escondido — e com ele o AVATAR,
+          que é onde vive o grupo secundário (Organizações, Explorar, Sistema). Sem
+          isto a tela de chat/Arquiteto ficava SEM caminho nenhum para esse grupo: a
+          gaveta não o mostra (decisão do dono) e o avatar não existia. Fica no topo
+          direito, espelhando o botão de menu à esquerda, e some com a gaveta aberta. */}
+      {cheio && !aberto && (
+        <div className="fixed right-3 top-3 z-40">
+          <MenuDaConta inicial={inicial} usuario={usuario} caminho={caminho} />
+        </div>
+      )}
       {/* overlay do menu no celular */}
       {aberto && (
         <button

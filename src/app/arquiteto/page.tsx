@@ -3969,8 +3969,10 @@ function Arquiteto() {
           (projeto, desfazer/refazer/histórico, Configurações) ficava POR BAIXO dele.
           O recuo vale até `lg` porque o botão só some no desktop — no tablet ele
           continua lá. Sem recuo no topo (empurrar a barra para baixo deixaria um
-          degrau feio): o conteúdo começa AO LADO do botão, como no ChatGPT. */}
-      <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-white/[0.07] bg-dash-side/40 py-2 pl-[52px] pr-3 sm:flex-nowrap sm:gap-3 sm:pr-4 lg:pl-4">
+          degrau feio): o conteúdo começa AO LADO do botão, como no ChatGPT.
+          O MESMO recuo à DIREITA (`pr-[52px]`) reserva o lugar do avatar, que
+          agora também aparece fixo no topo direito das telas cheias. */}
+      <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-white/[0.07] bg-dash-side/40 py-2 pl-[52px] pr-[52px] sm:flex-nowrap sm:gap-3 lg:pl-4">
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] bg-dash-brand/15 text-dash-brand">
           <IconeRobo className="h-4 w-4" />
         </span>
