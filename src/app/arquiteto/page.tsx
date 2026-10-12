@@ -3963,11 +3963,25 @@ function Arquiteto() {
       {/* No CELULAR a barra QUEBRA em duas linhas em vez de cortar o último
           ícone (achado 09/10/2026, medido em 390 px: o último botão ficava fora
           da tela, inalcançável). No computador nada muda: `sm:flex-nowrap`. */}
-      <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-white/[0.07] bg-dash-side/40 px-3 py-2 sm:flex-nowrap sm:gap-3 sm:px-4">
+      {/* O RECUO DA ESQUERDA NO CELULAR (dono, 12/10/2026: "menu fechado ... um ícone
+          em cima do outro"). O botão de menu da casca flutua FIXO no canto (left-3,
+          36px → ocupa até x=48) e a barra começava em x=12: a primeira coluna inteira
+          (projeto, desfazer/refazer/histórico, Configurações) ficava POR BAIXO dele.
+          O recuo vale até `lg` porque o botão só some no desktop — no tablet ele
+          continua lá. Sem recuo no topo (empurrar a barra para baixo deixaria um
+          degrau feio): o conteúdo começa AO LADO do botão, como no ChatGPT. */}
+      <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-white/[0.07] bg-dash-side/40 py-2 pl-[52px] pr-3 sm:flex-nowrap sm:gap-3 sm:pr-4 lg:pl-4">
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] bg-dash-brand/15 text-dash-brand">
           <IconeRobo className="h-4 w-4" />
         </span>
-        <div className="relative flex min-w-0 flex-1 items-center gap-2" ref={menuRef}>
+        {/* O NOME DO PROJETO NÃO PODE SUMIR (dono, 12/10/2026). Com `flex-1
+            min-w-0` e a barra cheia no celular, este bloco encolhia até 8 px — o
+            nome do projeto ficava INVISÍVEL e a barra parecia só um amontoado de
+            ícones. A largura mínima obriga a barra a QUEBRAR em outra linha em vez
+            de esmagar: o nome aparece (truncado, com o title completo) e nada se
+            sobrepõe. Vale até `lg` porque o botão de menu só some no desktop — no
+            tablet ele continua lá. No desktop nada muda (`lg:min-w-0`). */}
+        <div className="relative flex min-w-0 flex-1 items-center gap-2 max-lg:min-w-[120px]" ref={menuRef}>
           {/* O NOME do projeto é o botão do MENU DE PROJETOS: discreto (mesma
               linguagem da barra), abre a lista da conta + "Novo projeto". */}
           <button
