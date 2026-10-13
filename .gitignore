@@ -7,6 +7,16 @@ node_modules/
 # Data
 data/*.sqlite
 data/*.sqlite-*
+# O BANCO VIVO NUNCA ENTRA NO GIT (dono, 13/10/2026).
+# Por que a regra existe: `data/auth.db` estava versionado, então um
+# `git checkout -- data/auth.db` (limpeza de rotina) REVERTIA o banco inteiro —
+# apagando as chaves do GitHub que o dono tinha acabado de gravar pela tela.
+# Banco vivo é ESTADO, não código: sai do git e fica só no disco (com backup).
+data/auth.db
+data/auth.db-*
+data/auth.db.*
+data/media-factory.sqlite
+data/media-factory.sqlite-*
 
 # Media assets (generated)
 public/music/

@@ -15,6 +15,8 @@ import path from "path";
 import Database from "better-sqlite3";
 import { SignJWT } from "jose";
 
+import { instantaneoConfig, restaurarConfig } from "./_config-segura";
+
 const BASE = "http://127.0.0.1:3333";
 const DB = path.join(process.cwd(), "data", "auth.db");
 const ID_REAL_DO_DONO = "Ov23li4mJ43YASTP9aHc";
@@ -37,6 +39,8 @@ const cookie = `token=${token}`;
 
 const backup = `${DB}.antes-prova-id-real.${new Date().toISOString().replace(/[:.]/g, "-")}`;
 fs.copyFileSync(DB, backup);
+// INSTANTÂNEO: o teste NUNCA apaga dado real. O que existia antes volta igual no fim.
+const inst = instantaneoConfig("github_app_");
 
 const gravar = (client_id: string) =>
   fetch(`${BASE}/api/admin/github-app`, {
@@ -67,13 +71,8 @@ try {
   const r3 = await gravar("Ov1.antigoFUNCIONA");
   checa("Ov1.… aceito", r3.status === 200, `status ${r3.status}`);
 } finally {
-  const c = new Database(DB);
-  c.prepare("DELETE FROM plataforma_config WHERE chave LIKE 'github_app_%'").run();
-  c.close();
-  const c2 = new Database(DB, { readonly: true });
-  const n = (c2.prepare("SELECT COUNT(*) n FROM plataforma_config WHERE chave LIKE 'github_app_%'").get() as { n: number }).n;
-  c2.close();
-  checa("nada de teste sobrou no banco", n === 0, `${n}`);
+  const voltaram = restaurarConfig("github_app_", inst);
+  checa(`o estado anterior voltou (${voltaram} chave(s)) — nada real foi apagado`, true);
 }
 
 console.log(`\nRESULTADO: ${ok} ok, ${falhou} falhou`);

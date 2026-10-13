@@ -18,6 +18,7 @@
  */
 import "./carrega-env";
 
+import { instantaneoConfig, restaurarConfig } from "./_config-segura";
 import fs from "fs";
 import path from "path";
 import Database from "better-sqlite3";
@@ -45,12 +46,8 @@ const backup = `${DB}.antes-prova-chaves.${carimbo}`;
 fs.copyFileSync(DB, backup);
 console.log(`backup do banco: ${backup}\n`);
 
-// guarda o que existia (para restaurar fielmente)
-const c0 = new Database(DB, { readonly: true });
-const antes = c0
-  .prepare("SELECT chave, valor FROM plataforma_config WHERE chave LIKE 'github_app_%'")
-  .all() as { chave: string; valor: string }[];
-c0.close();
+// INSTANTÂNEO do que existia (para restaurar FIELMENTE — nunca apagar dado real)
+const antes = instantaneoConfig("github_app_");
 console.log(`chaves github_app_* antes: ${antes.length ? antes.map((a) => a.chave).join(", ") : "(nenhuma)"}\n`);
 
 try {
@@ -109,25 +106,21 @@ try {
   checa("o bilhete é da CONTA (sem projeto)", bilhete.projetoId === "", String(bilhete.projetoId));
   checa("o bilhete carrega o dono da conta", typeof bilhete.userId === "number", String(bilhete.userId));
 } finally {
-  // ── 5. Restaura (nada de chave de teste ficando para trás) ───────────────
-  console.log("\n5) Restaurando o estado anterior");
-  const c = new Database(DB);
-  c.prepare("DELETE FROM plataforma_config WHERE chave LIKE 'github_app_%'").run();
-  for (const a of antes) {
-    c.prepare("INSERT INTO plataforma_config (chave, valor, atualizado_em) VALUES (?,?,?)").run(
-      a.chave,
-      a.valor,
-      new Date().toISOString(),
-    );
-  }
-  c.close();
-  checa("as chaves de teste foram removidas", lerConfig("github_app_client_id") === null);
+  // ── 5. Restaura (o teste NUNCA apaga dado real) ──────────────────────────
+  console.log("\n5) Devolvendo o estado anterior");
+  const voltaram = restaurarConfig("github_app_", antes);
+  console.log(`   ${voltaram} chave(s) do estado anterior recolocada(s)`);
   const c2 = new Database(DB, { readonly: true });
   const depois = c2
-    .prepare("SELECT chave FROM plataforma_config WHERE chave LIKE 'github_app_%'")
-    .all() as { chave: string }[];
+    .prepare("SELECT chave, valor FROM plataforma_config WHERE chave LIKE 'github_app_%'")
+    .all() as { chave: string; valor: string }[];
   c2.close();
   checa("o banco voltou ao que era", depois.length === antes.length, `${depois.length} vs ${antes.length}`);
+  // O valor tem de ser IDÊNTICO ao do instantâneo — não basta a contagem bater.
+  checa(
+    "os valores voltaram byte a byte",
+    depois.every((d) => antes.find((a) => a.chave === d.chave)?.valor === d.valor),
+  );
 }
 
 console.log(`\nRESULTADO: ${ok} ok, ${falhou} falhou`);

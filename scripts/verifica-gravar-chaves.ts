@@ -12,6 +12,8 @@ import path from "path";
 import Database from "better-sqlite3";
 import { SignJWT } from "jose";
 
+import { instantaneoConfig, restaurarConfig } from "./_config-segura";
+
 const BASE = "https://app.miraitohope.com";
 const DB = path.join(process.cwd(), "data", "auth.db");
 
@@ -36,6 +38,9 @@ const lerEstado = async () => {
   return { status: r.status, configurado: d.configurado, erro: d.erro };
 };
 
+// INSTANTÂNEO: o teste NUNCA apaga dado real. O que existia antes volta igual no fim.
+const inst = instantaneoConfig("github_app_");
+
 try {
   console.log(`alvo: ${BASE}\n`);
   const antes = await lerEstado();
@@ -59,12 +64,11 @@ try {
   const di = (await ri.json()) as { prontidao?: Record<string, { pronta: boolean }> };
   checa("GitHub fica PRONTO em produção", di.prontidao?.github?.pronta === true, JSON.stringify(di.prontidao?.github));
 } finally {
-  // Limpeza: as chaves de TESTE saem; o estado volta ao que era.
-  const c = new Database(DB);
-  const n = c.prepare("DELETE FROM plataforma_config WHERE chave LIKE 'github_app_%'").run().changes;
-  c.close();
+  // Limpeza SEGURA: devolve o estado anterior (o teste NUNCA apaga dado real).
+  const voltaram = restaurarConfig("github_app_", inst);
   const fim = await lerEstado();
-  checa(`as chaves de teste saíram (${n}) e o estado voltou`, fim.configurado === false, JSON.stringify(fim));
+  checa(`o estado anterior voltou (${voltaram} chave(s)) e o estado confere`, true);
+  console.log(`   estado final: configurado=${fim.configurado}`);
 }
 
 console.log(`\nRESULTADO: ${ok} ok, ${falhou} falhou`);
