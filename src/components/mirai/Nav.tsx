@@ -31,6 +31,7 @@ const PRIMARIO: ItemMenu[] = [
 
 // Só o dono vê as áreas internas (a trava real é no servidor).
 const SECUNDARIO: ItemMenu[] = [
+  { href: "/admin/clientes", label: "Clientes", desc: "Pessoas e planos", donoOnly: true },
   { href: "/admin/organizacoes", label: "Organizações", desc: "Clientes e acessos", donoOnly: true },
   { href: "/explorar", label: "Explorar", desc: "Descobrir o que a Mirai faz" },
   { href: "/system", label: "Sistema", desc: "Estado da plataforma", donoOnly: true },

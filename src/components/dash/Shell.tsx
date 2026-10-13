@@ -35,6 +35,7 @@ import {
   IconeSistema,
   IconeSol,
   IconeSynapse,
+  IconeUsuarios,
 } from "./icons";
 import { usarTema } from "@/lib/tema";
 
@@ -72,9 +73,10 @@ const PRIMARIO: Item[] = [
 
 // Grupo secundário: ele NÃO fica mais na lateral. No desktop vive no menu do
 // PERFIL (topo à direita, como ChatGPT/Claude); no celular, dentro da gaveta.
-// A ORDEM é a que o dono ditou: Organizações, e só então Explorar; Sistema
-// fecha. O corte por `soDono` é o que muda conforme quem entrou.
+// A ORDEM é a que o dono ditou: Clientes e Organizações primeiro, e só então
+// Explorar; Sistema fecha. O corte por `soDono` é o que muda conforme quem entrou.
 const SECUNDARIO: Item[] = [
+  { label: "Clientes", href: "/admin/clientes", icone: <IconeUsuarios />, soDono: true },
   { label: "Organizações", href: "/admin/organizacoes", icone: <IconeOrganizacoes />, soDono: true },
   { label: "Explorar", href: "/explorar", icone: <IconeBusca /> },
   { label: "Sistema", href: "/system", icone: <IconeSistema />, soDono: true },
