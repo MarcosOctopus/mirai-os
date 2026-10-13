@@ -717,6 +717,108 @@ function ModalCrm({ onClose, onConectado }: { onClose: () => void; onConectado: 
    mcp abre o site; api com OAuth abre a rota; api com campos abre o popup de
    chave; e o CRM abre o fluxo de credencial (ModalCrm). O painel reusa o
    VIDRO do login (src/lib/vidro.ts). */
+/* ── O bloco do DONO: as chaves do app do GitHub ─────────────────────────
+   O app do GitHub (OAuth App) é criado pelo dono NO GitHub; as chaves dele são
+   a única coisa que falta para o cartão do GitHub liberar. Elas NÃO passam por
+   chat: vão daqui, CIFRADAS, direto ao servidor (`/api/admin/github-app`), que
+   só aceita a escrita do dono. */
+function BlocoChavesGithub({ pronta }: { pronta: boolean }) {
+  const [id, setId] = useState("");
+  const [segredo, setSegredo] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [recado, setRecado] = useState("");
+  const [erro, setErro] = useState("");
+
+  // Já configurado: o bloco não aparece (não há o que fazer aqui).
+  if (pronta) return null;
+
+  async function salvar() {
+    setSalvando(true);
+    setErro("");
+    setRecado("");
+    try {
+      const r = await fetch("/api/admin/github-app", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ client_id: id, client_secret: segredo }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { erro?: string };
+      if (!r.ok) throw new Error(d.erro || `não consegui gravar (HTTP ${r.status})`);
+      setRecado("Chaves gravadas. Recarregue a página: o cartão do GitHub libera.");
+      setId("");
+      setSegredo("");
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "erro ao gravar");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div className="mt-6 rounded-[14px] border border-dash-hair/[0.14] bg-dash-scrim/25 p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-dash-dim">
+        só o dono · o app do GitHub
+      </p>
+      <p className="mt-2 text-[12px] leading-[1.55] text-dash-fg/80">
+        O GitHub precisa de um app nosso, criado uma vez lá. Depois de criado, cole as duas chaves
+        aqui — elas vão <strong>cifradas</strong> para o servidor e não passam por chat.
+      </p>
+
+      <a
+        href="https://github.com/settings/applications/new"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-3 inline-flex w-fit items-center gap-1.5 rounded-full bg-dash-raise px-3 py-1.5 text-[11px] text-dash-fg/85 transition hover:text-dash-fg"
+      >
+        abrir a página de criação no GitHub
+      </a>
+
+      <ul className="mt-3 flex flex-col gap-1 text-[11px] leading-[1.5] text-dash-fg/70">
+        <li>
+          · <strong>Application name</strong>: Mirai OS
+        </li>
+        <li>
+          · <strong>Homepage URL</strong>: https://app.miraitohope.com
+        </li>
+        <li className="break-all">
+          · <strong>Authorization callback URL</strong>: https://app.miraitohope.com/api/oauth/github/volta
+        </li>
+      </ul>
+
+      <div className="mt-3 flex flex-col gap-2">
+        <input
+          value={id}
+          onChange={(e) => setId(e.target.value)}
+          placeholder="Client ID (começa com Ov1.)"
+          autoComplete="off"
+          className="w-full rounded-[10px] border border-dash-hair/10 bg-dash-scrim/25 px-3 py-2 text-[12px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/50"
+        />
+        <input
+          value={segredo}
+          onChange={(e) => setSegredo(e.target.value)}
+          type="password"
+          placeholder="Client Secret"
+          autoComplete="new-password"
+          className="w-full rounded-[10px] border border-dash-hair/10 bg-dash-scrim/25 px-3 py-2 text-[12px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/50"
+        />
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span className="text-[11px] leading-[1.4] text-dash-bad">{erro}</span>
+        <button
+          onClick={() => void salvar()}
+          disabled={salvando || !id.trim() || !segredo.trim()}
+          className="shrink-0 rounded-[10px] bg-dash-brand px-4 py-2 text-[11.5px] font-semibold text-dash-fg transition hover:bg-[#ff2d55] disabled:opacity-40"
+        >
+          {salvando ? "gravando…" : "gravar as chaves"}
+        </button>
+      </div>
+
+      {recado && <p className="mt-2 text-[11px] leading-[1.4] text-dash-ok">{recado}</p>}
+    </div>
+  );
+}
+
 function ModalProduto({
   item,
   conectada,
@@ -725,6 +827,7 @@ function ModalProduto({
   onClose,
   onIntegrar,
   onConectar,
+  ehDono,
 }: {
   item: Integracao;
   conectada: boolean;
@@ -733,6 +836,8 @@ function ModalProduto({
   onClose: () => void;
   onIntegrar: (i: Integracao) => void;
   onConectar: () => void;
+  /** só o dono vê o bloco das chaves do GitHub. */
+  ehDono?: boolean;
 }) {
   const overlay = useRef<HTMLDivElement>(null);
   const crm = ehCrm(item);
@@ -741,9 +846,7 @@ function ModalProduto({
      conectado — sem botão decorativo. */
   const podeConectarCrm = crm && !conectada && pronta;
 
-  const comoIntegra = item.conectaEm
-    ? item.conectaEm.como
-    : crm
+  const comoIntegra = crm
       ? conectada
       ? "Este CRM já está conectado nesta conta. Integrar abre o próprio CRM."
       : "Conectar abre o espaço para colar a credencial do seu CRM (dsk_…). Ela é validada ao vivo com o CRM antes de salvar — credencial que não responde não é gravada."
@@ -839,10 +942,17 @@ function ModalProduto({
               disabled={!pronta}
               className="rounded-[10px] bg-dash-brand px-6 py-2.5 text-[12px] font-semibold text-dash-fg transition hover:bg-[#ff2d55] disabled:opacity-40"
             >
-              {item.conectaEm ? "abrir o Arquiteto" : "Integrar"}
+              Integrar
             </button>
           )}
         </div>
+
+        {/* O BLOCO DO DONO (dono, 13/10/2026): o app do GitHub (OAuth App) é
+            criado no GitHub pelo dono, mas as chaves NÃO passam por chat — vão
+            cifradas direto ao servidor, por aqui. Só o dono vê este bloco. */}
+        {item.id === "github" && ehDono && (
+          <BlocoChavesGithub pronta={pronta} />
+        )}
 
         {!pronta ? (
           <p className="mt-3 text-right text-[11px] text-dash-fg/50">
@@ -1300,6 +1410,7 @@ export default function IntegracoesPage() {
           onClose={() => setProduto(null)}
           onIntegrar={integrar}
           onConectar={conectarCrm}
+          ehDono={user?.ehDono === true}
         />
       )}
 
