@@ -9,6 +9,7 @@ import {
   signToken,
 } from "@/lib/auth";
 import { consumirVinculosPendentes } from "@/lib/integracoes";
+import { vincularContaMirai } from "@/lib/vinculo-conta-mirai";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -68,6 +69,17 @@ export async function GET(request: NextRequest) {
     const randomHash = bcrypt.hashSync(Math.random().toString(36), 10);
     user = createUser(name, email, randomHash, googleId, picture);
   }
+
+  // ─── Vínculo com a Conta Mirai (idempotente) ─────────────────────
+  // Sem isto, quem entra por Google nasce só com o tenant LOCAL e nunca
+  // aparece no plano de controle — consequência medida: a pessoa não pode
+  // ser colocada em plano nenhum na tela de admin. Aqui não há senha, então
+  // a credencial da Conta Mirai fica por conta do "Entrar com Conta Mirai".
+  await vincularContaMirai({
+    userId: user.id,
+    email: user.email,
+    nome: user.name,
+  });
 
   // ─── PONTE: liga o que o cliente conectou DENTRO do CRM ──────────
   // Vínculo pendente por e-mail, consumido UMA vez. Não é fatal.
