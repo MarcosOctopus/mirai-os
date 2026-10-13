@@ -789,7 +789,7 @@ function BlocoChavesGithub({ pronta }: { pronta: boolean }) {
         <input
           value={id}
           onChange={(e) => setId(e.target.value)}
-          placeholder="Client ID (começa com Ov1.)"
+          placeholder="Client ID (começa com Ov…)"
           autoComplete="off"
           className="w-full rounded-[10px] border border-dash-hair/10 bg-dash-scrim/25 px-3 py-2 text-[12px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/50"
         />

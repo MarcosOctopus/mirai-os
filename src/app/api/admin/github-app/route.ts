@@ -45,18 +45,19 @@ export async function POST(req: NextRequest) {
   const id = typeof corpo.client_id === "string" ? corpo.client_id.trim() : "";
   const secret = typeof corpo.client_secret === "string" ? corpo.client_secret.trim() : "";
 
-  // Client ID de OAuth App começa com `Ov1.`; o de GitHub App (manifesto), com
-  // `Iv1.`. Recusar o formato errado evita o erro clássico: colar a chave do
-  // app errado e o consentimento falhar sem explicar por quê.
   if (!id || !secret) {
     return NextResponse.json({ erro: "Cole as duas chaves." }, { status: 400 });
   }
-  if (!/^Ov1\.[A-Za-z0-9]+$/.test(id)) {
+
+  /* O FORMATO do Client ID do GitHub NÃO é fixo: já foi `Iv1.…`/`Ov1.…` e hoje
+     é `Iv23li…`/`Ov23li…` (sem ponto). Recusar por formato já barrou um ID
+     correto (dono, 13/10/2026: `Ov23li4mJ43YASTP9aHc`). A regra agora é só a
+     que importa de verdade: `I` = GitHub App, `O` = OAuth App. O resto o
+     próprio GitHub valida na hora do consentimento. */
+  if (/^Iv/i.test(id)) {
     return NextResponse.json(
       {
-        erro: id.startsWith("Iv1.")
-          ? "Este é o Client ID do GitHub App (começa com Iv1.) — aqui vai o do OAuth App (começa com Ov1.)."
-          : "O Client ID do OAuth App começa com Ov1. — confira o que foi colado.",
+        erro: "Este é o Client ID do GitHub App (começa com Iv…) — aqui vai o do OAuth App (começa com Ov…).",
       },
       { status: 400 },
     );
