@@ -49,10 +49,15 @@ export function cabecalhosPlanoDeControle(): Record<string, string> {
   return cab;
 }
 
-/** Autenticacao configurada? (para a rota devolver erro claro, nao um 401 mudo) */
+/** Autenticacao configurada? (para a rota devolver erro claro, nao um 401 mudo)
+ *
+ * Medido em 13/10/2026: esta funcao checava SO o desvio (`authorization`, do
+ * cliente OIDC) e ignorava o caminho PRINCIPAL — o segredo de admin, que e o
+ * unico configurado no MIRAI OS. Resultado: dizia "nao configurado" com o app
+ * funcionando. Quem manda e quem `cabecalhosPlanoDeControle` de fato devolve. */
 export function planoDeControleConfigurado(): boolean {
   const cab = cabecalhosPlanoDeControle();
-  return Boolean(cab.authorization);
+  return Boolean(cab["x-mirai-admin"] || cab.authorization);
 }
 
 export type RespostaPlano = { status: number; corpo: unknown };

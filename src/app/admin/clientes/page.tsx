@@ -300,10 +300,24 @@ export default function ClientesPage() {
                 <div className="flex flex-wrap items-center gap-3">
                   <p className="text-[13px] font-semibold text-dash-fg">{o.organizacao}</p>
                   <span className="text-[12px] text-dash-muted">{rotuloProduto(o.produto)}</span>
-                  <span className="rounded-[8px] bg-dash-side px-2 py-0.5 font-mono text-[11px] text-dash-muted">
-                    {o.plano}
+                  <span className="ml-auto">
+                    <select
+                      value={o.plano || ""}
+                      disabled={ocupado === o.tenant_id}
+                      onChange={(e) => void trocarPlano(o.tenant_id, e.target.value, o.organizacao)}
+                      className="min-w-[190px] rounded-[10px] border border-dash-hair/10 bg-dash-bg px-3.5 py-2 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60 disabled:opacity-50"
+                    >
+                      {planosDe(o.produto, o.plano).map((p) => (
+                        <option key={p.plan_id} value={p.plan_id}>
+                          {o.produto
+                            ? p.nome || p.plan_id
+                            : `${p.nome || p.plan_id} · ${rotuloProduto(p.product_id)}`}
+                        </option>
+                      ))}
+                    </select>
                   </span>
                 </div>
+                <p className="mt-2 font-mono text-[10px] text-dash-dim">{o.tenant_id}</p>
               </Card>
             ))}
           </div>
