@@ -9,6 +9,17 @@ import { mesclarMudanca } from "@/lib/arquiteto-mescla";
 import { aplicarEdicoes, extrairEdicoes } from "@/lib/arquiteto-edicoes";
 import { donoDoProjeto, obterProjeto, salvarProjeto } from "@/lib/arquiteto-projetos";
 import { promptComCraft, promptComIntegracoes, promptComVisual } from "@/lib/arquiteto-craft";
+import {
+  alvosCitados,
+  alvosPorPadrao,
+  construirIndice,
+  ehSoPedidoDeArquivo,
+  extrairPedidosDeArquivo,
+  projetoPequeno,
+  tamanhoTotal,
+  textoDoIndice,
+  type Arquivo,
+} from "@/lib/arquiteto-indice";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -419,51 +430,13 @@ async function lerFotoComVisao(foto: string): Promise<string> {
 }
 
 /**
- * A instrução ganha OS ARQUIVOS ATUAIS do projeto (dono, 10/10/2026).
+ * AS REGRAS DE MUDANÇA — uma fonte só.
  *
- * Por que existe: o construtor recebia só a CONVERSA (pedidos + resumos) e o .md
- * — não via o CÓDIGO como estava. Com isso, a cada pedido, ele RECONSTRUÍA o
- * projeto "no escuro": quando a pessoa marcava um pedaço e pedia uma mudança, o
- * resultado mudava outra coisa (ou o projeto todo). Aqui vão os arquivos COMO
- * ESTÃO, com a regra explícita de mudar SÓ o pedido e manter o resto igual.
- *
- * Sem projeto (primeira construção), a instrução passa intacta.
+ * Ficam aqui (e não dentro de uma função) porque DUAS instruções as usam: a do projeto
+ * pequeno (todos os arquivos) e a do projeto grande (mapa + só o alvo). Duas cópias
+ * divergiriam — e a que ficasse velha passaria a ensinar o modelo errado.
  */
-function promptComArquivos(system: string, arquivos: { nome: string; conteudo: string }[]): string {
-  const limpos = (arquivos || [])
-    .filter((a) => a && typeof a.nome === "string" && typeof a.conteudo === "string" && a.nome.trim())
-    .map((a) => ({ nome: a.nome.trim(), conteudo: a.conteudo }))
-    .slice(0, 60);
-  if (!limpos.length) return system;
-  // Teto de tamanho: manda os arquivos inteiros; num projeto gigante, corta o
-  // excedente com AVISO HONESTO (nunca finge que o arquivo acabou).
-  const TETO = 90000;
-  let usado = 0;
-  const blocos: string[] = [];
-  for (const a of limpos) {
-    const sobra = TETO - usado;
-    if (sobra <= 0) {
-      blocos.push(
-        `=== ARQUIVO: ${a.nome} ===\n[arquivo grande demais para caber aqui — peça para trabalhar neste arquivo separadamente]`,
-      );
-      continue;
-    }
-    const conteudo =
-      a.conteudo.length > sobra
-        ? `${a.conteudo.slice(0, sobra)}\n…[cortado por tamanho; peça o resto se precisar]`
-        : a.conteudo;
-    usado += conteudo.length;
-    blocos.push(`=== ARQUIVO: ${a.nome} ===\n${conteudo}`);
-  }
-  return (
-    system +
-    `
-
-## O PROJETO ATUAL — a fonte da verdade (você já está NO MEIO do projeto)
-Estes são os arquivos COMO ESTÃO AGORA. Isto NÃO é um recomeço: todo pedido parte daqui.
-
-${blocos.join("\n")}
-
+const REGRAS_DE_MUDANCA = `
 ## COMO MUDAR (preferido: EDITE — NÃO reescreva o arquivo)
 Para uma mudança pontual, devolva SÓ A TROCA, neste formato:
 
@@ -512,7 +485,197 @@ Para uma mudança pontual, devolva SÓ A TROCA, neste formato:
   Pedido de cor → mude a cor e nada mais. Pedido de texto → mude o texto e nada mais.
 - Pedido de ACRESCENTAR: MANTENHA tudo o que já existe e acrescente o novo.
 - Só relaxe isto se o pedido for vago (ex.: "melhore a página"): aí use o bom senso — e diga no
-  RESUMO exatamente o que mudou.`
+  RESUMO exatamente o que mudou.`;
+
+/**
+ * A INSTRUÇÃO DO PROJETO GRANDE (dono, 13/10/2026) — "não olhar sempre o sistema inteiro".
+ *
+ * Quando o projeto é grande, mandar TODOS os arquivos faz o modelo se perder (responde texto em
+ * vez do bloco de projeto — o erro que o dono viu) e estoura o teto de tamanho. Aqui vai o MAPA
+ * de todos os arquivos + o CONTEÚDO só dos que o pedido toca, e a ESCALAÇÃO: faltou um arquivo,
+ * o modelo PEDE em vez de inventar.
+ */
+function promptComIndice(
+  system: string,
+  arquivos: { nome: string; conteudo: string }[],
+  alvos: string[],
+  docProjeto: string,
+): string {
+  const limpos = (arquivos || [])
+    .filter((a) => a && typeof a.nome === "string" && typeof a.conteudo === "string" && a.nome.trim())
+    .map((a) => ({ nome: a.nome.trim(), conteudo: a.conteudo }));
+  if (!limpos.length) return system;
+
+  const itens = construirIndice(limpos, docProjeto);
+  const conjunto = new Set(alvos.map((a) => a.toLowerCase()));
+  const escolhidos = limpos.filter((a) => conjunto.has(a.nome.toLowerCase()));
+  const mapa = textoDoIndice(itens, escolhidos.map((a) => a.nome));
+
+  // Teto do que viaja INTEIRO: com o mapa na mão, o modelo pede o resto pela ESCALAÇÃO.
+  const TETO = 60000;
+  let usado = 0;
+  const blocos: string[] = [];
+  for (const a of escolhidos) {
+    const sobra = TETO - usado;
+    if (sobra <= 2000) {
+      blocos.push(
+        `=== ARQUIVO: ${a.nome} ===\n[grande demais para caber aqui — peça este arquivo sozinho pelo formato da ESCALAÇÃO]`,
+      );
+      continue;
+    }
+    const conteudo =
+      a.conteudo.length > sobra
+        ? `${a.conteudo.slice(0, sobra)}\n…[cortado por tamanho; peça o resto pela ESCALAÇÃO]`
+        : a.conteudo;
+    usado += conteudo.length;
+    blocos.push(`=== ARQUIVO: ${a.nome} ===\n${conteudo}`);
+  }
+
+  return (
+    system +
+    `
+
+## O PROJETO ATUAL — o MAPA (você já está NO MEIO do projeto)
+Este projeto é GRANDE: você recebeu o MAPA de TODOS os arquivos e o CONTEÚDO INTEIRO apenas dos
+que este pedido toca (marcados com "VEM INTEIRO ABAIXO"). Isto NÃO é um recomeço: todo pedido
+parte daqui.
+
+${mapa}
+
+## OS ARQUIVOS DO PEDIDO (conteúdo completo)
+${blocos.join("\n")}
+
+## ESCALAÇÃO — se faltar um arquivo, PEÇA (nunca invente)
+Se, para fazer o pedido, você precisar de um arquivo que NÃO está acima, NÃO escreva o pedido no
+escuro e NÃO invente o conteúdo dele. Responda APENAS com:
+
+=== PRECISA: nome-do-arquivo ===
+
+(uma linha, nada mais — sem resumo e sem explicação). O sistema reenvia o pedido com ele.
+${REGRAS_DE_MUDANCA}`
+  );
+}
+
+/**
+ * A INSTRUÇÃO DO PROJETO — decide sozinha o regime.
+ *
+ * - Projeto PEQUENO (ou alvo = todos): manda TUDO, como sempre (é rápido e já funciona).
+ * - Projeto GRANDE: manda o MAPA + só os arquivos do pedido.
+ *
+ * Um só ponto de decisão: nenhuma outra parte do código precisa saber qual regime está valendo.
+ */
+function promptComProjeto(
+  system: string,
+  arquivos: { nome: string; conteudo: string }[],
+  alvos: string[],
+  docProjeto: string,
+): string {
+  const limpos = (arquivos || []).filter(
+    (a) => a && typeof a.nome === "string" && typeof a.conteudo === "string" && a.nome.trim(),
+  );
+  if (!limpos.length) return system;
+  const conjunto = new Set((alvos || []).map((a) => a.toLowerCase()));
+  const tudo = !conjunto.size || limpos.every((a) => conjunto.has(a.nome.trim().toLowerCase()));
+  return tudo
+    ? promptComArquivos(system, limpos)
+    : promptComIndice(system, limpos, alvos, docProjeto);
+}
+
+/**
+ * O ROTEADOR (dono, 13/10/2026) — quando o pedido não aponta arquivo nenhum.
+ *
+ * Só é chamado em projeto GRANDE e quando nem o nome nem o tipo do arquivo aparecem no pedido
+ * (ex.: "deixa mais bonito"). Recebe o MAPA + o pedido e devolve só NOMES. É uma chamada curta
+ * (saída de poucas linhas), então custa pouco e volta rápido.
+ *
+ * Falhou/veio vazio → [] e o chamador cai no fallback determinístico. O pedido NUNCA fica sem
+ * contexto por causa do roteador.
+ */
+async function escolherAlvosComModelo(
+  arquivos: Arquivo[],
+  pedido: string,
+  docProjeto: string,
+  contaId: number,
+): Promise<string[]> {
+  const itens = construirIndice(arquivos, docProjeto);
+  const instrucao =
+    "Você é um ROTEADOR de arquivos. Abaixo está o MAPA de um projeto (nome — tamanho — papel) e, " +
+    "na mensagem, o pedido da pessoa. Responda APENAS com os nomes dos arquivos que o pedido " +
+    "PRECISA, um por linha, sem marcador, sem explicação e sem texto em volta. " +
+    "Escolha o MÍNIMO necessário: só o que precisa ser lido ou mudado. " +
+    "Se o pedido for visual e não disser onde, inclua a marcação e o estilo. " +
+    "Use EXATAMENTE os nomes que estão no mapa.\n\n## MAPA\n" +
+    textoDoIndice(itens, []);
+  const r = await chamarModelo(
+    [{ role: "user", content: pedido || "(sem texto — a pessoa marcou um pedaço no preview)" }],
+    instrucao,
+    contaId,
+    20000,
+  );
+  if (!r.ok) return [];
+  const achados: string[] = [];
+  for (const bruta of r.texto.split("\n")) {
+    const c = bruta.replace(/^[-*\d.)\s]+/, "").replace(/`/g, "").trim();
+    if (!c || c.length > 120) continue;
+    const alvo =
+      itens.find((i) => i.nome.toLowerCase() === c.toLowerCase()) ||
+      itens.find(
+        (i) =>
+          (i.nome.split("/").pop() || i.nome).toLowerCase() ===
+          (c.split("/").pop() || c).toLowerCase(),
+      );
+    if (alvo && !achados.includes(alvo.nome)) achados.push(alvo.nome);
+  }
+  return achados;
+}
+
+/**
+ * A instrução ganha OS ARQUIVOS ATUAIS do projeto (dono, 10/10/2026).
+ *
+ * Por que existe: o construtor recebia só a CONVERSA (pedidos + resumos) e o .md
+ * — não via o CÓDIGO como estava. Com isso, a cada pedido, ele RECONSTRUÍA o
+ * projeto "no escuro": quando a pessoa marcava um pedaço e pedia uma mudança, o
+ * resultado mudava outra coisa (ou o projeto todo). Aqui vão os arquivos COMO
+ * ESTÃO, com a regra explícita de mudar SÓ o pedido e manter o resto igual.
+ *
+ * Sem projeto (primeira construção), a instrução passa intacta.
+ */
+function promptComArquivos(system: string, arquivos: { nome: string; conteudo: string }[]): string {
+  const limpos = (arquivos || [])
+    .filter((a) => a && typeof a.nome === "string" && typeof a.conteudo === "string" && a.nome.trim())
+    .map((a) => ({ nome: a.nome.trim(), conteudo: a.conteudo }))
+    .slice(0, 60);
+  if (!limpos.length) return system;
+  // Teto de tamanho: manda os arquivos inteiros; num projeto gigante, corta o
+  // excedente com AVISO HONESTO (nunca finge que o arquivo acabou).
+  const TETO = 90000;
+  let usado = 0;
+  const blocos: string[] = [];
+  for (const a of limpos) {
+    const sobra = TETO - usado;
+    if (sobra <= 0) {
+      blocos.push(
+        `=== ARQUIVO: ${a.nome} ===\n[arquivo grande demais para caber aqui — peça para trabalhar neste arquivo separadamente]`,
+      );
+      continue;
+    }
+    const conteudo =
+      a.conteudo.length > sobra
+        ? `${a.conteudo.slice(0, sobra)}\n…[cortado por tamanho; peça o resto se precisar]`
+        : a.conteudo;
+    usado += conteudo.length;
+    blocos.push(`=== ARQUIVO: ${a.nome} ===\n${conteudo}`);
+  }
+  return (
+    system +
+    `
+
+## O PROJETO ATUAL — a fonte da verdade (você já está NO MEIO do projeto)
+Estes são os arquivos COMO ESTÃO AGORA. Isto NÃO é um recomeço: todo pedido parte daqui.
+
+${blocos.join("\n")}
+
+${REGRAS_DE_MUDANCA}`
   );
 }
 
@@ -755,6 +918,11 @@ export async function POST(req: NextRequest) {
   const codificador = new TextEncoder();
   const inicioPedido = Date.now();
   let caracteresGerados = 0;
+  // O LOTE da fila (dono, 13/10/2026): num pedido que toca muitos arquivos o trabalho vai em
+  // lotes, e a tela mostra "lote 3 de 12" em vez de um relógio cego. `total = 0` = regime de
+  // uma chamada só (não é fila). É um OBJETO (e não uma variável solta) para o fechamento do
+  // batimento enxergar a mudança.
+  const loteDaFila = { lote: 0, total: 0 };
   const fluxo = new ReadableStream({
     async start(controlador) {
       const batida = setInterval(() => {
@@ -763,6 +931,7 @@ export async function POST(req: NextRequest) {
             progresso: {
               segundos: Math.round((Date.now() - inicioPedido) / 1000),
               caracteres: caracteresGerados,
+              ...(loteDaFila.total ? { lote: loteDaFila.lote, lotes: loteDaFila.total } : {}),
             },
           };
           controlador.enqueue(codificador.encode(JSON.stringify(aviso) + "\n"));
@@ -792,6 +961,11 @@ export async function POST(req: NextRequest) {
             // para 1,6 mil, que parece que o trabalho foi perdido. O número só
             // sobe: é o que a pessoa já viu escrito.
             caracteresGerados = Math.max(caracteresGerados, n);
+          },
+          // O progresso da FILA (dono, 13/10/2026): "lote 3 de 12" na tela.
+          (l, t) => {
+            loteDaFila.lote = l;
+            loteDaFila.total = t;
           },
         );
       } catch (e) {
@@ -827,7 +1001,8 @@ export async function POST(req: NextRequest) {
 /** A parte LENTA do construtor: lê a foto (visão), monta a instrução, chama o
  *  modelo e extrai o projeto. Devolve SEMPRE um objeto JSON — o MESMO corpo que
  *  o cliente já esperava (ok/erro/resumo/arquivos/visao). */
-async function construirProjeto(p: {
+/** O que o construtor recebe — a MESMA forma nos dois regimes (um escopo só, ou a fila). */
+type EntradaConstrutor = {
   mensagens: Msg[];
   assets: string[];
   tokens: Tokens;
@@ -837,7 +1012,17 @@ async function construirProjeto(p: {
   arquivosAtuais: { nome: string; conteudo: string }[];
   contaId: number;
   projetoId: string;
-}, onProgresso?: (caracteres: number) => void): Promise<unknown> {
+};
+
+/** Acima de LIMITE_LOTE alvos, o pedido vira FILA EM LOTE em vez de uma chamada só. */
+const LIMITE_LOTE = 8;
+const TAMANHO_LOTE = 4;
+
+async function construirProjeto(
+  p: EntradaConstrutor,
+  onProgresso?: (caracteres: number) => void,
+  onLote?: (lote: number, total: number) => void,
+): Promise<unknown> {
   // REDE DE SEGURANÇA, NÃO LIMITE DE TRABALHO (dono, 11/10/2026): "não pode ter
   // timeout — quero fazer apps complexos". O dono tem razão: cortar por tempo
   // derruba justamente o trabalho grande, que é o que ele quer fazer.
@@ -856,19 +1041,104 @@ async function construirProjeto(p: {
   // imagem) e volta como TEXTO; a descrição entra na instrução.
   const visao = p.foto ? await lerFotoComVisao(p.foto) : "";
 
-  const instrucao = promptComArquivos(
-    promptComIntegracoes(
-      promptComDoc(
-        promptComVisual(promptComCraft(promptComTokens(promptComAssets(CONSTRUTOR_PROMPT, p.assets), p.tokens))),
-        p.docProjeto,
-      ),
-      p.integracoes,
+  // ── O ESCOPO DO PEDIDO (dono, 13/10/2026) ──────────────────────────────────
+  // "quando tiver um milhão de páginas, ele tem que agir de forma separada. e não olhar
+  // sempre o sistema inteiro." Projeto grande NÃO manda todos os arquivos: manda o MAPA e
+  // só os que o pedido toca. O pedido da pessoa é o último turno de fala dela.
+  const pedido = [...(p.mensagens || [])].reverse().find((m) => m.role !== "assistant")?.content || "";
+  const base = promptComIntegracoes(
+    promptComDoc(
+      promptComVisual(promptComCraft(promptComTokens(promptComAssets(CONSTRUTOR_PROMPT, p.assets), p.tokens))),
+      p.docProjeto,
     ),
-    p.arquivosAtuais,
+    p.integracoes,
   );
-  const instrucaoFinal = p.foto ? promptComFoto(instrucao, visao) : instrucao;
-  const r = await chamarModelo(p.mensagens, instrucaoFinal, p.contaId, Math.max(20000, resta()), onProgresso);
+  const pequeno = projetoPequeno(p.arquivosAtuais);
+  let alvos: string[];
+  if (pequeno || !p.arquivosAtuais.length) {
+    alvos = p.arquivosAtuais.map((a) => a.nome);
+  } else {
+    const citados = alvosCitados(p.arquivosAtuais, pedido);
+    alvos = citados.length
+      ? citados
+      : await escolherAlvosComModelo(p.arquivosAtuais, pedido, p.docProjeto, p.contaId);
+    // Nada decidiu os alvos? Fallback determinístico — NUNCA manda tudo num projeto grande
+    // (é justamente o que estoura o teto e faz o modelo se perder).
+    if (!alvos.length) alvos = alvosPorPadrao(p.arquivosAtuais);
+  }
+  console.log(
+    pequeno || !p.arquivosAtuais.length
+      ? `Arquiteto: projeto pequeno (${p.arquivosAtuais.length} arquivo(s)) — manda tudo`
+      : `Arquiteto: projeto GRANDE (${p.arquivosAtuais.length} arquivos, ${tamanhoTotal(p.arquivosAtuais)} chars) — escopo: ${alvos.length} (${alvos.join(", ")})`,
+  );
+
+  // ── O PEDIDO QUE TOCA MUITOS ARQUIVOS VIRA FILA (dono, 13/10/2026) ──────────
+  // "quando tiver um milhão de páginas, ele tem que agir de forma separada". Uma chamada só
+  // para 200 arquivos não caberia nem no teto nem no tempo. Aqui o pedido vira uma FILA: o
+  // modelo planeja a lista, o servidor processa de TAMANHO_LOTE em TAMANHO_LOTE e GRAVA cada
+  // lote ao terminar — um lote que falha não derruba os outros.
+  if (!pequeno && alvos.length > LIMITE_LOTE) {
+    return await construirEmLotes({ p, base, visao, alvos, resta, onProgresso, onLote });
+  }
+  return await construirEscopo({ p, base, visao, alvos, arquivosBase: p.arquivosAtuais, resta, onProgresso });
+}
+
+/**
+ * UM ESCOPO: monta a instrução para os arquivos de `alvos`, chama o modelo e aplica o resultado
+ * em `arquivosBase`. É o MESMO caminho no regime de uma chamada só e em cada lote da fila — o
+ * que muda entre eles é apenas QUANTOS arquivos entram no escopo.
+ */
+async function construirEscopo(e: {
+  p: EntradaConstrutor;
+  base: string;
+  visao: string;
+  alvos: string[];
+  arquivosBase: Arquivo[];
+  resta: () => number;
+  onProgresso?: (caracteres: number) => void;
+}): Promise<unknown> {
+  const { p, base, visao, arquivosBase, resta, onProgresso } = e;
+  // Cópia mutável: a ESCALAÇÃO acrescenta arquivos a este escopo.
+  let alvos = [...e.alvos];
+
+  const montarInstrucao = () => {
+    const i = promptComProjeto(base, arquivosBase, alvos, p.docProjeto);
+    return p.foto ? promptComFoto(i, visao) : i;
+  };
+
+  let r = await chamarModelo(p.mensagens, montarInstrucao(), p.contaId, Math.max(20000, resta()), onProgresso);
   if (!r.ok) return { erro: r.erro };
+
+  // ── A ESCALAÇÃO (dono, 13/10/2026): faltou arquivo? O modelo PEDE ──────────
+  // Em vez de escrever no escuro (e errar), ele responde `=== PRECISA: nome ===` e o
+  // pedido é reenviado com o arquivo. Até 2 vezes — depois disso, o que ele trouxe é o que vale.
+  for (let escalada = 0; escalada < 2 && resta() > 30000; escalada++) {
+    if (!ehSoPedidoDeArquivo(r.texto)) break;
+    const pedidos = extrairPedidosDeArquivo(r.texto)
+      .map((n) => {
+        const b = (n.split("/").pop() || n).toLowerCase();
+        return arquivosBase.find(
+          (a) => a.nome.toLowerCase() === n.toLowerCase() || (a.nome.split("/").pop() || a.nome).toLowerCase() === b,
+        )?.nome;
+      })
+      .filter((n): n is string => typeof n === "string" && !alvos.includes(n));
+    if (!pedidos.length) break;
+    alvos = [...alvos, ...pedidos];
+    console.log(`Arquiteto: o modelo pediu ${pedidos.join(", ")} — reenviando com eles`);
+    r = await chamarModelo(p.mensagens, montarInstrucao(), p.contaId, Math.max(20000, resta()), onProgresso);
+    if (!r.ok) return { erro: r.erro };
+  }
+  // O modelo pediu arquivo e não há mais o que reenviar (o nome não existe no projeto, ou o
+  // fôlego acabou). Melhor dizer ISSO do que o genérico "não veio no formato de projeto".
+  if (ehSoPedidoDeArquivo(r.texto)) {
+    const faltando = extrairPedidosDeArquivo(r.texto).join(", ");
+    return {
+      erro:
+        `O construtor pediu um arquivo que não existe neste projeto (${faltando || "nome não identificado"}). ` +
+        "Nada foi alterado — confira o nome do arquivo e repita o pedido.",
+    };
+  }
+
   // Régua do formato (ops): mostra se o modelo obedeceu a EDIÇÃO ou reescreveu tudo.
   // Um "ARQUIVO" numa mudança pontual explica sozinho uma espera de 90s+.
   console.log(
@@ -902,7 +1172,7 @@ async function construirProjeto(p: {
       "Se precisar devolver um arquivo inteiro, use === ARQUIVO: nome ... === FIM.";
     const r2 = await chamarModelo(
       [...p.mensagens, { role: "assistant", content: r.texto }, { role: "user", content: correcao }],
-      instrucaoFinal,
+      montarInstrucao(),
       p.contaId,
       Math.max(20000, resta()),
       onProgresso,
@@ -924,7 +1194,7 @@ async function construirProjeto(p: {
   }
 
   // 1) As EDIÇÕES entram por substituição literal no projeto ATUAL.
-  let comEdicoes = aplicarEdicoes(p.arquivosAtuais, edicoes);
+  let comEdicoes = aplicarEdicoes(arquivosBase, edicoes);
 
   // SEGUNDA TENTATIVA quando o trecho NÃO CASOU (dono, 11/10/2026: "não aplicou
   // porque aparece duas vezes"). Dois modos de errar, o mesmo remédio: o modelo
@@ -953,7 +1223,7 @@ async function construirProjeto(p: {
       `não mude nada além dele.`;
     const r2 = await chamarModelo(
       [...p.mensagens, { role: "assistant", content: r.texto }, { role: "user", content: correcao }],
-      instrucaoFinal,
+      montarInstrucao(),
       p.contaId,
       Math.max(20000, resta()),
       onProgresso,
@@ -1032,5 +1302,138 @@ async function construirProjeto(p: {
     // A tela usa isto para saber que NÃO precisa salvar de novo (e para avisar, se
     // a conexão cair, que o resultado já está guardado no servidor).
     salvoNoServidor,
+  };
+}
+
+/**
+ * O PLANO da fila (dono, 13/10/2026): quais dos alvos o pedido REALMENTE afeta.
+ *
+ * A lista de candidatos já vem do escopo; aqui o modelo só a filtra — é uma chamada curta
+ * (saída de poucas linhas), então volta rápido. Falhou → devolve os próprios alvos (nunca
+ * deixa a fila sem lista).
+ */
+async function planejarArquivos(p: EntradaConstrutor, pedido: string, alvos: string[]): Promise<string[]> {
+  if (alvos.length <= TAMANHO_LOTE) return alvos;
+  const itens = construirIndice(p.arquivosAtuais, p.docProjeto).filter((i) => alvos.includes(i.nome));
+  const instrucao =
+    "Você é um PLANEJADOR. Abaixo está a lista de arquivos CANDIDATOS de um projeto " +
+    "(nome — tamanho — papel) e, na mensagem, o pedido da pessoa. Responda APENAS com os nomes dos " +
+    "arquivos que o pedido REALMENTE precisa mudar, um por linha, sem marcador e sem explicação. " +
+    "Se o pedido vale para todos, liste todos. Use EXATAMENTE os nomes da lista.\n\n## CANDIDATOS\n" +
+    textoDoIndice(itens, []);
+  const r = await chamarModelo(
+    [{ role: "user", content: pedido || "(sem texto — a pessoa marcou um pedaço no preview)" }],
+    instrucao,
+    p.contaId,
+    25000,
+  );
+  if (!r.ok) return alvos;
+  const achados: string[] = [];
+  for (const bruta of r.texto.split("\n")) {
+    const c = bruta.replace(/^[-*\d.)\s]+/, "").replace(/`/g, "").trim();
+    if (!c || c.length > 120) continue;
+    const alvo =
+      alvos.find((a) => a.toLowerCase() === c.toLowerCase()) ||
+      alvos.find(
+        (a) =>
+          (a.split("/").pop() || a).toLowerCase() === (c.split("/").pop() || c).toLowerCase(),
+      );
+    if (alvo && !achados.includes(alvo)) achados.push(alvo);
+  }
+  return achados;
+}
+
+/**
+ * A FILA EM LOTE (dono, 13/10/2026) — "quando tiver um milhão de páginas, ele tem que agir de
+ * forma separada".
+ *
+ * Um pedido que toca MUITOS arquivos não vira uma chamada gigante (que estouraria o teto e faria
+ * o modelo se perder — o erro que o dono viu): vira uma FILA.
+ *
+ *  1. O PLANO — o modelo lê os candidatos + o pedido e devolve a lista dos arquivos afetados.
+ *  2. OS LOTES — a lista é processada de TAMANHO_LOTE em TAMANHO_LOTE; cada lote recebe só os
+ *     seus arquivos, e o resultado entra por cima do que já existe.
+ *  3. GRAVA A CADA LOTE — o trabalho de cada lote vai para o banco assim que termina. Um lote
+ *     que falha (ou a conexão que cai) NÃO perde os anteriores: o que já foi feito está gravado.
+ *
+ * Devolve o MESMO corpo do regime de uma chamada só, com o resumo dizendo quantos lotes foram
+ * processados e o que falhou.
+ */
+async function construirEmLotes(e: {
+  p: EntradaConstrutor;
+  base: string;
+  visao: string;
+  alvos: string[];
+  resta: () => number;
+  onProgresso?: (caracteres: number) => void;
+  onLote?: (lote: number, total: number) => void;
+}): Promise<unknown> {
+  const { p, base, visao, alvos, resta, onProgresso, onLote } = e;
+  const pedido = [...(p.mensagens || [])].reverse().find((m) => m.role !== "assistant")?.content || "";
+
+  // 1) O PLANO.
+  const plano = await planejarArquivos(p, pedido, alvos);
+  const lista = plano.length ? plano : alvos;
+
+  // 2) OS LOTES.
+  const lotes: string[][] = [];
+  for (let i = 0; i < lista.length; i += TAMANHO_LOTE) lotes.push(lista.slice(i, i + TAMANHO_LOTE));
+  console.log(`Arquiteto FILA: ${lista.length} arquivo(s) em ${lotes.length} lote(s) de até ${TAMANHO_LOTE}`);
+
+  let acumulado: Arquivo[] = p.arquivosAtuais;
+  const resumos: string[] = [];
+  const falhas: string[] = [];
+  let salvos = 0;
+
+  for (let i = 0; i < lotes.length; i++) {
+    onLote?.(i + 1, lotes.length);
+    // O fôlego acabou: para de forma HONESTA e diz o que faltou — o que já foi, está gravado.
+    if (resta() < 30000) {
+      falhas.push(`faltaram ${lotes.length - i} lote(s) (o tempo desta rodada acabou)`);
+      break;
+    }
+    const r = (await construirEscopo({
+      p,
+      base,
+      visao,
+      alvos: lotes[i],
+      arquivosBase: acumulado,
+      resta,
+      onProgresso,
+    })) as { ok?: boolean; erro?: string; resumo?: string; arquivos?: Arquivo[] };
+
+    if (!r?.ok || !r.arquivos?.length) {
+      // UM lote que falha NÃO derruba os outros — segue para o próximo.
+      falhas.push(`lote ${i + 1} (${lotes[i].join(", ")}): ${r?.erro || "não voltou resultado"}`);
+      continue;
+    }
+    acumulado = r.arquivos;
+    if (r.resumo) resumos.push(r.resumo);
+    // 3) GRAVA AGORA: este lote não depende do próximo para estar a salvo.
+    if (p.projetoId && donoDoProjeto(p.projetoId) === p.contaId) {
+      try {
+        if (salvarProjeto(p.contaId, p.projetoId, null, acumulado)) salvos++;
+      } catch (err) {
+        console.error("Arquiteto FILA: não consegui gravar o lote:", err instanceof Error ? err.message : err);
+      }
+    }
+  }
+
+  if (!acumulado.length) {
+    return { erro: "A fila não conseguiu aplicar nenhum lote. Nada foi alterado — tente de novo." };
+  }
+
+  const avisos = [
+    `Trabalhei em ${lotes.length} lote(s); ${salvos} gravado(s) no servidor.`,
+    ...(falhas.length ? [`Não terminei tudo: ${falhas.join("; ")}.`] : []),
+  ];
+  return {
+    ok: true,
+    resumo: [resumos.join(" ") || "Projeto atualizado.", ...avisos].filter(Boolean).join(" "),
+    arquivos: acumulado,
+    visao: p.foto ? (visao ? "lida" : "ilegivel") : "sem-foto",
+    salvoNoServidor: salvos > 0,
+    lotes: lotes.length,
+    lotesFalhos: falhas.length,
   };
 }

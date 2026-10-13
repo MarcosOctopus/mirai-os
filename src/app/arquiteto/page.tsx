@@ -542,7 +542,10 @@ async function lerRespostaComProgresso(
       return; // linha parcial, ou página de erro do proxy (não é do app)
     }
     if (j && typeof j === "object" && "progresso" in (j as Record<string, unknown>)) {
-      aoProgresso?.((j as { progresso: { segundos?: number; caracteres?: number } }).progresso);
+      aoProgresso?.(
+        (j as { progresso: { segundos?: number; caracteres?: number; lote?: number; lotes?: number } })
+          .progresso,
+      );
       return;
     }
     resposta = j;
@@ -710,7 +713,14 @@ function Arquiteto() {
   // informa (quantos caracteres o modelo já escreveu). Os dois juntos respondem
   // "está acontecendo?" sem ninguém precisar adivinhar.
   const [segundosDecorridos, setSegundosDecorridos] = useState(0);
-  const [progresso, setProgresso] = useState<{ segundos?: number; caracteres?: number } | null>(null);
+  const [progresso, setProgresso] = useState<{
+    segundos?: number;
+    caracteres?: number;
+    /** A FILA (dono, 13/10/2026): quando o pedido toca muitos arquivos, o servidor trabalha em
+     *  lotes e diz em qual está — a tela mostra "lote 3 de 12" em vez de um relógio cego. */
+    lote?: number;
+    lotes?: number;
+  } | null>(null);
 
   // O CRONÔMETRO: enquanto está construindo, conta de segundo em segundo. O
   // relógio é do CLIENTE de propósito — mede o que a PESSOA esperou, que é o
@@ -5453,6 +5463,10 @@ function Arquiteto() {
                   ))}
                   <span className="ml-1 text-[11px] text-dash-dim">
                     {modoChat === "plano" ? "planejando…" : "construindo…"}
+                    {/* A FILA NA CARA (dono, 13/10/2026): quando o pedido toca muitos
+                        arquivos, o servidor trabalha em lotes e GRAVA cada um. Aqui
+                        aparece em qual lote está — sinal de vida e de progresso real. */}
+                    {progresso?.lotes ? ` · lote ${progresso.lote} de ${progresso.lotes}` : ""}
                     {/* O TEMPO NA CARA (dono, 11/10/2026): pedido grande leva
                         minutos. Aqui o relógio corre e o servidor diz quantos
                         caracteres o modelo já escreveu — assim "está andando?" é
