@@ -3971,8 +3971,16 @@ function Arquiteto() {
           continua lá. Sem recuo no topo (empurrar a barra para baixo deixaria um
           degrau feio): o conteúdo começa AO LADO do botão, como no ChatGPT.
           O MESMO recuo à DIREITA (`pr-[52px]`) reserva o lugar do avatar, que
-          agora também aparece fixo no topo direito das telas cheias. */}
-      <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-dash-hair/[0.07] bg-dash-side/40 py-2 pl-[52px] pr-[52px] sm:flex-nowrap sm:gap-3 lg:pl-4">
+          agora também aparece fixo no topo direito das telas cheias.
+
+          O ALINHAMENTO COM A FOTO (dono, 12/10/2026: "coloca também alinhado a
+          foto do perfil... ela tá meio deslocada"). MEDIDO: a linha da barra
+          ficava no centro y=22 e a foto no centro y=29 — a foto 7 px mais baixa,
+          porque ela é 34 px e a linha 28 px. O recuo de cima passou de 8 px para
+          15 px: a linha desce para o centro y=29 e casa com a foto, nos dois
+          tamanhos. O recuo de baixo continua 8 px — o espaço extra em cima é o
+          que a faixa flutuante (menu à esquerda, foto à direita) ocupa. */}
+      <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-dash-hair/[0.07] bg-dash-side/40 pb-2 pt-[15px] pl-[52px] pr-[52px] sm:flex-nowrap sm:gap-3 lg:pl-4">
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] bg-dash-brand/15 text-dash-brand">
           <IconeRobo className="h-4 w-4" />
         </span>
@@ -4443,13 +4451,17 @@ function Arquiteto() {
             aria-expanded={menuConfig}
             data-arquiteto-config-toggle
             data-arquiteto-config-tem-endereco={endSlug ? "sim" : "nao"}
-            className="flex h-7 shrink-0 items-center gap-1.5 rounded-full bg-dash-raise px-2.5 text-[10.5px] text-dash-muted transition hover:text-dash-fg sm:px-3"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-dash-raise text-dash-muted transition hover:text-dash-fg"
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              {/* ENGRENAGEM (dono, 12/10/2026). Sem o texto "Configurações" ao
+                  lado, é o ícone que tem de dizer o que o botão faz. O desenho
+                  anterior (círculo com 8 raios) lê como SOL — e agora existe um
+                  botão de TEMA com sol no menu da conta: dois sóis, sentidos
+                  opostos. A engrenagem é o símbolo universal de "ajustes". */}
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
               <circle cx="12" cy="12" r="3" />
-              <path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6l1.4 1.4m10 10l1.4 1.4m0-12.8l-1.4 1.4m-10 10l-1.4 1.4" />
             </svg>
-            <span className="hidden sm:inline">Configurações</span>
           </button>
 
           {menuConfig && (

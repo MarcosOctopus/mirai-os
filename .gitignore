@@ -59,3 +59,4 @@ data/tokens.db
 *.pre-*
 *.pos-*
 data/*.db*
+tsconfig.tsbuildinfo
