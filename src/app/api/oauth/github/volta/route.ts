@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { guardarConexaoGithub } from "@/lib/arquiteto-projetos";
+import { guardarGithubDaConta } from "@/lib/github-conta";
 import { basePublica } from "@/lib/base-publica";
 import { usuarioDoToken } from "@/lib/github-api";
 import { lerBilhete, trocarCodigoPorToken, urlDeVolta } from "@/lib/github-oauth";
@@ -50,7 +51,16 @@ export async function GET(req: NextRequest) {
   const perfil = await usuarioDoToken(troca.token);
   const login = perfil.ok ? perfil.login : "";
 
-  guardarConexaoGithub(bilhete.projetoId, cifrar(troca.token), login);
+  // DUAS CONEXÕES, um só consentimento (dono, 13/10/2026): com projeto, o token
+  // é daquele projeto (fluxo antigo, intacto); sem projeto, é a conexão da
+  // CONTA — vale para todos os projetos dela.
+  if (bilhete.projetoId) {
+    guardarConexaoGithub(bilhete.projetoId, cifrar(troca.token), login);
+  } else if (bilhete.userId) {
+    guardarGithubDaConta(bilhete.userId, cifrar(troca.token), login);
+  } else {
+    return destino("falhou");
+  }
 
   return destino("conectado");
 }

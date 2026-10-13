@@ -31,6 +31,7 @@ import {
 } from "@/lib/integracoes";
 import type { Integracao } from "@/lib/integracoes";
 import { CATALOGO } from "@/lib/integracoes/catalogo";
+import { configurado as githubConfigurado } from "@/lib/github-oauth";
 import { provedorDaPonte } from "@/lib/ponte-provedores";
 import { saasoValidarCredencial } from "@/lib/saaso";
 import { cifrar } from "@/lib/segredo-guardado";
@@ -57,6 +58,12 @@ function prontidao(): Record<string, { pronta: boolean; motivo?: string }> {
         : { pronta: false, motivo: "a conexão com o Google ainda não está configurada neste servidor" };
     } else if (i.tipo === "mcp" && !i.site) {
       mapa[i.id] = { pronta: false, motivo: "roda dentro do MIRAI OS — ainda sem site próprio" };
+    } else if (i.id === "github") {
+      /* a conexão do GitHub existe quando o App do GitHub está configurado
+         neste servidor (Client ID + Secret). A conexão em si é por projeto. */
+      mapa[i.id] = githubConfigurado()
+        ? { pronta: true }
+        : { pronta: false, motivo: "a conexão com o GitHub ainda não está configurada neste servidor" };
     } else {
       mapa[i.id] = { pronta: true };
     }

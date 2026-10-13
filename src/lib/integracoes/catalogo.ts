@@ -57,6 +57,12 @@ export type Integracao = {
   chaveConfig?: string;
   /** aparece na lista lateral de destaques. */
   destaque?: boolean;
+  /** Conexão que NÃO acontece nesta tela. O GitHub, por exemplo, se conecta
+   *  DENTRO de um projeto — o OAuth dele exige dizer de qual projeto é
+   *  (`/api/oauth/github/iniciar?projeto=<id>`). Quando este campo existe, o
+   *  botão do popup leva a `caminho` e a linha explicativa usa `como`; sem ele
+   *  o cartão abriria uma autorização que não sabe de qual projeto é. */
+  conectaEm?: { caminho: string; como: string };
 };
 
 export const CATEGORIAS: { id: CategoriaIntegracao | "todas"; rotulo: string }[] = [
@@ -142,6 +148,26 @@ export const CATALOGO: Integracao[] = [
     logo: "/integracoes/youtube.svg",
     cor: "#ff0000",
     oauthPath: "/api/auth/youtube",
+  },
+  {
+    id: "github",
+    nome: "GitHub",
+    empresa: "GitHub",
+    subtitulo: "Seus repositórios — conecta uma vez e vale para todos os seus projetos",
+    explicacao: "Repositórios do seu GitHub.",
+    tipo: "api",
+    categoria: "essenciais",
+    logo: "/integracoes/github.svg",
+    /* preto da marca (#24292f): a logo branca lê a 15:1 sobre ele */
+    cor: "#24292f",
+    /* CONEXÃO ÚNICA DA CONTA (dono, 13/10/2026): *"liberar dentro de integrações
+       só pro cara entrar com auth do git dele e já ficar integrado pra tudo"*.
+       O clique abre o consentimento do GitHub; na volta o token vai para o cofre
+       DESTA conta e vale para todos os projetos dela. `chaveConfig: "github"` é
+       o que faz a tela ler "conectada" — a mesma chave onde o token é gravado. */
+    oauthPath: "/api/oauth/github/iniciar",
+    chaveConfig: "github",
+    destaque: true,
   },
   /* ── Mensagens ─────────────────────────────────────────────────────── */
   {

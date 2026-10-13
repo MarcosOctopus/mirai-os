@@ -35,6 +35,7 @@ import path from "path";
 
 import { normalizarTokens, assinaturaTokens, type Tokens } from "./arquiteto-tokens";
 import { normalizarDominio, motivoDominioInvalido } from "./dominio-projetos";
+import { githubDaConta } from "./github-conta";
 
 
 const DB_PATH = path.join(process.cwd(), "data", "auth.db");
@@ -1365,33 +1366,53 @@ export function guardarConexaoGithub(
   return r.changes > 0;
 }
 
-/** O estado da conexão para a TELA — nunca devolve o token, só se existe. */
+/** O estado da conexão para a TELA — nunca devolve o token, só se existe.
+ *
+ *  CAI PARA A CONTA (dono, 13/10/2026): se o projeto não tem token próprio,
+ *  vale o da conta do dono do projeto — a conexão única feita em Integrações. */
 export function conexaoGithub(
   projetoId: string,
 ): { conectado: boolean; login: string | null; em: string | null } | null {
   const db = getDb();
   const l = db
-    .prepare("SELECT github_token_cifrado, github_login, github_em FROM arquiteto_projetos WHERE id = ?")
+    .prepare(
+      "SELECT github_token_cifrado, github_login, github_em, user_id FROM arquiteto_projetos WHERE id = ?",
+    )
     .get(projetoId) as
-    | { github_token_cifrado: string | null; github_login: string | null; github_em: string | null }
+    | {
+        github_token_cifrado: string | null;
+        github_login: string | null;
+        github_em: string | null;
+        user_id: number;
+      }
     | undefined;
   db.close();
   if (!l) return null;
-  return {
-    conectado: !!l.github_token_cifrado,
-    login: l.github_login || null,
-    em: l.github_em || null,
-  };
+  if (l.github_token_cifrado) {
+    return { conectado: true, login: l.github_login || null, em: l.github_em || null };
+  }
+  // sem token do projeto: a conexão da conta do dono dele
+  const daConta = githubDaConta(Number(l.user_id));
+  if (!daConta) return { conectado: false, login: null, em: null };
+  return { conectado: true, login: daConta.login, em: daConta.em };
 }
 
-/** O token CIFRADO (para o servidor decifrar na hora de usar). */
+/** O token CIFRADO (para o servidor decifrar na hora de usar).
+ *
+ *  ORDEM (dono, 13/10/2026): o token DO PROJETO manda (quem conectou antes
+ *  continua valendo); sem ele, usa o da CONTA do dono do projeto. */
 export function tokenGithub(projetoId: string): string | null {
   const db = getDb();
   const l = db
-    .prepare("SELECT github_token_cifrado FROM arquiteto_projetos WHERE id = ?")
-    .get(projetoId) as { github_token_cifrado: string | null } | undefined;
+    .prepare("SELECT github_token_cifrado, user_id FROM arquiteto_projetos WHERE id = ?")
+    .get(projetoId) as { github_token_cifrado: string | null; user_id: number } | undefined;
   db.close();
-  return l?.github_token_cifrado || null;
+  if (l?.github_token_cifrado) return l.github_token_cifrado;
+  if (l?.user_id) {
+    const daConta = githubDaConta(Number(l.user_id));
+    if (daConta) return daConta.tokenCifrado;
+  }
+  return null;
 }
 
 /** Esquece a conexão (o dono desconectou o GitHub). */

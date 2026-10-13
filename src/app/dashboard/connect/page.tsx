@@ -436,7 +436,7 @@ function TabelaIntegracoes({
                   onClick={() => onAbrir(i)}
                   className="rounded-full bg-dash-raise px-2.5 py-[5px] text-[10px] text-dash-muted transition hover:text-dash-fg"
                 >
-                  {i.tipo === "mcp" || i.oauthPath ? "abrir" : "gerenciar"}
+                  {i.tipo === "mcp" || i.oauthPath || i.conectaEm ? "abrir" : "gerenciar"}
                 </button>
               )}
             </span>
@@ -741,8 +741,10 @@ function ModalProduto({
      conectado — sem botão decorativo. */
   const podeConectarCrm = crm && !conectada && pronta;
 
-  const comoIntegra = crm
-    ? conectada
+  const comoIntegra = item.conectaEm
+    ? item.conectaEm.como
+    : crm
+      ? conectada
       ? "Este CRM já está conectado nesta conta. Integrar abre o próprio CRM."
       : "Conectar abre o espaço para colar a credencial do seu CRM (dsk_…). Ela é validada ao vivo com o CRM antes de salvar — credencial que não responde não é gravada."
     : item.tipo === "mcp"
@@ -837,7 +839,7 @@ function ModalProduto({
               disabled={!pronta}
               className="rounded-[10px] bg-dash-brand px-6 py-2.5 text-[12px] font-semibold text-dash-fg transition hover:bg-[#ff2d55] disabled:opacity-40"
             >
-              Integrar
+              {item.conectaEm ? "abrir o Arquiteto" : "Integrar"}
             </button>
           )}
         </div>
@@ -988,7 +990,20 @@ export default function IntegracoesPage() {
       const item = CATALOGO.find((i) => i.id === id);
       if (item) setProduto(item);
     }
-    if (a || id) window.history.replaceState(null, "", window.location.pathname);
+    /* Voltando do consentimento do GitHub (dono, 13/10/2026): a conexão é da
+       CONTA e vale para todos os projetos. Dizer o resultado é obrigatório —
+       a pessoa precisa saber se conectou ou não, sem adivinhar pelo ícone. */
+    const gh = q.get("github");
+    if (gh) {
+      setAviso(
+        gh === "conectado"
+          ? "GitHub conectado nesta conta — vale para todos os seus projetos."
+          : gh === "instalado"
+            ? "App do GitHub instalado."
+            : "A conexão com o GitHub não foi concluída. Tente de novo.",
+      );
+    }
+    if (a || id || gh) window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
   /* categoria + busca + filtro: a grade da referência (mesma faixa que rola na
@@ -1040,6 +1055,13 @@ export default function IntegracoesPage() {
       const p = prontidao[item.id];
       if (p && !p.pronta) {
         setAviso(p.motivo || "Esta integração ainda não está pronta para conectar neste servidor.");
+        return;
+      }
+      if (item.conectaEm) {
+        /* A conexão NÃO é nesta tela (o GitHub se conecta dentro de um
+           projeto): leva ao lugar onde ela acontece, em vez de abrir uma
+           autorização que não sabe de qual projeto é. */
+        window.open(item.conectaEm.caminho, "_blank", "noopener");
         return;
       }
       if (item.oauthPath) {

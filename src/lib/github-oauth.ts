@@ -85,7 +85,15 @@ import { createHmac, timingSafeEqual } from "crypto";
 
 const SEGREDO = process.env.JWT_SECRET || "dev-fallback-change-me";
 
-export type Bilhete = { projetoId: string; state: string; verificador: string; volta: string };
+export type Bilhete = {
+  /** vazio = conexão da CONTA (vale para TODOS os projetos dela). */
+  projetoId: string;
+  state: string;
+  verificador: string;
+  volta: string;
+  /** quem pediu a conexão da conta — o callback é rota pública, sem sessão. */
+  userId?: number;
+};
 
 export function assinarBilhete(b: Bilhete): string {
   const p = Buffer.from(JSON.stringify(b)).toString("base64url");
@@ -105,7 +113,13 @@ export function lerBilhete(cookie: string | null | undefined): Bilhete | null {
     if (typeof j.projetoId !== "string" || typeof j.state !== "string" || typeof j.verificador !== "string") {
       return null;
     }
-    return { projetoId: j.projetoId, state: j.state, verificador: j.verificador, volta: j.volta || "/arquiteto" };
+    return {
+      projetoId: j.projetoId,
+      state: j.state,
+      verificador: j.verificador,
+      volta: j.volta || "/arquiteto",
+      userId: typeof j.userId === "number" ? j.userId : undefined,
+    };
   } catch {
     return null;
   }

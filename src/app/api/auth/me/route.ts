@@ -24,6 +24,10 @@ export async function GET(req: NextRequest) {
     const { contaDaRequisicao } = await import("@/lib/orgs");
     const conta = await contaDaRequisicao(req);
 
+    // O cofre vai ao navegador SEM os segredos: a tela só precisa saber QUE a
+    // conexão existe, não o token (dono, 13/10/2026).
+    const { cofreSemSegredos } = await import("@/lib/github-conta");
+
     const resposta = NextResponse.json({
       user: {
         id: user.id,
@@ -31,7 +35,7 @@ export async function GET(req: NextRequest) {
         email: user.email,
         avatar_url: user.avatar_url,
         tenant_id: user.tenant_id,
-        platform_config: JSON.parse(user.platform_config || "{}"),
+        platform_config: cofreSemSegredos(JSON.parse(user.platform_config || "{}")),
         // quem e esta conta: dono da plataforma, ou cliente de UMA organizacao
         ehDono: conta?.ehDono ?? false,
         papel: conta?.ehDono ? "dono" : conta?.org ? "cliente" : "sem-organizacao",

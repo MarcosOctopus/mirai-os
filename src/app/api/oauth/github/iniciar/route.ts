@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
 
   let projetoId = "";
   let volta = "/arquiteto";
+  let userId: number | undefined;
 
   if (tokenCliente) {
     const t = verificarDominioToken(tokenCliente);
@@ -56,7 +57,14 @@ export async function GET(req: NextRequest) {
     if (!d) return NextResponse.json({ erro: "Projeto não encontrado." }, { status: 404 });
     projetoId = paramProjeto;
   } else {
-    return NextResponse.json({ erro: "Diga de qual projeto é a conexão." }, { status: 400 });
+    /* CONEXÃO DA CONTA (dono, 13/10/2026): *"liberar dentro de integrações só
+       pro cara entrar com auth do git dele e já ficar integrado pra tudo"*.
+       Sem projeto: o token vai para o cofre DESTA conta e vale para todos os
+       projetos dela. Exige sessão — é a conta que está conectando. */
+    const g = await exigirConta(req);
+    if (!g.ok) return g.resposta;
+    userId = g.conta.id;
+    volta = "/dashboard/connect";
   }
 
   const state = estadoAleatorio();
@@ -65,7 +73,7 @@ export async function GET(req: NextRequest) {
   const resposta = NextResponse.redirect(
     urlDeAutorizacao(state, desafioDe(verificador), enderecoDeVolta),
   );
-  resposta.cookies.set("gh_bilhete", assinarBilhete({ projetoId, state, verificador, volta }), {
+  resposta.cookies.set("gh_bilhete", assinarBilhete({ projetoId, state, verificador, volta, userId }), {
     httpOnly: true,
     sameSite: "lax",
     // `secure` segue o endereço PÚBLICO (não a URL interna do proxy): em produção
