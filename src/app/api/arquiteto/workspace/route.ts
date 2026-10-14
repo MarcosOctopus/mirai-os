@@ -2,18 +2,42 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { exigirConta } from "@/lib/orgs";
 import { decidirAcessoArquiteto, CAPACIDADE_ARQUITETO } from "@/lib/arquiteto-acesso";
+import { decifrar } from "@/lib/segredo-guardado";
+import { integracoesDaPessoa } from "@/lib/integracoes";
+import { TIPO_SERVIDOR, lerAlvo, listarRecursivo, lerArquivo } from "@/lib/servidor-cliente";
 import {
   importarDoGit,
+  importarDoServidor,
   listarWorkspace,
   lerArquivoDoWorkspace,
   escreverArquivoDoWorkspace,
   tamanhoDoWorkspace,
   validarRepo,
+  TETO,
 } from "@/lib/arquiteto-workspace";
 import { salvarProjeto, criarProjeto, obterProjeto } from "@/lib/arquiteto-projetos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * O servidor SSH guardado DESTA conta, com a chave já decifrada.
+ * A chave vive só dentro desta função e do uso imediato — nunca vai à resposta.
+ */
+async function servidorDaConta(
+  contaId: number,
+): Promise<{ dados: { host: string; porta: number; usuario: string; chave: string } } | { erro: string; status: 400 }> {
+  const srv = integracoesDaPessoa(contaId).find((i) => i.tipo === TIPO_SERVIDOR);
+  if (!srv) return { erro: "nenhum servidor conectado nesta conta", status: 400 };
+
+  const alvo = lerAlvo(srv.config);
+  if (!alvo) return { erro: "o servidor guardado está incompleto", status: 400 };
+
+  const chave = decifrar(srv.credencial);
+  if (!chave) return { erro: "não consegui ler a credencial guardada", status: 400 };
+
+  return { dados: { host: alvo.host, porta: alvo.porta, usuario: alvo.usuario, chave } };
+}
 
 /**
  * /api/arquiteto/workspace — TRAZER um projeto de fora para dentro, isolado.
@@ -91,22 +115,90 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let corpo: { endereco?: string; projetoId?: string | null; titulo?: string | null } = {};
+  let corpo: {
+    endereco?: string;
+    servidor?: { caminho?: string };
+    projetoId?: string | null;
+    titulo?: string | null;
+  } = {};
   try {
     corpo = (await req.json()) as typeof corpo;
   } catch {
     return NextResponse.json({ erro: "corpo inválido" }, { status: 400 });
   }
 
-  const endereco = (corpo.endereco || "").trim();
-  const v = validarRepo(endereco);
-  if (!v.ok) return NextResponse.json({ erro: v.erro }, { status: 400 });
-
   // Se veio projetoId, ele tem de ser desta conta (404 fecha a porta de espiar).
   let projetoId = (corpo.projetoId || "").trim();
   if (projetoId && !obterProjeto(g.conta.id, projetoId)) {
     return NextResponse.json({ erro: "projeto não encontrado" }, { status: 404 });
   }
+
+  // ═══ CAMINHO A: DO SERVIDOR DELE (dono, 14/10/2026) ══════════════════════
+  // "traga o projeto que ele quiser do git ou do SEU PROPRIO SERVIDOR".
+  // A leitura acontece no servidor dele e a cópia entra no workspace isolado.
+  if (corpo.servidor?.caminho) {
+    const origem = await servidorDaConta(g.conta.id);
+    if ("erro" in origem) return NextResponse.json({ erro: origem.erro }, { status: origem.status });
+
+    const base = (corpo.servidor.caminho || "").trim();
+    const lista = await listarRecursivo({ ...origem.dados, caminho: base });
+    if (!lista.ok) return NextResponse.json({ erro: lista.erro }, { status: 422 });
+
+    // Lê cada arquivo (uma conexão por arquivo — simples e com teto em cada um).
+    const trazidos: { nome: string; conteudo: string }[] = [];
+    let total = 0;
+    for (const absoluto of lista.arquivos) {
+      if (trazidos.length >= TETO.arquivos || total >= TETO.bytes) break;
+      const r = await lerArquivo({ ...origem.dados, caminho: absoluto });
+      if (!r.ok || typeof r.conteudo !== "string") continue;
+      const bytes = Buffer.byteLength(r.conteudo, "utf8");
+      if (bytes > TETO.porArquivo || total + bytes > TETO.bytes) continue;
+      // O nome guardado é RELATIVO à pasta pedida: o workspace não carrega o
+      // caminho absoluto do servidor dele (nem o nome do usuário dele).
+      const nome = absoluto.startsWith(base.replace(/\/+$/, "") + "/")
+        ? absoluto.slice(base.replace(/\/+$/, "").length + 1)
+        : absoluto.split("/").pop() || absoluto;
+      trazidos.push({ nome, conteudo: r.conteudo });
+      total += bytes;
+    }
+    if (!trazidos.length) {
+      return NextResponse.json(
+        { erro: "não consegui trazer nenhum arquivo de texto dessa pasta (ou a pasta está vazia)" },
+        { status: 422 },
+      );
+    }
+
+    if (!projetoId) {
+      const novo = criarProjeto(g.conta.id, (corpo.titulo || "").trim() || base.split("/").filter(Boolean).pop() || "do servidor");
+      projetoId = novo.id;
+    }
+    const imp = importarDoServidor(g.conta.id, projetoId, trazidos, `servidor:${base}`);
+    if (!imp.ok || !imp.arquivos) {
+      return NextResponse.json({ erro: imp.erro || "não consegui trazer", relatorio: imp.relatorio }, { status: 422 });
+    }
+    const salvoSrv = salvarProjeto(
+      g.conta.id,
+      projetoId,
+      (corpo.titulo || "").trim() || base.split("/").filter(Boolean).pop() || "do servidor",
+      imp.arquivos,
+    );
+    if (!salvoSrv) {
+      return NextResponse.json({ erro: "trouxe, mas não consegui registrar o projeto" }, { status: 500 });
+    }
+    return NextResponse.json({
+      ok: true,
+      origem: "servidor",
+      projeto: { id: salvoSrv.id, titulo: salvoSrv.titulo },
+      workspace: imp.workspace,
+      relatorio: imp.relatorio,
+    });
+  }
+
+  // ═══ CAMINHO B: DO GITHUB ════════════════════════════════════════════════
+  const endereco = (corpo.endereco || "").trim();
+  const v = validarRepo(endereco);
+  if (!v.ok) return NextResponse.json({ erro: v.erro }, { status: 400 });
+
   // Sem projeto, nasce um: o repositório vira o projeto, com o nome dele.
   if (!projetoId) {
     const novo = criarProjeto(g.conta.id, (corpo.titulo || "").trim() || v.slug);
@@ -127,6 +219,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
+    origem: "git",
     projeto: { id: salvo.id, titulo: salvo.titulo },
     workspace: r.workspace,
     relatorio: r.relatorio,

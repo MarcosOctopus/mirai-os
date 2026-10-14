@@ -425,6 +425,74 @@ function tamanhoDePasta(d: string): number {
 }
 
 /** Lê um arquivo do workspace (confinado). */
+/**
+ * IMPORTAÇÃO DO SERVIDOR DELE (dono, 14/10/2026) — grava no workspace ISOLADO os
+ * arquivos que vieram do servidor da pessoa.
+ *
+ * Mesma confinação do clone: cada caminho passa por `caminhoSeguro`, então nada
+ * pode escapar da pasta DESTE projeto, e os mesmos tetos valem (por arquivo e
+ * total). O servidor dele não é tocado — a importação é uma CÓPIA.
+ */
+export function importarDoServidor(
+  userId: number,
+  projetoId: string,
+  arquivos: { nome: string; conteudo: string }[],
+  origem: string,
+): ResultadoImportacao {
+  const relatorio: ResultadoImportacao["relatorio"] = {
+    repo: origem,
+    lidos: arquivos.length,
+    incluidos: 0,
+    bytes: 0,
+    pulados: [],
+    avisos: [],
+  };
+
+  const pasta = pastaDoProjeto(userId, projetoId);
+  try {
+    mkdirSync(pasta, { recursive: true });
+  } catch {
+    return { ok: false, relatorio, erro: "não consegui criar o workspace do projeto" };
+  }
+
+  const dentro: { nome: string; conteudo: string }[] = [];
+  for (const a of arquivos) {
+    if (dentro.length >= TETO.arquivos) {
+      if (!relatorio.avisos.includes("limite de arquivos atingido")) relatorio.avisos.push("limite de arquivos atingido");
+      break;
+    }
+    const alvo = caminhoSeguro(pasta, a.nome);
+    if (!alvo) {
+      relatorio.pulados.push({ caminho: a.nome, motivo: "caminho fora do projeto" });
+      continue;
+    }
+    const bytes = Buffer.byteLength(a.conteudo, "utf8");
+    if (bytes > TETO.porArquivo) {
+      relatorio.pulados.push({ caminho: a.nome, motivo: "arquivo grande demais" });
+      continue;
+    }
+    if (relatorio.bytes + bytes > TETO.bytes) {
+      relatorio.pulados.push({ caminho: a.nome, motivo: "teto total do projeto atingido" });
+      continue;
+    }
+    try {
+      mkdirSync(dirname(alvo), { recursive: true });
+      writeFileSync(alvo, a.conteudo, "utf8");
+    } catch {
+      relatorio.pulados.push({ caminho: a.nome, motivo: "não consegui gravar" });
+      continue;
+    }
+    relatorio.incluidos += 1;
+    relatorio.bytes += bytes;
+    dentro.push({ nome: a.nome, conteudo: a.conteudo });
+  }
+
+  if (!dentro.length) {
+    return { ok: false, relatorio, erro: "não encontrei arquivos de texto nessa pasta do servidor" };
+  }
+  return { ok: true, workspace: `${userId}/${projetoId}`, arquivos: dentro, relatorio };
+}
+
 export function lerArquivoDoWorkspace(
   userId: number,
   projetoId: string,

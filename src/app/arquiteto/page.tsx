@@ -859,6 +859,10 @@ function Arquiteto() {
   const [enderecoRepo, setEnderecoRepo] = useState("");
   const [trazendo, setTrazendo] = useState(false);
   const [erroTrazer, setErroTrazer] = useState("");
+  // De onde trazer: do GitHub (público) ou do SERVIDOR dele (SSH já conectado).
+  const [origemTrazer, setOrigemTrazer] = useState<"git" | "servidor">("git");
+  const [pastaServidor, setPastaServidor] = useState("");
+  const [temServidor, setTemServidor] = useState<boolean | null>(null);
   const [relatoImport, setRelatoImport] = useState<{
     repo: string;
     lidos: number;
@@ -2245,6 +2249,52 @@ function Arquiteto() {
       setRelatoImport(j.relatorio || null);
       setAbrirTrazer(false);
       setEnderecoRepo("");
+      await carregarProjetos();
+      if (j?.projeto?.id) await abrirProjeto(j.projeto.id);
+    } catch {
+      setErroTrazer("A conexão caiu no meio do pedido — nada foi alterado.");
+    } finally {
+      setTrazendo(false);
+    }
+  }
+
+  /**
+   * TRAZER UM PROJETO DO SERVIDOR DELE (dono, 14/10/2026).
+   *
+   *   "Quero que o cara traga o projeto que ele quiser do git ou do seu proprio
+   *    servidor. Igual conseguimos fazer por aqui. Claro isolando ele pra n afetar
+   *    outras estruturas"
+   *
+   * O servidor é lido pela credencial que a própria pessoa plugou (SSH), e uma
+   * CÓPIA entra no workspace isolado deste projeto. Nada é movido nem alterado lá.
+   */
+  async function trazerDoServidor(caminho: string) {
+    const alvo = (caminho || "").trim();
+    if (!alvo) {
+      setErroTrazer("informe a pasta do projeto no seu servidor");
+      return;
+    }
+    setTrazendo(true);
+    setErroTrazer("");
+    try {
+      const r = await fetch("/api/arquiteto/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ servidor: { caminho: alvo } }),
+      });
+      const j = await r.json().catch(() => null);
+      if (r.status === 403) {
+        setErroTrazer("O Arquiteto não está liberado para esta conta.");
+        return;
+      }
+      if (!r.ok || !j?.ok) {
+        setErroTrazer(j?.erro || "não consegui trazer essa pasta do servidor");
+        if (j?.relatorio) setRelatoImport(j.relatorio);
+        return;
+      }
+      setRelatoImport(j.relatorio || null);
+      setAbrirTrazer(false);
+      setPastaServidor("");
       await carregarProjetos();
       if (j?.projeto?.id) await abrirProjeto(j.projeto.id);
     } catch {
@@ -4277,12 +4327,20 @@ function Arquiteto() {
                 onClick={() => {
                   setMenuAberto(false);
                   setErroTrazer("");
+                  setRelatoImport(null);
+                  setOrigemTrazer("git");
                   setAbrirTrazer(true);
+                  // Sabe se há servidor plugado ANTES de oferecer a aba — assim a
+                  // tela orienta em vez de deixar a pessoa bater na porta fechada.
+                  void fetch("/api/servidor", { cache: "no-store" })
+                    .then((r) => r.json())
+                    .then((j) => setTemServidor(Boolean(j?.conectado ?? j?.servidor ?? j?.ok)))
+                    .catch(() => setTemServidor(null));
                 }}
                 className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2.5 text-[13px] text-dash-fg/85 transition hover:bg-dash-hair/[0.06] hover:text-dash-fg"
               >
                 <IconeTrazer className="h-4 w-4" />
-                Trazer do GitHub
+                Trazer de fora
               </button>
             </div>
           )}
@@ -6596,32 +6654,97 @@ function Arquiteto() {
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-            <p className="text-[12.5px] leading-relaxed text-dash-muted">
-              Cole o endereço do repositório. Ele é clonado num{" "}
-              <span className="text-dash-fg">workspace próprio deste projeto</span> — nada se mistura
-              com outro projeto nem com outra conta — e os arquivos entram na bancada para você editar.
-            </p>
+            {/* DUAS ORIGENS (dono, 14/10/2026): do git OU do servidor dele. */}
+            <div className="flex gap-1 rounded-[10px] border border-dash-hair/10 bg-dash-bg/60 p-1">
+              {(
+                [
+                  { id: "git" as const, rotulo: "Do GitHub" },
+                  { id: "servidor" as const, rotulo: "Do meu servidor" },
+                ]
+              ).map((o) => (
+                <button
+                  key={o.id}
+                  onClick={() => {
+                    setOrigemTrazer(o.id);
+                    setErroTrazer("");
+                  }}
+                  disabled={trazendo}
+                  className={`flex-1 rounded-[8px] px-3 py-1.5 text-[12px] transition disabled:opacity-40 ${
+                    origemTrazer === o.id
+                      ? "bg-dash-brand/15 text-dash-brand"
+                      : "text-dash-muted hover:text-dash-fg"
+                  }`}
+                >
+                  {o.rotulo}
+                </button>
+              ))}
+            </div>
 
-            <input
-              autoFocus
-              value={enderecoRepo}
-              onChange={(e) => setEnderecoRepo(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !trazendo && enderecoRepo.trim()) {
-                  e.preventDefault();
-                  void trazerDoGitHub(enderecoRepo);
-                }
-              }}
-              spellCheck={false}
-              placeholder="https://github.com/dono/repo"
-              aria-label="Endereço do repositório"
-              className="mt-3 w-full rounded-[10px] border border-dash-hair/15 bg-dash-bg px-3 py-2.5 font-mono text-[12.5px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
-            />
+            {origemTrazer === "git" ? (
+              <>
+                <p className="mt-3 text-[12.5px] leading-relaxed text-dash-muted">
+                  Cole o endereço do repositório. Ele é clonado num{" "}
+                  <span className="text-dash-fg">workspace próprio deste projeto</span> — nada se mistura
+                  com outro projeto nem com outra conta — e os arquivos entram na bancada para você editar.
+                </p>
 
-            <p className="mt-2.5 text-[11px] leading-snug text-dash-dim">
-              Repositório <span className="text-dash-muted">público</span> — não há credencial nesta
-              camada, de propósito. Aceita github.com, gitlab.com e codeberg.org.
-            </p>
+                <input
+                  autoFocus
+                  value={enderecoRepo}
+                  onChange={(e) => setEnderecoRepo(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !trazendo && enderecoRepo.trim()) {
+                      e.preventDefault();
+                      void trazerDoGitHub(enderecoRepo);
+                    }
+                  }}
+                  spellCheck={false}
+                  placeholder="https://github.com/dono/repo"
+                  aria-label="Endereço do repositório"
+                  className="mt-3 w-full rounded-[10px] border border-dash-hair/15 bg-dash-bg px-3 py-2.5 font-mono text-[12.5px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
+                />
+
+                <p className="mt-2.5 text-[11px] leading-snug text-dash-dim">
+                  Repositório <span className="text-dash-muted">público</span> — não há credencial nesta
+                  camada, de propósito. Aceita github.com, gitlab.com e codeberg.org.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-3 text-[12.5px] leading-relaxed text-dash-muted">
+                  Informe a pasta do projeto no <span className="text-dash-fg">seu servidor</span>. Uma{" "}
+                  <span className="text-dash-fg">cópia</span> entra no workspace isolado deste projeto —
+                  nada é movido nem alterado no seu servidor.
+                </p>
+
+                <input
+                  autoFocus
+                  value={pastaServidor}
+                  onChange={(e) => setPastaServidor(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !trazendo && pastaServidor.trim()) {
+                      e.preventDefault();
+                      void trazerDoServidor(pastaServidor);
+                    }
+                  }}
+                  spellCheck={false}
+                  placeholder="/var/www/meu-projeto"
+                  aria-label="Pasta do projeto no servidor"
+                  className="mt-3 w-full rounded-[10px] border border-dash-hair/15 bg-dash-bg px-3 py-2.5 font-mono text-[12.5px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
+                />
+
+                {temServidor === false ? (
+                  <p className="mt-2.5 text-[11px] leading-snug text-dash-warn">
+                    Você ainda não conectou um servidor. Ligue em Integrações e volte aqui.
+                  </p>
+                ) : (
+                  <p className="mt-2.5 text-[11px] leading-snug text-dash-dim">
+                    Usa a credencial SSH que você já plugou. Traz no máximo 150 arquivos de texto, sem
+                    pastas de peso (.git, node_modules).
+                  </p>
+                )}
+              </>
+            )}
 
             {erroTrazer && (
               <div className="mt-3 flex items-start gap-2 rounded-[10px] border border-dash-bad/30 bg-dash-bad/10 px-3 py-2.5">
@@ -6677,11 +6800,13 @@ function Arquiteto() {
               Fechar
             </button>
             <button
-              onClick={() => void trazerDoGitHub(enderecoRepo)}
-              disabled={trazendo || !enderecoRepo.trim()}
+              onClick={() =>
+                void (origemTrazer === "git" ? trazerDoGitHub(enderecoRepo) : trazerDoServidor(pastaServidor))
+              }
+              disabled={trazendo || !(origemTrazer === "git" ? enderecoRepo.trim() : pastaServidor.trim())}
               className="rounded-[10px] bg-dash-brand px-3.5 py-2 text-[12.5px] font-medium text-white transition hover:bg-dash-brandHi disabled:opacity-40"
             >
-              {trazendo ? "trazendo…" : "Trazer repositório"}
+              {trazendo ? "trazendo…" : origemTrazer === "git" ? "Trazer repositório" : "Trazer do servidor"}
             </button>
             </div>
             </div>

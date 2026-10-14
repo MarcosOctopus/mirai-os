@@ -190,6 +190,17 @@ function executarSsh(opts: {
   porta: number;
   usuario: string;
   comando: string;
+  /**
+   * Conteúdo a enviar pela ENTRADA PADRÃO do ssh (usado na escrita).
+   *
+   * Por que por aqui e não no comando: o conteúdo de um arquivo é do usuário e
+   * pode conter QUALQUER coisa — aspas, `$(...)`, crase, quebra de linha. Se ele
+   * fosse para a linha de comando, teria de ser escapado, e escapar texto
+   * arbitrário é exatamente onde nasce injeção. Pela entrada padrão ele nunca é
+   * interpretado: o shell remoto só vê `cat > '<caminho>'`, e o texto é dado, não
+   * comando.
+   */
+  entrada?: string;
 }): Promise<ResultadoBruto> {
   const args = [
     "-i", opts.keyPath,
@@ -206,7 +217,7 @@ function executarSsh(opts: {
   ];
 
   return new Promise((resolve) => {
-    execFile(
+    const filho = execFile(
       "ssh",
       args,
       { timeout: TIMEOUT_MS, maxBuffer: 1_048_576, encoding: "utf8" },
@@ -228,6 +239,17 @@ function executarSsh(opts: {
         resolve({ codigo, erro: e, stdout: limpa(stdout), stderr: limpa(stderr) });
       },
     );
+
+    if (typeof opts.entrada === "string") {
+      // Se o ssh já morreu (host inalcançável), escrever no stdin emite EPIPE —
+      // que aqui é ruído, não falha: quem decide o resultado é o callback acima.
+      filho.stdin?.on("error", () => {});
+      try {
+        filho.stdin?.end(opts.entrada, "utf8");
+      } catch {
+        /* o callback acima já vai reportar o motivo real */
+      }
+    }
   });
 }
 
@@ -354,6 +376,239 @@ export async function listar(opts: {
       .map((linha) => linha.trim())
       .filter((nome) => nome && nome !== "." && nome !== "..");
     return { ok: true, itens };
+  } finally {
+    await prep.limpar();
+  }
+}
+
+// ─── LER E GRAVAR ARQUIVO (a escrita que o dono autorizou em 14/10/2026) ───
+//
+// A fundação deste arquivo parou na LEITURA de propósito: *"Criar, editar, subir
+// e rodar arquivo no servidor do cliente vem DEPOIS, com decisão explícita do
+// dono"*. A decisão veio:
+//
+//   "Eu quero que consiga editar coisas em outros servidores" — 14/10/2026.
+//
+// Então a escrita entra — com as travas que a decisão NÃO dispensa:
+//   1. o CONTEÚDO vai pela entrada padrão do ssh, nunca na linha de comando
+//      (texto do usuário jamais é interpretado pelo shell remoto);
+//   2. o CAMINHO passa por `validarCaminho` e é citado com aspas simples;
+//   3. antes de sobrescrever, o arquivo que já existe é COPIADO no próprio
+//      servidor (`<nome>.bak-mirai-<carimbo>`) — a regra do dono vale lá também:
+//      primeiro o backup, depois a mudança;
+//   4. teto de tamanho na entrada e na saída;
+//   5. binário não entra no editor: se tem byte nulo, recusa.
+
+/** Teto do que se lê de um arquivo para editar (o que passa disso não é texto de editor). */
+export const LIMITE_LEITURA = 512 * 1024;
+/** Teto do que se grava de uma vez. */
+export const LIMITE_ESCRITA = 512 * 1024;
+
+/**
+ * Lê o conteúdo de UM arquivo do servidor do cliente.
+ * Comando remoto: `head -c <N+1> -- '<caminho>'` — lê no máximo N+1 bytes, e o
+ * byte extra é o que denuncia "é maior que o teto" sem trazer o arquivo inteiro.
+ */
+export async function lerArquivo(opts: {
+  host: unknown;
+  porta?: unknown;
+  usuario: unknown;
+  chave: unknown;
+  caminho: unknown;
+}): Promise<{ ok: boolean; conteudo?: string; bytes?: number; erro?: string }> {
+  const alvo = validarAlvo(opts.host, opts.usuario);
+  if (!alvo.ok) return { ok: false, erro: alvo.erro };
+
+  const porta = normalizarPorta(opts.porta);
+  if (porta === null) return { ok: false, erro: "porta inválida (use um número de 1 a 65535)" };
+
+  const camp = validarCaminho(opts.caminho);
+  if (!camp.ok) return { ok: false, erro: camp.erro };
+
+  const chave = typeof opts.chave === "string" ? opts.chave : "";
+  if (!chave.trim()) return { ok: false, erro: "a credencial do servidor está vazia" };
+
+  const prep = await prepararChave(chave);
+  if (!prep) return { ok: false, erro: "não consegui preparar a chave no servidor (arquivo temporário indisponível)" };
+  try {
+    const r = await executarSsh({
+      keyPath: prep.caminho,
+      knownHosts: prep.knownHosts,
+      host: alvo.host,
+      porta,
+      usuario: alvo.usuario,
+      comando: `head -c ${LIMITE_LEITURA + 1} -- ${aspasSimples(camp.caminho)}`,
+    });
+    if (r.erro === "ETIMEDOUT") return { ok: false, erro: "tempo esgotado ao ler o arquivo" };
+    if (r.codigo !== 0) {
+      const s = (r.stderr || "").toLowerCase();
+      if (/no such file or directory/.test(s)) return { ok: false, erro: "esse arquivo não existe no servidor" };
+      if (/is a directory/.test(s)) return { ok: false, erro: "esse caminho é uma pasta, não um arquivo" };
+      if (/permission denied/.test(s)) return { ok: false, erro: "sem permissão para ler esse arquivo" };
+      return { ok: false, erro: "não consegui ler o arquivo no servidor" };
+    }
+    const conteudo = r.stdout || "";
+    if (conteudo.length > LIMITE_LEITURA) {
+      return { ok: false, erro: `esse arquivo passa de ${Math.round(LIMITE_LEITURA / 1024)} KB — não abro no editor` };
+    }
+    if (conteudo.includes("\u0000")) {
+      return { ok: false, erro: "esse arquivo é binário — não abro no editor" };
+    }
+    return { ok: true, conteudo, bytes: Buffer.byteLength(conteudo, "utf8") };
+  } finally {
+    await prep.limpar();
+  }
+}
+
+/**
+ * Grava (cria ou substitui) um arquivo no servidor do cliente.
+ *
+ * O conteúdo vai por STDIN. O comando remoto é só:
+ *   `if [ -e '<alvo>' ]; then cp -p -- '<alvo>' '<alvo>.bak-mirai-<carimbo>' || exit 3; fi; cat > '<alvo>'`
+ *
+ * O `cp` ANTES do `cat` é o backup da regra do dono, feito no próprio servidor:
+ * se a gravação falhar no meio, o arquivo anterior ainda está lá.
+ */
+export async function gravarArquivo(opts: {
+  host: unknown;
+  porta?: unknown;
+  usuario: unknown;
+  chave: unknown;
+  caminho: unknown;
+  conteudo: unknown;
+}): Promise<{ ok: boolean; bytes?: number; backup?: string | null; erro?: string }> {
+  const alvo = validarAlvo(opts.host, opts.usuario);
+  if (!alvo.ok) return { ok: false, erro: alvo.erro };
+
+  const porta = normalizarPorta(opts.porta);
+  if (porta === null) return { ok: false, erro: "porta inválida (use um número de 1 a 65535)" };
+
+  const camp = validarCaminho(opts.caminho);
+  if (!camp.ok) return { ok: false, erro: camp.erro };
+
+  const conteudo = typeof opts.conteudo === "string" ? opts.conteudo : "";
+  const bytes = Buffer.byteLength(conteudo, "utf8");
+  if (bytes > LIMITE_ESCRITA) {
+    return { ok: false, erro: `o conteúdo passa de ${Math.round(LIMITE_ESCRITA / 1024)} KB — não gravo de uma vez` };
+  }
+  if (conteudo.includes("\u0000")) return { ok: false, erro: "o conteúdo tem byte nulo — isto é um editor de texto" };
+
+  const chave = typeof opts.chave === "string" ? opts.chave : "";
+  if (!chave.trim()) return { ok: false, erro: "a credencial do servidor está vazia" };
+
+  const prep = await prepararChave(chave);
+  if (!prep) return { ok: false, erro: "não consegui preparar a chave no servidor (arquivo temporário indisponível)" };
+
+  // Carimbo só de dígitos e hífen: nada que o shell remoto possa reinterpretar.
+  const carimbo = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
+  const alvoCitado = aspasSimples(camp.caminho);
+  const backup = `${camp.caminho}.bak-mirai-${carimbo}`;
+  const comando =
+    `if [ -e ${alvoCitado} ]; then cp -p -- ${alvoCitado} ${aspasSimples(backup)} || exit 3; fi; cat > ${alvoCitado}`;
+
+  try {
+    const r = await executarSsh({
+      keyPath: prep.caminho,
+      knownHosts: prep.knownHosts,
+      host: alvo.host,
+      porta,
+      usuario: alvo.usuario,
+      comando,
+      entrada: conteudo,
+    });
+    if (r.erro === "ETIMEDOUT") return { ok: false, erro: "tempo esgotado ao gravar o arquivo" };
+    if (r.codigo === 3) {
+      return { ok: false, erro: "não consegui fazer o backup do arquivo atual no servidor — não sobrescrevi nada" };
+    }
+    if (r.codigo !== 0) {
+      const s = (r.stderr || "").toLowerCase();
+      if (/no such file or directory/.test(s)) return { ok: false, erro: "a pasta desse arquivo não existe no servidor" };
+      if (/permission denied/.test(s)) return { ok: false, erro: "sem permissão para gravar nesse caminho" };
+      if (/read-only file system/.test(s)) return { ok: false, erro: "o sistema de arquivos do servidor está somente leitura" };
+      if (/no space left/.test(s)) return { ok: false, erro: "o servidor está sem espaço em disco" };
+      return { ok: false, erro: "não consegui gravar o arquivo no servidor" };
+    }
+    return { ok: true, bytes, backup };
+  } finally {
+    await prep.limpar();
+  }
+}
+
+// ─── Trazer um projeto DO SERVIDOR DELE (dono, 14/10/2026) ──────────────────
+//
+//   "Quero que o cara traga o projeto que ele quiser do git ou do seu proprio
+//    servidor. Igual conseguimos fazer por aqui. Claro isolando ele pra n afetar
+//    outras estruturas"
+//
+// A leitura recursiva serve para o Arquiteto LISTAR o que existe na pasta do
+// projeto no servidor dele e trazer uma CÓPIA para o workspace isolado. Nada é
+// movido, nada é alterado no servidor dele — é leitura.
+
+/** Teto de arquivos que uma importação do servidor traz de uma vez. */
+export const MAX_ARQUIVOS_IMPORT = 150;
+
+/**
+ * Lista os arquivos de uma pasta no servidor dele, recursivamente e com tetos.
+ *
+ * Comando remoto: um `find` recursivo com teto de tamanho e de quantidade, que
+ * descarta os diretórios de peso (.git, node_modules, vendor, dist, build).
+ * Tudo o que é listado passa pelos mesmos filtros do import de git: sem `.git`,
+ * sem `node_modules`, sem `vendor`, sem arquivo acima do teto. O `head` corta a
+ * listagem — o servidor dele nunca é varrido inteiro.
+ */
+export async function listarRecursivo(opts: {
+  host: unknown;
+  porta?: unknown;
+  usuario: unknown;
+  chave: unknown;
+  caminho: unknown;
+}): Promise<{ ok: boolean; arquivos: string[]; erro?: string }> {
+  const alvo = validarAlvo(opts.host, opts.usuario);
+  if (!alvo.ok) return { ok: false, arquivos: [], erro: alvo.erro };
+
+  const porta = normalizarPorta(opts.porta);
+  if (porta === null) return { ok: false, arquivos: [], erro: "porta inválida (use um número de 1 a 65535)" };
+
+  const camp = validarCaminho(opts.caminho);
+  if (!camp.ok) return { ok: false, arquivos: [], erro: camp.erro };
+
+  const chave = typeof opts.chave === "string" ? opts.chave : "";
+  if (!chave.trim()) return { ok: false, arquivos: [], erro: "a credencial do servidor está vazia" };
+
+  const prep = await prepararChave(chave);
+  if (!prep) return { ok: false, arquivos: [], erro: "não consegui preparar a chave no servidor (arquivo temporário indisponível)" };
+
+  const d = aspasSimples(camp.caminho);
+  // `-size -<N>c` corta arquivo acima do teto ANTES de ele ser lido.
+  const comando =
+    `find ${d} -type f -size -${LIMITE_LEITURA}c ` +
+    `-not -path '*/.git/*' -not -path '*/node_modules/*' -not -path '*/vendor/*' ` +
+    `-not -path '*/.next/*' -not -path '*/dist/*' -not -path '*/build/*' ` +
+    `2>/dev/null | head -n ${MAX_ARQUIVOS_IMPORT}`;
+
+  try {
+    const r = await executarSsh({
+      keyPath: prep.caminho,
+      knownHosts: prep.knownHosts,
+      host: alvo.host,
+      porta,
+      usuario: alvo.usuario,
+      comando,
+    });
+    if (r.erro === "ETIMEDOUT") return { ok: false, arquivos: [], erro: "tempo esgotado ao listar a pasta" };
+    if (r.codigo !== 0) {
+      const s = (r.stderr || "").toLowerCase();
+      if (/no such file or directory/.test(s)) return { ok: false, arquivos: [], erro: "essa pasta não existe no servidor" };
+      if (/permission denied/.test(s)) return { ok: false, arquivos: [], erro: "sem permissão para ler essa pasta" };
+      return { ok: false, arquivos: [], erro: "não consegui listar a pasta no servidor" };
+    }
+    // O `find` devolve caminhos ABSOLUTOS; guarda como veio, para ler depois.
+    const arquivos = (r.stdout || "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(0, MAX_ARQUIVOS_IMPORT);
+    return { ok: true, arquivos };
   } finally {
     await prep.limpar();
   }
