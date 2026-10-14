@@ -58,14 +58,16 @@ type OrganizacaoDoCliente = {
   papel: string | null;
   extras: string[];
   convite_email: string | null;
+  membros?: string[];
   desde: string | null;
 };
 
-type Cliente = {
-  id: number;
-  nome: string;
+/** A linha da tela: UMA pessoa (o e-mail é a chave) e a lista de onde ela está. */
+type Pessoa = {
   email: string;
-  entra_por: "Google" | "senha";
+  nome: string;
+  entra_por: string;
+  conta_id: number | null;
   tenant_local: string | null;
   vinculado: boolean;
   desde: string | null;
@@ -109,8 +111,8 @@ async function apiPlanos(
 
 export default function ClientesPage() {
   const [aba, setAba] = useState<"clientes" | "planos">("clientes");
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [orfaos, setOrfaos] = useState<OrganizacaoDoCliente[]>([]);
+  const [pessoas, setPessoas] = useState<Pessoa[]>([]);
+  const [semConta, setSemConta] = useState<OrganizacaoDoCliente[]>([]);
   const [planos, setPlanos] = useState<Plano[]>([]);
   const [capacidades, setCapacidades] = useState<Capacidade[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -152,12 +154,12 @@ export default function ClientesPage() {
       if (rc.status === 403) throw new Error("Esta área é do dono da plataforma.");
       if (!rc.ok) throw new Error(`HTTP ${rc.status}`);
       const dc = (await rc.json()) as {
-        clientes?: Cliente[];
-        orfaos?: OrganizacaoDoCliente[];
+        pessoas?: Pessoa[];
+        semConta?: OrganizacaoDoCliente[];
         aviso?: string;
       };
-      setClientes(dc.clientes || []);
-      setOrfaos(dc.orfaos || []);
+      setPessoas(dc.pessoas || []);
+      setSemConta(dc.semConta || []);
       setAviso(dc.aviso || "");
 
       if (rp.ok) {
@@ -165,8 +167,10 @@ export default function ClientesPage() {
         setPlanos(dp.planos || []);
       }
       if (rcap.ok) {
-        const dcap = (await rcap.json()) as { capabilities?: Capacidade[] };
-        setCapacidades(dcap.capabilities || []);
+        // A rota devolve `capacidades` (nao `capabilities`) — ler a chave errada
+        // deixava o editor de plano sem nenhuma capacidade para marcar.
+        const dcap = (await rcap.json()) as { capacidades?: Capacidade[]; capabilities?: Capacidade[] };
+        setCapacidades(dcap.capacidades || dcap.capabilities || []);
       }
       setErro("");
     } catch (e) {
@@ -367,10 +371,11 @@ export default function ClientesPage() {
   );
 
   const resumo = useMemo(() => {
-    const contas = new Set(clientes.map((c) => c.email)).size;
-    const comOrg = clientes.filter((c) => c.organizacoes.length > 0).length;
-    return { contas, linhas: clientes.length, semOrg: clientes.length - comOrg };
-  }, [clientes]);
+    const contas = pessoas.length;
+    const vinculos = pessoas.reduce((s, p) => s + p.organizacoes.length, 0);
+    const semOrg = pessoas.filter((p) => p.organizacoes.length === 0).length;
+    return { contas, vinculos, semOrg };
+  }, [pessoas]);
 
   /* Agrupamento do catálogo: escopo de venda primeiro, produto em ordem. */
   const produtosNoCatalogo = useMemo(() => {
@@ -431,9 +436,10 @@ export default function ClientesPage() {
       {aba === "clientes" && (
         <>
           <p className="mt-5 max-w-2xl text-[13px] leading-[1.65] text-dash-muted">
-            Cada linha é uma <span className="text-dash-fg">pessoa</span> e onde ela está. O plano é
-            posto <span className="text-dash-fg">à mão</span>, no seletor de cada linha — nada promove
-            ninguém sozinho.
+            Uma linha por <span className="text-dash-fg">pessoa</span> — e dentro dela a lista de onde
+            ela está. Quem tem conta em dois produtos aparece{" "}
+            <span className="text-dash-fg">uma vez só</span>, porque é a mesma conta. O plano é posto{" "}
+            <span className="text-dash-fg">à mão</span>, no seletor de cada vínculo.
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -443,9 +449,9 @@ export default function ClientesPage() {
             >
               {abrirNovoCliente ? "Fechar" : "Adicionar novo cliente"}
             </button>
-            {orfaos.length > 0 && (
+            {semConta.length > 0 && (
               <span className="text-[12px] text-dash-dim">
-                {orfaos.length} aguardando primeiro acesso
+                {semConta.length} espaço(s) esperando alguém entrar
               </span>
             )}
           </div>
@@ -531,12 +537,12 @@ export default function ClientesPage() {
             contagem={
               carregando
                 ? "carregando…"
-                : `${resumo.contas} conta(s) · ${resumo.linhas} vínculo(s)${resumo.semOrg ? ` · ${resumo.semOrg} sem organização` : ""}`
+                : `${resumo.contas} pessoa(s) · ${resumo.vinculos} vínculo(s)${resumo.semOrg ? ` · ${resumo.semOrg} sem organização` : ""}`
             }
           >
             {carregando ? (
               <p className="text-[13px] text-dash-dim">Carregando…</p>
-            ) : clientes.length === 0 ? (
+            ) : pessoas.length === 0 ? (
               <Vazio
                 icone={<IconeUsuarios />}
                 titulo="Nenhum cliente ainda"
@@ -544,87 +550,105 @@ export default function ClientesPage() {
               />
             ) : (
               <div className="flex flex-col gap-3">
-                {clientes.map((c, i) => {
-                  const org = c.organizacoes[0];
-                  const chave = `${c.id}-${org?.tenant_id || `sem-${i}`}`;
-                  return (
-                    <Card key={chave}>
-                      <div className="flex flex-wrap items-start gap-4">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <p className="text-[15px] font-semibold text-dash-fg">{c.nome}</p>
-                            <Selo tom={c.entra_por === "Google" ? "info" : "ok"}>
-                              entra por {c.entra_por}
+                {pessoas.map((p) => (
+                  <Card key={p.email}>
+                    <div className="flex flex-wrap items-start gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <p className="text-[15px] font-semibold text-dash-fg">{p.nome}</p>
+                          {p.conta_id !== null ? (
+                            <Selo tom={p.entra_por === "Google" ? "info" : "ok"}>
+                              entra por {p.entra_por}
                             </Selo>
-                            {org && c.vinculado && <Selo tom="ok">vinculado</Selo>}
-                            {org && !c.vinculado && <Selo tom="alerta">vínculo pendente</Selo>}
-                          </div>
-                          <p className="mt-1 break-all text-[12px] text-dash-muted">{c.email}</p>
-                          <p className="mt-2 text-[12px] text-dash-dim">
-                            {org ? (
-                              <>
-                                {org.organizacao} · {rotuloProduto(org.produto)}
-                                {org.papel ? ` · ${org.papel}` : ""}
-                              </>
-                            ) : (
-                              <>Sem organização no plano de controle — ainda não aparece para receber plano.</>
-                            )}
-                          </p>
-                          {org && org.extras.length > 0 && (
-                            <p className="mt-2 flex flex-wrap items-center gap-1.5">
-                              <span className="text-[11px] uppercase tracking-[0.14em] text-dash-dim">
-                                add-ons
-                              </span>
-                              {org.extras.map((e) => (
-                                <span
-                                  key={e}
-                                  className="rounded-[8px] bg-dash-side px-2 py-0.5 font-mono text-[11px] text-dash-muted"
-                                >
-                                  {e}
-                                </span>
-                              ))}
-                            </p>
+                          ) : (
+                            <Selo tom="alerta">sem conta no MIRAI OS</Selo>
                           )}
+                          {p.conta_id !== null &&
+                            p.organizacoes.length > 0 &&
+                            (p.vinculado ? (
+                              <Selo tom="ok">vinculado</Selo>
+                            ) : (
+                              <Selo tom="alerta">vínculo pendente</Selo>
+                            ))}
                         </div>
-
-                        {org && (
-                          <label className="flex shrink-0 flex-col gap-1.5">
-                            <span className="text-[11px] uppercase tracking-[0.14em] text-dash-dim">
-                              Plano (à mão)
-                            </span>
-                            <select
-                              value={org.plano || ""}
-                              disabled={ocupado === org.tenant_id}
-                              onChange={(e) => void trocarPlano(org.tenant_id, e.target.value, c.nome)}
-                              className="min-w-[190px] rounded-[10px] border border-dash-hair/10 bg-dash-bg px-3.5 py-2 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60 disabled:opacity-50"
-                            >
-                              {planosDe(org.produto, org.plano).map((p) => (
-                                <option key={p.plan_id} value={p.plan_id}>
-                                  {org.produto
-                                    ? p.nome || p.plan_id
-                                    : `${p.nome || p.plan_id} · ${rotuloProduto(p.product_id)}`}
-                                </option>
-                              ))}
-                            </select>
-                            <span className="font-mono text-[10px] text-dash-dim">{org.tenant_id}</span>
-                          </label>
-                        )}
+                        <p className="mt-1 break-all text-[12px] text-dash-muted">{p.email}</p>
                       </div>
-                    </Card>
-                  );
-                })}
+                      <span className="shrink-0 rounded-[8px] bg-dash-side px-2.5 py-1 font-mono text-[10px] text-dash-dim">
+                        {p.organizacoes.length === 0
+                          ? "sem organização"
+                          : `${p.organizacoes.length} vínculo${p.organizacoes.length > 1 ? "s" : ""}`}
+                      </span>
+                    </div>
+
+                    {/* A lista de DENTRO: cada produto onde esta pessoa está. */}
+                    {p.organizacoes.length === 0 ? (
+                      <p className="mt-3 border-t border-dash-hair/10 pt-3 text-[12px] text-dash-dim">
+                        Sem organização no plano de controle — ainda não aparece para receber plano.
+                      </p>
+                    ) : (
+                      <div className="mt-3 flex flex-col gap-2 border-t border-dash-hair/10 pt-3">
+                        {p.organizacoes.map((org) => (
+                          <div
+                            key={org.tenant_id}
+                            className="flex flex-wrap items-center gap-3 rounded-[10px] bg-dash-side/40 px-3 py-2.5"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[12px] font-semibold text-dash-fg">
+                                {rotuloProduto(org.produto)}
+                                <span className="ml-2 font-normal text-dash-muted">
+                                  {org.organizacao}
+                                </span>
+                              </p>
+                              <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-dash-dim">
+                                {org.papel && <span>{org.papel}</span>}
+                                <span className="font-mono text-[10px]">{org.tenant_id}</span>
+                                {org.extras.map((e) => (
+                                  <span
+                                    key={e}
+                                    className="rounded-[8px] bg-dash-side px-2 py-0.5 font-mono text-[10px] text-dash-muted"
+                                  >
+                                    +{e}
+                                  </span>
+                                ))}
+                              </p>
+                            </div>
+                            <label className="flex shrink-0 flex-col gap-1">
+                              <span className="text-[10px] uppercase tracking-[0.14em] text-dash-dim">
+                                Plano (à mão)
+                              </span>
+                              <select
+                                value={org.plano || ""}
+                                disabled={ocupado === org.tenant_id}
+                                onChange={(e) => void trocarPlano(org.tenant_id, e.target.value, p.nome)}
+                                className="min-w-[180px] rounded-[10px] border border-dash-hair/10 bg-dash-bg px-3 py-1.5 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60 disabled:opacity-50"
+                              >
+                                {planosDe(org.produto, org.plano).map((pl) => (
+                                  <option key={pl.plan_id} value={pl.plan_id}>
+                                    {org.produto
+                                      ? pl.nome || pl.plan_id
+                                      : `${pl.nome || pl.plan_id} · ${rotuloProduto(pl.product_id)}`}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                ))}
               </div>
             )}
           </Secao>
 
-          {orfaos.length > 0 && (
-            <Secao titulo="Aguardando primeiro acesso" contagem={`${orfaos.length}`}>
+          {semConta.length > 0 && (
+            <Secao titulo="Espaços esperando alguém entrar" contagem={`${semConta.length}`}>
               <p className="mb-3 max-w-2xl text-[12px] leading-[1.6] text-dash-dim">
-                O espaço já existe e o plano já pode ser posto — falta a pessoa entrar. Quando ela
-                entrar com o e-mail do convite, cai direto aqui.
+                Organizações criadas onde ainda não há ninguém. O plano já pode ser posto aqui: quem
+                entrar com o e-mail do convite cai direto neste espaço, no plano escolhido.
               </p>
               <div className="flex flex-col gap-2">
-                {orfaos.map((o) => (
+                {semConta.map((o) => (
                   <Card key={o.tenant_id}>
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="min-w-0 flex-1">
@@ -637,7 +661,7 @@ export default function ClientesPage() {
                               <span className="text-dash-muted">{o.convite_email}</span>
                             </>
                           ) : (
-                            " · sem conta no MIRAI OS"
+                            " · sem ninguém ainda"
                           )}
                         </p>
                         <p className="mt-1 font-mono text-[10px] text-dash-dim">{o.tenant_id}</p>
@@ -754,7 +778,13 @@ export default function ClientesPage() {
                 <div className="flex flex-col gap-3">
                   {meus.map((p) => {
                     const aberto = editando === p.plan_id;
-                    const capsDoProduto = capacidades.filter((c) => c.product_id === prod);
+                    // Capacidades do produto do plano. Quando o produto nao tem
+                    // nenhuma cadastrada (o CRM, hoje), cai no catalogo inteiro —
+                    // senao o editor apareceria vazio e pareceria que nao ha o que
+                    // ligar. Nesse caso o rotulo diz de que produto e a capacidade.
+                    const doProduto = capacidades.filter((c) => c.product_id === prod);
+                    const capsDoProduto = doProduto.length > 0 ? doProduto : capacidades;
+                    const mostrarProduto = doProduto.length === 0;
                     return (
                       <Card key={p.plan_id}>
                         <div className="flex flex-wrap items-center gap-3">
@@ -827,7 +857,7 @@ export default function ClientesPage() {
                             </p>
                             {capsDoProduto.length === 0 ? (
                               <p className="mt-1.5 text-[12px] text-dash-dim">
-                                Nenhuma capacidade cadastrada para {rotuloProduto(prod)}.
+                                Nenhuma capacidade cadastrada.
                               </p>
                             ) : (
                               <div className="mt-2 flex flex-wrap gap-2">
@@ -850,6 +880,11 @@ export default function ClientesPage() {
                                       }`}
                                     >
                                       {c.capability_id}
+                                      {mostrarProduto && (
+                                        <span className="ml-1.5 opacity-60">
+                                          {rotuloProduto(c.product_id)}
+                                        </span>
+                                      )}
                                     </button>
                                   );
                                 })}
