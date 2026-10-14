@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { exigirConta } from "@/lib/orgs";
 import {
   TIPOS_SUPORTADOS,
+  consumirVinculosPendentes,
   criarIntegracao,
   desligarIntegracao,
   integracoesDaOrganizacao,
@@ -88,6 +89,19 @@ export async function GET(req: NextRequest) {
   const r = await exigirConta(req);
   if (!r.ok) return r.resposta;
   const { conta } = r;
+
+  /* A PONTE, consumida AQUI e não só no login (14/10/2026).
+     Quando a pessoa conecta o CRM pelo "Entrar com Mirai", quem cunha a
+     credencial é o PRÓPRIO CRM e ele a entrega a este app pela ponte. A ponte
+     guarda por E-MAIL em `vinculos_pendentes`, e até agora o único consumo era
+     o login: quem conectava com a sessão já aberta só veria o CRM ligado no
+     PRÓXIMO login — e concluiria que não funcionou. Consumir ao CARREGAR a tela
+     fecha o ciclo: clicou, voltou, está conectado. */
+  try {
+    consumirVinculosPendentes(conta.id, conta.email);
+  } catch {
+    /* integração que tropeça não derruba a lista de integrações */
+  }
 
   const minhas = integracoesDaPessoa(conta.id).map(comStatus);
   const daEmpresa = conta.org

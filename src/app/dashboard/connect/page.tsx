@@ -828,6 +828,7 @@ function ModalProduto({
   onClose,
   onIntegrar,
   onConectar,
+  onColarCredencial,
   ehDono,
 }: {
   item: Integracao;
@@ -837,6 +838,8 @@ function ModalProduto({
   onClose: () => void;
   onIntegrar: (i: Integracao) => void;
   onConectar: () => void;
+  /** o caminho SECUNDÁRIO do CRM: colar uma credencial `crm_…` já existente. */
+  onColarCredencial: () => void;
   /** só o dono vê o bloco das chaves do GitHub. */
   ehDono?: boolean;
 }) {
@@ -847,10 +850,12 @@ function ModalProduto({
      conectado — sem botão decorativo. */
   const podeConectarCrm = crm && !conectada && pronta;
 
+  /* O CRM mudou de porta (14/10/2026, dono): a entrada agora é a CONTA MIRAI,
+     não o campo de credencial. O texto acompanha o que o botão faz. */
   const comoIntegra = crm
       ? conectada
       ? "Este CRM já está conectado nesta conta. Integrar abre o próprio CRM."
-      : "Conectar abre o espaço para colar a credencial do seu CRM (crm_…). Ela é validada ao vivo com o CRM antes de salvar — credencial que não responde não é gravada."
+      : "Conectar abre a entrada com a sua conta Mirai. Se o CRM estiver no seu plano, a conexão se completa sozinha — a credencial é cunhada e entregue sem você digitar nada. Se não estiver, a tela diz como pedir a liberação."
     : item.tipo === "mcp"
       ? "Integrar abre o site da integração em uma nova aba."
       : item.oauthPath
@@ -935,7 +940,7 @@ function ModalProduto({
               onClick={onConectar}
               className="rounded-[10px] bg-dash-brand px-6 py-2.5 text-[12px] font-semibold text-dash-fg transition hover:bg-[#ff2d55]"
             >
-              conectar meu CRM
+              conectar com a conta Mirai
             </button>
           ) : (
             <button
@@ -947,6 +952,22 @@ function ModalProduto({
             </button>
           )}
         </div>
+
+        {/* O caminho SECUNDÁRIO do CRM: quem já tem uma credencial `crm_…` em
+            mãos (token legado, CRM em outra instalação) não perde a porta —
+            mas ela deixou de ser a principal: o caminho normal é a conta Mirai,
+            que cunha a credencial sozinha. */}
+        {crm && !conectada && pronta && (
+          <p className="mt-3 text-right text-[11px] text-dash-fg/55">
+            já tem uma credencial do CRM?{" "}
+            <button
+              onClick={onColarCredencial}
+              className="underline underline-offset-2 transition hover:text-dash-fg"
+            >
+              colar aqui
+            </button>
+          </p>
+        )}
 
         {/* O BLOCO DO DONO (dono, 13/10/2026): o app do GitHub (OAuth App) é
             criado no GitHub pelo dono, mas as chaves NÃO passam por chat — vão
@@ -1064,6 +1085,25 @@ export default function IntegracoesPage() {
     void carregarSaaso();
     void carregarIntegracoes();
   }, [carregarConta, carregarTokens, carregarSaaso, carregarIntegracoes]);
+
+  /* VOLTAR DA ABA DO CRM ATUALIZA A TELA. O "Entrar com Mirai" acontece em
+     OUTRA aba (o CRM); quando a pessoa volta para cá, nada recarregaria e o
+     card continuaria dizendo "não conectada" com a conexão já feita — ela
+     concluiria que não funcionou. O evento `focus` é o sinal de que a pessoa
+     voltou: recarrega as linhas e o estado do CRM. */
+  useEffect(() => {
+    const aoVoltar = () => {
+      if (document.visibilityState !== "visible") return;
+      void carregarIntegracoes();
+      void carregarSaaso();
+    };
+    window.addEventListener("focus", aoVoltar);
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => {
+      window.removeEventListener("focus", aoVoltar);
+      document.removeEventListener("visibilitychange", aoVoltar);
+    };
+  }, [carregarIntegracoes, carregarSaaso]);
 
   const config = user?.platform_config ?? {};
   const saasoAoVivo = Boolean(saaso?.conectado);
@@ -1204,8 +1244,30 @@ export default function IntegracoesPage() {
     [abrir],
   );
 
-  /* O CRM tem fluxo próprio: abre o popup de credencial (valida ao vivo). */
+  /* O CRM tem fluxo próprio — e ele NÃO é mais o campo de credencial.
+     (Dono, 14/10/2026: "ainda pedindo código e não clicando e indo direto pro
+     login com conta Mirai".)
+     
+     O botão leva DIRETO ao "Entrar com Mirai" do próprio CRM. Lá dentro:
+       - a conta tem o CRM no PLANO → entra, o CRM cunha a credencial da
+         organização e a entrega a este app pela ponte. Nada é digitado.
+       - a conta NÃO tem o CRM no plano → a tela do CRM diz que falta liberação.
+     
+     Pedir o código aqui seria pedir à pessoa o trabalho que o SSO já faz — e
+     era exatamente o que o dono via na tela. */
   const conectarCrm = useCallback(() => {
+    setProduto(null);
+    const crm = CATALOGO.find((i) => ehCrm(i));
+    if (!crm?.site) {
+      setAviso("O CRM ainda não tem endereço configurado neste servidor.");
+      return;
+    }
+    window.open(`${crm.site}/auth/mirai/start`, "_blank", "noopener");
+  }, []);
+
+  /* O caminho SECUNDÁRIO: quem já tem uma credencial `crm_…` em mãos cola
+     aqui. Continua validando ao vivo com o CRM antes de gravar. */
+  const colarCredencialCrm = useCallback(() => {
     setProduto(null);
     setCrmAberto(true);
   }, []);
@@ -1411,6 +1473,7 @@ export default function IntegracoesPage() {
           onClose={() => setProduto(null)}
           onIntegrar={integrar}
           onConectar={conectarCrm}
+          onColarCredencial={colarCredencialCrm}
           ehDono={user?.ehDono === true}
         />
       )}
