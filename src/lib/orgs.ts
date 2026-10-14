@@ -16,9 +16,29 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { db, getUserById, verifyToken } from "./auth";
 
-export const OWNER_EMAIL = (
-  process.env.MIRAI_OWNER_EMAIL || "marcospaulonascimentoguimaraes@gmail.com"
-).toLowerCase();
+/**
+ * OS E-MAILS DO DONO (correção 14/10/2026).
+ *
+ * O dono tem MAIS DE UMA identidade — a conta do MIRAI OS e a do estúdio — e
+ * entrar por qualquer uma delas tem de valer o mesmo. Antes só uma valia, e o
+ * efeito medido foi cruel: na outra conta `ehDono` dava `false`, então o chat
+ * NÃO consultava a Arca (a memória só desce para o dono) e a Mirai parecia
+ * "esquecer" tudo o que já tinha sido feito. O defeito não era a memória: era
+ * o reconhecimento de quem estava falando.
+ *
+ * `MIRAI_OWNER_EMAIL` aceita VÁRIOS e-mails separados por vírgula.
+ */
+export const OWNER_EMAILS: string[] = [
+  ...(process.env.MIRAI_OWNER_EMAIL || "").split(","),
+  "marcospaulonascimentoguimaraes@gmail.com",
+  "marcos@speach.studio",
+]
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+/** O e-mail principal (compatibilidade com quem já importava isto). */
+export const OWNER_EMAIL =
+  OWNER_EMAILS[0] || "marcospaulonascimentoguimaraes@gmail.com";
 
 /**
  * Quem pode MUDAR PRECO / escrever plano.
@@ -243,7 +263,9 @@ export async function contaDaRequisicao(req: NextRequest): Promise<Conta | null>
     | null;
   if (!user) return null;
   const email = normaliza(user.email);
-  const ehDono = email === OWNER_EMAIL || user.role === "owner";
+  // Qualquer identidade do dono vale (ver OWNER_EMAILS). O papel `owner` no
+  // banco continua valendo como segunda porta.
+  const ehDono = OWNER_EMAILS.includes(email) || user.role === "owner";
   // O dono tambem tem organizacao propria (a dele) — so atravessa as outras.
   return {
     id: user.id,

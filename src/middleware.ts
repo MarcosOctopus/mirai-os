@@ -76,9 +76,18 @@ function isProtectedPath(pathname: string): boolean {
 // /api/config e o CRM do dono. Regra do dono, na letra: "cada pessoa tem a
 // sua conta, e essa conta é só para ela" — organizacao por organizacao.
 // Aqui fica a trava central: rota nova ja nasce fechada para nao-dono.
-const OWNER_EMAIL = (
-  process.env.MIRAI_OWNER_EMAIL || 'marcospaulonascimentoguimaraes@gmail.com'
-).toLowerCase();
+// O DONO TEM MAIS DE UMA IDENTIDADE (correção 14/10/2026). A lista vive aqui
+// repetida DE PROPÓSITO: o middleware roda antes do runtime Node e não pode
+// importar `lib/orgs.ts` (que carrega better-sqlite3). Mantenha as duas iguais.
+// Efeito medido de ter só uma: entrando pela outra conta, o dono era tratado
+// como não-dono — as rotas de admin fechavam e o chat parava de consultar a Arca.
+const OWNER_EMAILS = [
+  ...(process.env.MIRAI_OWNER_EMAIL || '').split(','),
+  'marcospaulonascimentoguimaraes@gmail.com',
+  'marcos@speach.studio',
+]
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
 
 const OWNER_ONLY_API = [
   '/api/system',
@@ -202,7 +211,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // Interno da plataforma: so o dono. Rota de API -> 403; pagina -> painel.
-    if (soDono(pathname) && (payload.email || '').toLowerCase() !== OWNER_EMAIL) {
+    if (soDono(pathname) && !OWNER_EMAILS.includes((payload.email || '').toLowerCase())) {
       return isApiRoute
         ? NextResponse.json({ error: 'Forbidden' }, { status: 403 })
         : NextResponse.redirect(new URL('/dashboard', request.url));

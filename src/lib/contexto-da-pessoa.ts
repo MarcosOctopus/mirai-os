@@ -36,6 +36,7 @@ import { credencialSaasoDaConta } from "./orgs";
 import { integracoesDaPessoa, integracoesDaOrganizacao } from "./integracoes";
 import { leituraDeCredencial } from "./segredo-guardado";
 import { lerVinculo } from "./vinculo-conta-mirai";
+import { executarFerramentaArquiteto, ferramentasDoArquiteto } from "./ferramentas-arquiteto";
 
 export type FerramentaDoConector = {
   /** Nome técnico do método. NUNCA é falado à pessoa (ver regra anti-vazamento). */
@@ -387,7 +388,7 @@ export const FERRAMENTA_PROFUNDO = "pesquisar_a_fundo";
  * O padrão é `observador` para nenhum chamador antigo perder a busca por
  * descuido — a escolha do cliente é resolvida em `modos-do-chat.ts` antes.
  */
-export function ferramentasParaOModelo(ctx: ContextoDaPessoa, modo: string = "observador"): {
+export function ferramentasParaOModelo(ctx: ContextoDaPessoa, modo: string = "observador", arquiteto = false): {
   type: "function";
   function: { name: string; description: string; parameters: Record<string, unknown> };
 }[] {
@@ -494,6 +495,14 @@ export function ferramentasParaOModelo(ctx: ContextoDaPessoa, modo: string = "ob
       });
     }
   }
+
+  // ── O ARQUITETO (dono, 14/10/2026) ───────────────────────────────────────
+  // Trazer projeto de fora e editar arquivo — em workspace isolado ou no
+  // servidor do cliente. Só entra quando quem está falando TEM a capacidade
+  // (`mirai.arquiteto.construir`), decidida ANTES pelo chamador; a lista não é
+  // oferecida a quem não pode, para o modelo não prometer o que não há.
+  if (arquiteto) defs.push(...ferramentasDoArquiteto());
+
   return defs;
 }
 
@@ -504,6 +513,11 @@ export async function executarFerramenta(
   args: Record<string, unknown>,
   conta: Conta,
 ): Promise<string> {
+  // ── O ARQUITETO vem primeiro: nomes próprios, sem dono entre os conectores ─
+  // Devolve `null` quando o nome não é dele — aí a execução segue o fluxo normal.
+  const doArquiteto = await executarFerramentaArquiteto(nome, args, conta);
+  if (doArquiteto !== null) return doArquiteto;
+
   // ── as de BASE vêm primeiro: não têm dono entre os conectores ────────────
   if (nome === FERRAMENTA_BUSCAR) {
     const { buscarNaWeb, buscaEmTexto } = await import("./busca-web");

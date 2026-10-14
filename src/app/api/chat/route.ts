@@ -298,7 +298,16 @@ Você alcança a internet AGORA, com as ferramentas buscar_na_web e ler_pagina.
   sincronizar depois. Se o contexto diz que não há nada conectado, diga só
   isso — que não vê nenhuma integração nesta conta — e indique como conectar
   (em Integrações, no painel). Nunca invente conexão nem prometa que ela
-  aparece sozinha.`;
+  aparece sozinha.
+
+## FERRAMENTAS DE PROJETO (quando estiverem na sua lista)
+Se a pessoa pedir para TRAZER UM PROJETO de fora (do GitHub ou do servidor
+dela), LISTAR/LER/EDITAR arquivos de um projeto, ou mexer no servidor dela, e as
+ferramentas do Arquiteto estiverem disponíveis para você, CHAME-AS em vez de
+responder que não consegue. Nunca diga que "só trabalha com o que está na
+conversa" nem que não acessa outro servidor: se as ferramentas não estiverem
+disponíveis, diga que o Arquiteto não está liberado NESTA conta e que quem
+libera é o administrador.`;
 
 // ─── Modo Arquiteto: respostas técnicas e detalhadas ────────────
 const ARQUITETO_PROMPT = `Você é Mirai, uma assistente inteligente do ecossistema Mirai.
@@ -343,7 +352,22 @@ const ARQUITETO_PROMPT = `Você é Mirai, uma assistente inteligente do ecossist
   contexto da conta, logo abaixo. Se o contexto diz que tem, tem: nunca negue
   uma integração que existe e nunca diga que ela vai sincronizar depois. Se não
   há nada conectado, diga só isso — que não vê nenhuma integração nesta conta —
-  e indique como conectar (em Integrações, no painel).`;
+  e indique como conectar (em Integrações, no painel).
+
+## SUAS FERRAMENTAS NESTE MODO (você AGE, não só conversa)
+Você tem ferramentas PRÓPRIAS do Arquiteto e deve CHAMÁ-LAS em vez de dizer que
+não consegue:
+- arquiteto_projetos — lista os projetos desta conta (id, arquivos, publicado).
+- arquiteto_trazer_git — traz um repositório do GitHub para um projeto NOVO e ISOLADO.
+- arquiteto_trazer_servidor — traz uma pasta do servidor do cliente para um projeto NOVO e ISOLADO.
+- arquiteto_arquivos / arquiteto_ler / arquiteto_gravar — listar, ler e editar os arquivos do projeto.
+- servidor_listar / servidor_ler / servidor_gravar — ler e editar direto no servidor do cliente (a gravação faz backup do anterior antes de sobrescrever).
+
+Se a pessoa pedir para TRAZER UM PROJETO de fora, EDITAR arquivo ou mexer no
+servidor dela, CHAME a ferramenta. NUNCA responda "não consigo acessar outro
+servidor" nem "só trabalho com o que está na conversa": se as ferramentas não
+estiverem disponíveis, diga que o Arquiteto não está liberado NESTA conta e que
+quem libera é o administrador.`;
 
 /**
  * O PADRÃO DO ARQUITETO no CHAT — modo "arquiteto" do Mirai OS (dono, 11/10/2026:
@@ -611,10 +635,24 @@ async function conversarComFerramentas(opts: {
   let executor: ((nome: string, args: Record<string, unknown>) => Promise<string>) | null = null;
   try {
     const { ferramentasParaOModelo, executarFerramenta } = await import("@/lib/contexto-da-pessoa");
+    const conta = apoio.conta;
+    // ── O ARQUITETO (dono, 14/10/2026) ────────────────────────────────────
+    // O dono: "oq foi feito antes n foi resolvido na parte do arquiteto". O
+    // Arquiteto existia como tela e API, mas o CHAT não tinha nenhuma
+    // ferramenta dele — o modo "arquiteto" só trocava o texto do prompt, e a
+    // Mirai respondia que não conseguia trazer projeto de fora. Aqui a
+    // capacidade entra na LISTA de ferramentas do modelo, pela MESMA porteira
+    // da tela. Falha da porteira NEGA (nunca libera por omissão).
+    let podeArquiteto = false;
+    try {
+      const { decidirAcessoArquiteto } = await import("@/lib/arquiteto-acesso");
+      podeArquiteto = (await decidirAcessoArquiteto(conta)).permitido;
+    } catch {
+      podeArquiteto = false;
+    }
     // No modo Leve só sobram as ferramentas do CONECTOR (o produto do cliente):
     // as de pesquisa não entram na lista, e o modelo não tem como chamá-las.
-    ferramentas = ferramentasParaOModelo(apoio.ctxPessoa, modo ?? "observador");
-    const conta = apoio.conta;
+    ferramentas = ferramentasParaOModelo(apoio.ctxPessoa, modo ?? "observador", podeArquiteto);
     executor = (nome, args) => executarFerramenta(apoio.ctxPessoa as ContextoDaPessoa, nome, args, conta);
   } catch (e) {
     console.error("Ferramentas do resolutor:", e instanceof Error ? e.message : e);

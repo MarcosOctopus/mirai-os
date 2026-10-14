@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
-  OWNER_EMAIL,
+  OWNER_EMAILS,
   ehAdminDaOrg,
   exigirConta,
   membrosDaOrg,
@@ -108,7 +108,7 @@ export async function DELETE(req: NextRequest) {
   if (!email) {
     return NextResponse.json({ error: "informe o e-mail" }, { status: 400 });
   }
-  if (email === OWNER_EMAIL) {
+  if (OWNER_EMAILS.includes(email)) {
     return NextResponse.json({ error: "o dono da plataforma nao pode ser removido" }, { status: 403 });
   }
 
