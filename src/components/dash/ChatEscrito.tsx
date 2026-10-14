@@ -440,7 +440,7 @@ export default function ChatEscrito({
         setModoPesquisa(modoRodou);
         setAvisoModo(
           modoRodou === "profundo"
-            ? "Você pediu para ir a fundo — subi para o modo Profundo. Leva um pouco mais, estou apurando."
+            ? "Você pediu para ir a fundo — chamei o Sr. Xi. Leva um pouco mais, ele está apurando."
             : "Você pediu busca — subi para o modo Observador, vou varrer as fontes.",
         );
       }

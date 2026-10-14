@@ -63,10 +63,10 @@ export const MODOS: Modo[] = [
   },
   {
     id: "profundo",
-    rotulo: "Profundo",
+    rotulo: "Sr. Xi (Profundo)",
     resumo: "Investiga em rodadas e monta um dossiê",
     detalhe:
-      "A Mirai pergunta por vários ângulos, abre as páginas e cruza as fontes. Leva mais tempo e entrega um relatório com as referências.",
+      "O Sr. Xi pergunta por vários ângulos, abre as páginas e cruza as fontes. Leva mais tempo e entrega um relatório com as referências.",
     degrau: 2,
   },
 ];
