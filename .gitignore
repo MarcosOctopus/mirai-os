@@ -25,6 +25,13 @@ public/thumbs/
 # Anexos do chat (conteudo dos usuarios — nunca versionar)
 data/uploads/
 
+# ── WORKSPACES DO ARQUITETO: código de TERCEIRO, clonado (dono, 14/10/2026) ──
+# O que entra aqui veio de repositório de fora (do dono ou de um cliente). Não é
+# código nosso: versionar significaria (a) inchar o repositório com projeto
+# alheio, (b) misturar projetos, o que a regra de isolamento proíbe, e (c) deixar
+# código de cliente no git. Fica só no disco, com teto de tamanho, por conta.
+data/arquiteto-workspaces/
+
 # Environment
 .env
 .env.local

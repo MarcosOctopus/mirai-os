@@ -180,6 +180,26 @@ export const IconeProfundo = ({ className }: Props) => (
   </Svg>
 );
 
+/** Trazer de fora — a seta que desce para dentro da bandeja. */
+export const IconeTrazer = ({ className }: Props) => (
+  <Svg className={className}>
+    <path d="M12 3v11" />
+    <path d="M7.5 9.5 12 14l4.5-4.5" />
+    <path d="M4 17.5v1A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5v-1" />
+  </Svg>
+);
+
+/** Ramo/repositório — o símbolo de "isto veio de um repo". */
+export const IconeRamo = ({ className }: Props) => (
+  <Svg className={className}>
+    <circle cx="6.5" cy="6" r="2.5" />
+    <circle cx="6.5" cy="18" r="2.5" />
+    <circle cx="17.5" cy="9" r="2.5" />
+    <path d="M6.5 8.5v7" />
+    <path d="M6.5 12h5.5a5.5 5.5 0 0 0 5.5-5.5V9" />
+  </Svg>
+);
+
 export const IconeFiltro = ({ className }: Props) => (
   <Svg className={className}>
     <path d="M4 6h16M7 12h10M10 18h4" />

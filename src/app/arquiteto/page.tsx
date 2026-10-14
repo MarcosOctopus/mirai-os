@@ -23,7 +23,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent 
 import Link from "next/link";
 import Shell from "@/components/dash/Shell";
 import { CopiarTexto } from "@/components/arquiteto/CopiarTexto";
-import { IconeCadeado, IconeCaret, IconeCheck, IconeDocumento, IconeEnviar, IconeFechar, IconeMais, IconeRelogio, IconeRobo, IconeSeta, IconeSetaCima, IconeImagem, IconeMonitor, IconeTablet, IconeCelular, IconeDispositivos, IconeCodigo, IconeCamadas, IconeTokens, IconeBlocos, IconeMicrofone } from "@/components/dash/icons";
+import { IconeCadeado, IconeCaret, IconeCheck, IconeDocumento, IconeEnviar, IconeFechar, IconeMais, IconeRelogio, IconeRobo, IconeSeta, IconeSetaCima, IconeImagem, IconeMonitor, IconeTablet, IconeCelular, IconeDispositivos, IconeCodigo, IconeCamadas, IconeTokens, IconeBlocos, IconeMicrofone, IconeTrazer, IconeRamo } from "@/components/dash/icons";
 import {
   MAX_ASSET_ROTULO,
   PASTA_ASSETS,
@@ -849,6 +849,24 @@ function Arquiteto() {
   const [menuAberto, setMenuAberto] = useState(false);
   const [renomeandoId, setRenomeandoId] = useState<string | null>(null);
   const [nomeTemp, setNomeTemp] = useState("");
+
+  // ── TRAZER DE FORA (dono, 14/10/2026) ──────────────────────────────────────
+  // "instalar de forma isolada githubs e projetos pelo arquiteto". O repositório
+  // é clonado num workspace PRÓPRIO do projeto (isolado) e os arquivos entram na
+  // bancada, com versão. `relatoImport` guarda o que veio e o que ficou de fora —
+  // a tela mostra o número REAL, não um "pronto!" sem lastro.
+  const [abrirTrazer, setAbrirTrazer] = useState(false);
+  const [enderecoRepo, setEnderecoRepo] = useState("");
+  const [trazendo, setTrazendo] = useState(false);
+  const [erroTrazer, setErroTrazer] = useState("");
+  const [relatoImport, setRelatoImport] = useState<{
+    repo: string;
+    lidos: number;
+    incluidos: number;
+    bytes: number;
+    pulados: { caminho: string; motivo: string }[];
+    avisos: string[];
+  } | null>(null);
   const projetoIdRef = useRef<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -2186,6 +2204,53 @@ function Arquiteto() {
       return lista;
     } catch {
       return projetos;
+    }
+  }
+
+  /**
+   * TRAZER UM REPOSITÓRIO PARA DENTRO (dono, 14/10/2026).
+   *
+   * O servidor clona num workspace PRÓPRIO do projeto (isolado, com teto de
+   * tamanho) e devolve os arquivos; aqui eles viram o projeto aberto, na bancada.
+   * A resposta traz o RELATO — quantos arquivos entraram, quantos ficaram de fora
+   * e por quê — e é isso que a tela mostra: número com lastro, nunca um "pronto!".
+   *
+   * O que esta função NÃO faz: executar o código trazido. Trazer e editar, sim;
+   * rodar código de terceiro exige ambiente isolado de verdade (decisão pendente).
+   */
+  async function trazerDoGitHub(endereco: string) {
+    const alvo = (endereco || "").trim();
+    if (!alvo) {
+      setErroTrazer("cole o endereço do repositório");
+      return;
+    }
+    setTrazendo(true);
+    setErroTrazer("");
+    try {
+      const r = await fetch("/api/arquiteto/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endereco: alvo }),
+      });
+      const j = await r.json().catch(() => null);
+      if (r.status === 403) {
+        setErroTrazer("O Arquiteto não está liberado para esta conta.");
+        return;
+      }
+      if (!r.ok || !j?.ok) {
+        setErroTrazer(j?.erro || "não consegui trazer esse repositório");
+        if (j?.relatorio) setRelatoImport(j.relatorio);
+        return;
+      }
+      setRelatoImport(j.relatorio || null);
+      setAbrirTrazer(false);
+      setEnderecoRepo("");
+      await carregarProjetos();
+      if (j?.projeto?.id) await abrirProjeto(j.projeto.id);
+    } catch {
+      setErroTrazer("A conexão caiu no meio do pedido — nada foi alterado.");
+    } finally {
+      setTrazendo(false);
     }
   }
 
@@ -3965,6 +4030,11 @@ function Arquiteto() {
     entrada?.nome ||
     (projeto ? "Projeto sem título" : "Sem projeto");
 
+  // Cópia local para o JSX: dentro de um `map` o TypeScript perde o
+  // estreitamento de uma variável de estado (a closure pode rodar depois), e
+  // sem isto o modal do "trazer" nem compila. O valor é o mesmo.
+  const relato = relatoImport;
+
   return (
     /* `.tela-cheia` prende a bancada no miolo do menu, como a tela inicial:
        sem dégradé de margem em cima, sem largura máxima, sem rolagem de página. */
@@ -4199,6 +4269,20 @@ function Arquiteto() {
               >
                 <IconeMais className="h-4 w-4" />
                 Novo projeto
+              </button>
+              {/* TRAZER DE FORA (dono, 14/10/2026): "instalar de forma isolada
+                  githubs e projetos pelo arquiteto". Traz o repositório para um
+                  workspace PRÓPRIO do projeto — isolado — e abre na bancada. */}
+              <button
+                onClick={() => {
+                  setMenuAberto(false);
+                  setErroTrazer("");
+                  setAbrirTrazer(true);
+                }}
+                className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2.5 text-[13px] text-dash-fg/85 transition hover:bg-dash-hair/[0.06] hover:text-dash-fg"
+              >
+                <IconeTrazer className="h-4 w-4" />
+                Trazer do GitHub
               </button>
             </div>
           )}
@@ -6473,9 +6557,136 @@ function Arquiteto() {
             )}
             </div>
             {mostrarTokens && painelTokens()}
+            </div>
+            </section>
+            </div>
+
+            {/* ═══ TRAZER DE FORA — o repositório entra ISOLADO (dono, 14/10/2026) ═══
+            As duas verdades ficam escritas na tela, porque ambas surpreendem se
+            escondidas: só repositório PÚBLICO entra (não há credencial nesta
+            camada, de propósito) e o código NÃO é executado — ele é lido e
+            editado. Prometer o contrário seria mentira conveniente. */}
+            {abrirTrazer && (
+            <div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-dash-scrim/70 sm:items-center sm:p-6"
+            onClick={() => {
+            if (!trazendo) setAbrirTrazer(false);
+            }}
+            >
+            <div
+            onClick={(e) => e.stopPropagation()}
+            data-arquiteto-trazer
+            className="flex max-h-[88vh] w-full max-w-[560px] flex-col overflow-hidden rounded-t-[16px] border border-dash-hair/10 bg-dash-side shadow-2xl sm:rounded-[16px]"
+            >
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-dash-hair/[0.07] px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] bg-dash-brand/15 text-dash-brand">
+                <IconeRamo className="h-4 w-4" />
+              </span>
+              <p className="text-[13px] text-dash-fg">Trazer do GitHub</p>
+            </div>
+            <button
+              onClick={() => setAbrirTrazer(false)}
+              disabled={trazendo}
+              aria-label="Fechar"
+              className="grid h-7 w-7 place-items-center rounded-[8px] text-dash-dim transition hover:bg-dash-hair/[0.06] hover:text-dash-fg disabled:opacity-40"
+            >
+              <IconeFechar className="h-4 w-4" />
+            </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <p className="text-[12.5px] leading-relaxed text-dash-muted">
+              Cole o endereço do repositório. Ele é clonado num{" "}
+              <span className="text-dash-fg">workspace próprio deste projeto</span> — nada se mistura
+              com outro projeto nem com outra conta — e os arquivos entram na bancada para você editar.
+            </p>
+
+            <input
+              autoFocus
+              value={enderecoRepo}
+              onChange={(e) => setEnderecoRepo(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !trazendo && enderecoRepo.trim()) {
+                  e.preventDefault();
+                  void trazerDoGitHub(enderecoRepo);
+                }
+              }}
+              spellCheck={false}
+              placeholder="https://github.com/dono/repo"
+              aria-label="Endereço do repositório"
+              className="mt-3 w-full rounded-[10px] border border-dash-hair/15 bg-dash-bg px-3 py-2.5 font-mono text-[12.5px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
+            />
+
+            <p className="mt-2.5 text-[11px] leading-snug text-dash-dim">
+              Repositório <span className="text-dash-muted">público</span> — não há credencial nesta
+              camada, de propósito. Aceita github.com, gitlab.com e codeberg.org.
+            </p>
+
+            {erroTrazer && (
+              <div className="mt-3 flex items-start gap-2 rounded-[10px] border border-dash-bad/30 bg-dash-bad/10 px-3 py-2.5">
+                <span className="min-w-0 flex-1 text-[12px] leading-snug text-dash-bad">{erroTrazer}</span>
+              </div>
+            )}
+
+            {relato && (
+              <div className="mt-3 rounded-[10px] border border-dash-hair/10 bg-dash-card/60 px-3 py-3">
+                <p className="flex items-center gap-2 text-[12px] text-dash-fg">
+                  <IconeCheck className="h-3.5 w-3.5 text-dash-ok" />
+                  {relato.repo}
+                </p>
+                <p className="mt-1.5 text-[11.5px] text-dash-muted">
+                  {relato.incluidos} arquivo(s) entraram
+                  {relato.bytes ? ` · ${Math.max(1, Math.round(relato.bytes / 1024))} KB` : ""}
+                  {relato.lidos > relato.incluidos
+                    ? ` · ${relato.lidos - relato.incluidos} ficaram de fora`
+                    : ""}
+                </p>
+                {relato.pulados.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-[11px] text-dash-dim hover:text-dash-muted">
+                      ver o que ficou de fora ({relato.pulados.length})
+                    </summary>
+                    <ul className="mt-1.5 space-y-0.5">
+                      {relato.pulados.slice(0, 40).map((p) => (
+                        <li key={p.caminho} className="truncate text-[10.5px] text-dash-dim">
+                          {p.caminho} — {p.motivo}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+                {relato.avisos.length > 0 && (
+                  <p className="mt-1.5 text-[11px] text-dash-warn">{relato.avisos.join(" · ")}</p>
+                )}
+              </div>
+            )}
+
+            <p className="mt-3 text-[11px] leading-snug text-dash-dim">
+              O código trazido é <span className="text-dash-muted">lido e editado</span>, nunca
+              executado aqui. Rodar código de terceiro exige ambiente isolado de verdade.
+            </p>
+            </div>
+
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-dash-hair/[0.07] px-4 py-3">
+            <button
+              onClick={() => setAbrirTrazer(false)}
+              disabled={trazendo}
+              className="rounded-[10px] px-3 py-2 text-[12.5px] text-dash-muted transition hover:text-dash-fg disabled:opacity-40"
+            >
+              Fechar
+            </button>
+            <button
+              onClick={() => void trazerDoGitHub(enderecoRepo)}
+              disabled={trazendo || !enderecoRepo.trim()}
+              className="rounded-[10px] bg-dash-brand px-3.5 py-2 text-[12.5px] font-medium text-white transition hover:bg-dash-brandHi disabled:opacity-40"
+            >
+              {trazendo ? "trazendo…" : "Trazer repositório"}
+            </button>
+            </div>
+            </div>
+            </div>
+            )}
           </div>
-        </section>
-      </div>
-    </div>
-  );
-}
+        );
+      }
