@@ -29,6 +29,7 @@ const OPENROUTER_KEY  = loadEnv("OPENROUTER_API_KEY");
 const VERBOO_API_KEY  = loadEnv("VERBOO_API_KEY");
 
 import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
+import { regraDoModo, modoDaMensagem, type ModoId } from "@/lib/modos-do-chat";
 
 const VERBOO_BASE     = "https://code.verboo.ai/router/v1";
 const VERBOO_MODEL    = "deepseek-v4.1-flash";      // V4.1 (principal do ecossistema)
@@ -160,11 +161,17 @@ function montarSystem(opts: {
   chatMode: "conversa" | "arquiteto";
   ehDono?: boolean;
   saaso?: string;
+  /** Qual dos três modos está rodando. O comportamento de pesquisa vem daqui. */
+  modoPesquisa?: ModoId;
 }): string {
   const base = opts.chatMode === "arquiteto" ? ARQUITETO_PROMPT + PADRAO_NO_CHAT : SYSTEM_PROMPT;
   const guarda = opts.ehDono ? REGRA_DONO : REGRA_NAO_VAZAR;
+  // O modo entra como regra do TURNO: diz o que ele pode afirmar e o que não.
+  // Sem isto, o modo leve daria a impressão de ter pesquisado, e o profundo
+  // trataria "não achei" como "não existe".
+  const modo = opts.modoPesquisa ? regraDoModo(opts.modoPesquisa) : "";
   // O CRM entra para os dois: é dado da conta de quem está falando.
-  return [base, guarda, opts.saaso].filter(Boolean).join("\n\n");
+  return [base, guarda, modo, opts.saaso].filter(Boolean).join("\n\n");
 }
 
 type Ctrl = ReadableStreamDefaultController<Uint8Array>;
@@ -500,15 +507,19 @@ async function conversarComFerramentas(opts: {
   apoio: ApoioConta;
   provedor: string;
   ehDono: boolean;
+  /** O modo do turno decide QUAIS ferramentas de pesquisa se oferecem. */
+  modo?: ModoId;
 }): Promise<Response | null> {
-  const { messages, system, modelo, apoio, provedor, ehDono } = opts;
+  const { messages, system, modelo, apoio, provedor, ehDono, modo } = opts;
   if (!apoio?.ctxPessoa || !apoio.conta) return null;
 
   let ferramentas: { type: "function"; function: { name: string; description: string; parameters: Record<string, unknown> } }[] = [];
   let executor: ((nome: string, args: Record<string, unknown>) => Promise<string>) | null = null;
   try {
     const { ferramentasParaOModelo, executarFerramenta } = await import("@/lib/contexto-da-pessoa");
-    ferramentas = ferramentasParaOModelo(apoio.ctxPessoa);
+    // No modo Leve só sobram as ferramentas do CONECTOR (o produto do cliente):
+    // as de pesquisa não entram na lista, e o modelo não tem como chamá-las.
+    ferramentas = ferramentasParaOModelo(apoio.ctxPessoa, modo ?? "observador");
     const conta = apoio.conta;
     executor = (nome, args) => executarFerramenta(apoio.ctxPessoa as ContextoDaPessoa, nome, args, conta);
   } catch (e) {
@@ -653,7 +664,7 @@ async function conversarComFerramentas(opts: {
 // ─── POST /api/chat ──────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    let { messages, prompt, useClaude, mode, conversaId } = await req.json();
+    let { messages, prompt, useClaude, mode, conversaId, modoPesquisa } = await req.json();
     if (!messages || !Array.isArray(messages)) {
       messages = prompt ? [{ role: "user", content: prompt }] : [];
     }
@@ -727,6 +738,17 @@ export async function POST(req: NextRequest) {
     const lastMsg = messages?.[messages.length - 1]?.content || "";
     const chatMode: "conversa" | "arquiteto" = mode === "arquiteto" ? "arquiteto" : "conversa";
 
+    // ── O MODO DO TURNO: leve (base) / observador / profundo ─────────────────
+    // O cliente escolhe no dropdown; e se o próprio texto pedir ("busque mais a
+    // fundo, quero saber tudo"), sobe sozinho. Nunca desce — rebaixar a
+    // pesquisa de quem pediu profundidade seria desobedecer o pedido.
+    const escalada = modoDaMensagem(modoPesquisa, lastMsg);
+    if (escalada.escalou) {
+      console.log(
+        `[modos] ${escalada.escolhido} -> ${escalada.modo} (${escalada.porque})`,
+      );
+    }
+
     // ── Quem fala manda no que o modelo PODE saber (defesa anti-vazamento). ──
     // Sem dono confirmado = usuário comum: o mapa interno do ecossistema nem
     // entra no contexto. Falha fechado de propósito.
@@ -745,7 +767,7 @@ export async function POST(req: NextRequest) {
       }
     } else if (VERBOO_API_KEY) {
       // Padrão: DeepSeek V4.1 (Verboo) -> V4.0 -> Gemini -> Claude
-      resposta = await callVerboo(messages, lastMsg, chatMode, VERBOO_MODEL, apoio, ehDono);
+      resposta = await callVerboo(messages, lastMsg, chatMode, VERBOO_MODEL, apoio, ehDono, escalada.modo);
     } else if (GOOGLE_API_KEY) {
       resposta = await callGemini(messages, lastMsg, chatMode, apoio, ehDono);
     } else if (OPENROUTER_KEY) {
@@ -761,10 +783,22 @@ export async function POST(req: NextRequest) {
     // tinha um. Nada muda no que a tela recebe: o corpo passa idêntico.
     const userId = typeof conta?.id === "number" ? conta.id : null;
     const idConversa = userId ? prepararTurno(userId, conversaId, textoUsuarioNovo) : "";
-    return envolverComHistorico(resposta, {
+    const comHistorico = envolverComHistorico(resposta, {
       userId,
       conversaId: idConversa,
       textoUsuario: textoUsuarioNovo,
+    });
+
+    // A tela precisa saber QUAL modo rodou — e se subiu sozinho, para poder
+    // avisar em vez de o cliente achar que escolheu. Vai por header, que chega
+    // antes do corpo e não mexe no stream.
+    const h = new Headers(comHistorico.headers);
+    h.set("x-mirai-modo", escalada.modo);
+    if (escalada.escalou) h.set("x-mirai-modo-escalou", escalada.porque || "1");
+    return new Response(comHistorico.body, {
+      status: comHistorico.status,
+      statusText: comHistorico.statusText,
+      headers: h,
     });
   } catch (err: any) {
     console.error("Chat API error:", err);
@@ -777,18 +811,19 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
                           chatMode: "conversa" | "arquiteto" = "conversa",
                           modelo: string = VERBOO_MODEL,
                           apoio: ApoioConta = {},
-                          ehDono = false): Promise<Response> {
+                          ehDono = false,
+                          modoPesquisa: ModoId = "observador"): Promise<Response> {
   // Defesa (camadas 1 e 2): usuário comum NÃO dispara consulta à Arca e NÃO
   // recebe o mapa interno. Fica só o CRM, que é dado dele.
   // Superfície de cliente: entra o CRM da própria conta; Arca e mapa interno, não.
   const saaso = await contextoDaConta(apoio);
-  const system = montarSystem({ chatMode, ehDono, saaso });
+  const system = montarSystem({ chatMode, ehDono, saaso, modoPesquisa });
 
   // A pessoa PODE AGIR: se o resolutor ofereceu ferramentas, o modelo as chama
   // (ler e também marcar, cadastrar, atualizar, enviar). Sem ferramentas — ou
   // provedor que recusa `tools` — cai no caminho de leitura logo abaixo.
   const comFerramentas = await conversarComFerramentas({
-    messages, system, modelo, apoio, provedor: "verboo", ehDono,
+    messages, system, modelo, apoio, provedor: "verboo", ehDono, modo: modoPesquisa,
   });
   if (comFerramentas) return comFerramentas;
 

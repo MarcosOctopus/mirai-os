@@ -363,25 +363,60 @@ export function blocoDeContexto(ctx: ContextoDaPessoa): string {
 /** Nomes das ferramentas de BASE do chat (não são de conector nem de plano). */
 export const FERRAMENTA_BUSCAR = "buscar_na_web";
 export const FERRAMENTA_LER = "ler_pagina";
+/** O motor do Observador: as fontes curadas, consultadas na hora. */
+export const FERRAMENTA_FONTES = "fontes_curadas";
+/** O método do Sr. Xi: rodadas + páginas abertas + dossiê. */
+export const FERRAMENTA_PROFUNDO = "pesquisar_a_fundo";
 
 /**
  * As ferramentas que o modelo pode chamar, no formato do provider ([OI]).
  * Só entram as de conectores PRONTOS — ferramenta de conector que não responde
  * não é oferecida (evita o modelo tentar e a pessoa ver erro).
  *
- * As de BASE entram SEMPRE, para toda conta: BUSCAR NA WEB e LER PÁGINA. Não são
- * recurso de plano nem de integração — são o mínimo para o chat olhar o mundo em
- * vez de dizer que não consegue (dono, 14/10/2026).
+ * ─── O que o MODO muda aqui (dono, 14/10/2026) ───────────────────────────────
+ *
+ * O modo governa só as ferramentas de PESQUISA — as do conector (o produto do
+ * cliente) entram SEMPRE, porque não são busca: são o trabalho dele. Se a
+ * pessoa está no modo Leve e pede para criar um contato no CRM, isso tem de
+ * funcionar; o que o Leve desliga é sair para a web.
+ *
+ *   LEVE       nenhuma ferramenta de pesquisa — resposta com o que já se sabe.
+ *   OBSERVADOR buscar_na_web + ler_pagina + fontes_curadas (o radar).
+ *   PROFUNDO   tudo do observador + pesquisar_a_fundo (o dossiê).
+ *
+ * O padrão é `observador` para nenhum chamador antigo perder a busca por
+ * descuido — a escolha do cliente é resolvida em `modos-do-chat.ts` antes.
  */
-export function ferramentasParaOModelo(ctx: ContextoDaPessoa): {
+export function ferramentasParaOModelo(ctx: ContextoDaPessoa, modo: string = "observador"): {
   type: "function";
   function: { name: string; description: string; parameters: Record<string, unknown> };
 }[] {
   const defs: {
     type: "function";
     function: { name: string; description: string; parameters: Record<string, unknown> };
-  }[] = [
-    {
+  }[] = [];
+
+  if (modo === "observador" || modo === "profundo") {
+    defs.push({
+      type: "function",
+      function: {
+        name: FERRAMENTA_FONTES,
+        description:
+          "Varre as FONTES CURADAS agora — Hacker News, Google News, Techmeme e GitHub — e " +
+          "devolve o que está sendo publicado sobre o tema, com data, força e endereço. " +
+          "Chame isto ANTES de responder no modo Observador: a resposta vem do que estas " +
+          "fontes trouxeram. Cada fonte é independente; se alguma cair, as outras seguem.",
+        parameters: {
+          type: "object",
+          properties: {
+            consulta: { type: "string", description: "o tema a varrer (quanto mais específico, melhor)" },
+            limite: { type: "integer", description: "quantos itens por fonte (padrão 6)" },
+          },
+          required: ["consulta"],
+        },
+      },
+    });
+    defs.push({
       type: "function",
       function: {
         name: FERRAMENTA_BUSCAR,
@@ -400,8 +435,8 @@ export function ferramentasParaOModelo(ctx: ContextoDaPessoa): {
           required: ["consulta"],
         },
       },
-    },
-    {
+    });
+    defs.push({
       type: "function",
       function: {
         name: FERRAMENTA_LER,
@@ -417,8 +452,32 @@ export function ferramentasParaOModelo(ctx: ContextoDaPessoa): {
           required: ["url"],
         },
       },
-    },
-  ];
+    });
+  }
+
+  if (modo === "profundo") {
+    defs.push({
+      type: "function",
+      function: {
+        name: FERRAMENTA_PROFUNDO,
+        description:
+          "PESQUISA A FUNDO: decompõe o tema em vários ângulos (o que é, números, " +
+          "críticas, alternativas, o que mudou agora), consulta as fontes e as páginas " +
+          "científicas, e ABRE as páginas para ler o conteúdo de verdade. Devolve um " +
+          "dossiê com tudo reunido, dizendo também o que falhou. É a ferramenta do " +
+          "modo Profundo — leva de 10 a 40 segundos. Use quando a pessoa quer ENTENDER " +
+          "o assunto, não só saber que ele existe.",
+        parameters: {
+          type: "object",
+          properties: {
+            consulta: { type: "string", description: "o tema a investigar, em linguagem natural" },
+            abrir_paginas: { type: "integer", description: "quantas páginas abrir (padrão 6, máximo 10)" },
+          },
+          required: ["consulta"],
+        },
+      },
+    });
+  }
   for (const c of ctx.conectores) {
     if (!c.pronto) continue;
     for (const f of c.ferramentas) {
@@ -456,6 +515,26 @@ export async function executarFerramenta(
     const p = await lerPagina(String(args?.url || ""));
     if (!p.ok) return `Não consegui abrir essa página (${p.erro}).`;
     return `${p.titulo ? p.titulo + "\n" : ""}${p.texto}`;
+  }
+  // ── O MOTOR DO OBSERVADOR: as fontes curadas, ao vivo ────────────────────
+  if (nome === FERRAMENTA_FONTES) {
+    const { buscarNasFontesCuradas, fontesEmTexto } = await import("./fontes-curadas");
+    const limite = Number(args?.limite) > 0 ? Math.min(Number(args.limite), 10) : 6;
+    const r = await buscarNasFontesCuradas(String(args?.consulta || ""), limite);
+    if (!r.ok) {
+      return "Nenhuma das fontes curadas respondeu agora. Diga que não conseguiu consultar — não afirme nada que não tenha vindo de fonte.";
+    }
+    return fontesEmTexto(r);
+  }
+  // ── O MÉTODO DO SR. XI: rodadas, páginas abertas, dossiê ─────────────────
+  if (nome === FERRAMENTA_PROFUNDO) {
+    const { pesquisarAFundo } = await import("./pesquisa-profunda");
+    const abrir = Number(args?.abrir_paginas) > 0 ? Math.min(Number(args.abrir_paginas), 10) : undefined;
+    const d = await pesquisarAFundo(String(args?.consulta || ""), { abrirPaginas: abrir });
+    if (!d.ok) {
+      return "A pesquisa não conseguiu reunir material agora. Diga o que foi tentado e o que faltou — não invente.";
+    }
+    return d.texto;
   }
 
   const dono = ctx.conectores.find((c) => c.ferramentas.some((f) => f.nome === nome));

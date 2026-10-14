@@ -152,6 +152,34 @@ export const IconeBusca = ({ className }: Props) => (
   </Svg>
 );
 
+/* ── Os três modos do chat (dropdown ao lado do microfone) ────────────────── */
+
+/** Leve — pensamento rápido, sem sair de casa. Um raio. */
+export const IconeRaio = ({ className }: Props) => (
+  <Svg className={className}>
+    <path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12L13 2Z" />
+  </Svg>
+);
+
+/** Observador — o radar que varre as fontes curadas. */
+export const IconeRadar = ({ className }: Props) => (
+  <Svg className={className}>
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="5" />
+    <circle cx="12" cy="12" r="1.4" />
+    <path d="M12 12l6-6" />
+  </Svg>
+);
+
+/** Profundo (Sr. Xi) — a pesquisa que desce em camadas. */
+export const IconeProfundo = ({ className }: Props) => (
+  <Svg className={className}>
+    <path d="M12 3 3 7.5 12 12l9-4.5L12 3Z" />
+    <path d="M3 12.5 12 17l9-4.5" />
+    <path d="M3 17 12 21.5 21 17" />
+  </Svg>
+);
+
 export const IconeFiltro = ({ className }: Props) => (
   <Svg className={className}>
     <path d="M4 6h16M7 12h10M10 18h4" />

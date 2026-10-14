@@ -29,6 +29,8 @@ import {
   IconeMusica,
   IconeSeta,
 } from "@/components/dash/icons";
+import SeletorDeModo from "@/components/dash/SeletorDeModo";
+import type { ModoId } from "@/lib/modos-do-chat";
 import {
   MAX_UPLOAD_ROTULO,
   MIMES_PERMITIDOS,
@@ -93,6 +95,15 @@ export default function ChatEscrito({
   // o Arquiteto tem a própria tela, alcançada pelo menu. Antes havia duas abas
   // (conversa/arquiteto) aqui, e o dono foi claro: "não tem modo arquiteto" no chat.
   const modo = "conversa";
+
+  // ── O MODO DE RESPOSTA (dono, 14/10/2026) ────────────────────────────────
+  // Sempre COMEÇA no Leve: é a base, e a profundidade é um pedido — nunca um
+  // imposto. Não se guarda no navegador de propósito: abrir o app e cair num
+  // modo caro (ou numa tela que demora) seria decidir pelo cliente.
+  const [modoPesquisa, setModoPesquisa] = useState<ModoId>("leve");
+  // Quando o servidor sobe o modo sozinho (o texto pediu), a tela diz — para o
+  // cliente não achar que escolheu nem estranhar a demora.
+  const [avisoModo, setAvisoModo] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [carregandoConversa, setCarregandoConversa] = useState(false);
   // SESSÃO VENCIDA (dono, 11/10/2026): antes o chat dizia "Não consegui falar com
@@ -415,9 +426,24 @@ export default function ChatEscrito({
             anexos: m.anexos?.map((a) => ({ id: a.id })),
           })),
           mode: modo,
+          modoPesquisa,
           conversaId: idConversa || undefined,
         }),
       });
+
+      // O servidor devolve QUAL modo rodou — e se subiu sozinho porque o texto
+      // pediu. Aqui a tela acompanha: o dropdown passa a mostrar o modo real e
+      // o cliente é avisado, em vez de achar que escolheu ou que travou.
+      const modoRodou = r.headers.get("x-mirai-modo") as ModoId | null;
+      const escalouPorque = r.headers.get("x-mirai-modo-escalou");
+      if (escalouPorque && modoRodou && modoRodou !== modoPesquisa) {
+        setModoPesquisa(modoRodou);
+        setAvisoModo(
+          modoRodou === "profundo"
+            ? "Você pediu para ir a fundo — subi para o modo Profundo. Leva um pouco mais, estou apurando."
+            : "Você pediu busca — subi para o modo Observador, vou varrer as fontes.",
+        );
+      }
 
       const idDoServidor = r.headers.get("x-conversa-id");
       if (idDoServidor && idDoServidor !== idConversa) {
@@ -651,6 +677,15 @@ export default function ChatEscrito({
                     className="min-h-[40px] max-h-[200px] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1 py-[9px] text-[15px] leading-[22px] text-dash-fg outline-none placeholder:text-dash-dim"
                   />
 
+                  <SeletorDeModo
+                    modo={modoPesquisa}
+                    aoTrocar={(m) => {
+                      setModoPesquisa(m);
+                      setAvisoModo(null);
+                    }}
+                    desabilitado={enviando}
+                  />
+
                   <button
                     type="button"
                     onClick={alternarDitado}
@@ -703,6 +738,15 @@ export default function ChatEscrito({
                   )
                 )}
               </div>
+
+              {!!avisoModo && (
+                <div className="mt-2 flex items-start gap-2 px-2 text-[11px] text-dash-brand">
+                  <span className="min-w-0 flex-1">{avisoModo}</span>
+                  <button onClick={() => setAvisoModo(null)} aria-label="Dispensar">
+                    <IconeFechar className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
 
               {!!avisoVoz && (
                 <div className="mt-2 flex items-start gap-2 px-2 text-[11px] text-dash-warn">
