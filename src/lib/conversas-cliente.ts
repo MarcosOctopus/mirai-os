@@ -22,9 +22,24 @@ export type EstadoConversas = {
   lista: ConversaResumo[];
   aberta: string | null;
   carregada: boolean;
+  /**
+   * A pessoa pediu uma conversa EM BRANCO ("+ Novo") e ainda não enviou nada.
+   *
+   * Por que existe (dono, 14/10/2026: *"toda hora que clico no +novo vc cria uma
+   * conversa nova. Só pode criar conversa nova quando inicia o chat"*): antes o
+   * "+ Novo" fazia POST e criava a conversa na hora — clicar três vezes enchia a
+   * lista de conversas vazias. Agora o clique só abre a tela em branco; a
+   * conversa nasce no ENVIO da primeira mensagem.
+   *
+   * E ele é preciso porque `aberta: null` sozinho não basta: há um efeito que
+   * reabre a última conversa quando `aberta` é nula (é o que faz a tela abrir na
+   * conversa de sempre). Sem esta bandeira, o "+ Novo" reabriria a última —
+   * pareceria que o botão não faz nada.
+   */
+  emBranco: boolean;
 };
 
-const INICIAL: EstadoConversas = { lista: [], aberta: null, carregada: false };
+const INICIAL: EstadoConversas = { lista: [], aberta: null, carregada: false, emBranco: false };
 
 // Snapshot imutável: troca de referência a cada mudança (é o que o React
 // compara). Nunca se muta `estado` no lugar.
@@ -73,9 +88,19 @@ export async function carregarLista(): Promise<ConversaResumo[]> {
   }
 }
 
+/** Abre uma conversa existente (ou solta, com null). Encerra o "em branco". */
 export function definirAberta(id: string | null) {
-  if (estado.aberta === id) return;
-  definir({ aberta: id });
+  if (estado.aberta === id && !estado.emBranco) return;
+  definir({ aberta: id, emBranco: false });
+}
+
+/**
+ * "+ Novo": abre uma conversa EM BRANCO — SEM criar nada no servidor.
+ * A conversa nasce no envio da primeira mensagem (o /api/chat cria e devolve o
+ * id no header `x-conversa-id`). Clicar várias vezes não deixa lixo na lista.
+ */
+export function abrirEmBranco() {
+  definir({ aberta: null, emBranco: true });
 }
 
 /**
@@ -93,7 +118,7 @@ export async function novaConversa(): Promise<string> {
     const j = await r.json().catch(() => null);
     const c: ConversaResumo | null = j?.conversa ?? null;
     if (!c?.id) return "";
-    definir({ lista: [c, ...estado.lista], aberta: c.id, carregada: true });
+    definir({ lista: [c, ...estado.lista], aberta: c.id, carregada: true, emBranco: false });
     return c.id;
   } catch {
     return "";
@@ -144,5 +169,5 @@ export async function apagarConversaCliente(id: string): Promise<void> {
   }
   const lista = estado.lista.filter((c) => c.id !== id);
   const aberta = estado.aberta === id ? (lista[0]?.id ?? null) : estado.aberta;
-  definir({ lista, aberta });
+  definir({ lista, aberta, emBranco: false });
 }

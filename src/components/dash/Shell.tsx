@@ -12,7 +12,7 @@ import {
   carregarLista,
   definirAberta,
   favoritarConversaCliente,
-  novaConversa,
+  abrirEmBranco,
   useConversas,
   type ConversaResumo,
 } from "@/lib/conversas-cliente";
@@ -239,7 +239,12 @@ export default function Shell({
 
   async function abrirNova() {
     setAberto(false);
-    await novaConversa();
+    // NÃO cria conversa no servidor. O "+ Novo" abre uma conversa EM BRANCO; a
+    // conversa nasce quando a primeira mensagem é enviada (o /api/chat cria e
+    // devolve o id). Antes isto fazia POST a cada clique e enchia a lista de
+    // conversas vazias — dono, 14/10/2026: "só pode criar conversa nova quando
+    // inicia o chat".
+    abrirEmBranco();
     if (caminho !== "/") router.push("/");
   }
 

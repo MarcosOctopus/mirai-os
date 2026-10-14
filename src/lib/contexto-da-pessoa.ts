@@ -360,10 +360,18 @@ export function blocoDeContexto(ctx: ContextoDaPessoa): string {
   return linhas.filter(Boolean).join("\n");
 }
 
+/** Nomes das ferramentas de BASE do chat (não são de conector nem de plano). */
+export const FERRAMENTA_BUSCAR = "buscar_na_web";
+export const FERRAMENTA_LER = "ler_pagina";
+
 /**
- * As ferramentas que o modelo pode chamar, no formato do provider (OpenAI).
+ * As ferramentas que o modelo pode chamar, no formato do provider ([OI]).
  * Só entram as de conectores PRONTOS — ferramenta de conector que não responde
  * não é oferecida (evita o modelo tentar e a pessoa ver erro).
+ *
+ * As de BASE entram SEMPRE, para toda conta: BUSCAR NA WEB e LER PÁGINA. Não são
+ * recurso de plano nem de integração — são o mínimo para o chat olhar o mundo em
+ * vez de dizer que não consegue (dono, 14/10/2026).
  */
 export function ferramentasParaOModelo(ctx: ContextoDaPessoa): {
   type: "function";
@@ -372,7 +380,45 @@ export function ferramentasParaOModelo(ctx: ContextoDaPessoa): {
   const defs: {
     type: "function";
     function: { name: string; description: string; parameters: Record<string, unknown> };
-  }[] = [];
+  }[] = [
+    {
+      type: "function",
+      function: {
+        name: FERRAMENTA_BUSCAR,
+        description:
+          "Busca na internet agora e devolve títulos, endereços e trechos reais. " +
+          "Use SEMPRE que a resposta depender de algo atual ou de fora: tempo/clima, " +
+          "notícia, preço, cotação, agenda, dado de empresa, comparação de sites, " +
+          "qualquer coisa que mude com o tempo. Não diga que não consegue acessar " +
+          "dados em tempo real: chame esta ferramenta.",
+        parameters: {
+          type: "object",
+          properties: {
+            consulta: { type: "string", description: "o que buscar, em linguagem natural" },
+            limite: { type: "integer", description: "quantos resultados (padrão 5)" },
+          },
+          required: ["consulta"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: FERRAMENTA_LER,
+        description:
+          "Abre um endereço da internet e devolve o texto da página. Use depois de " +
+          "buscar quando precisar do conteúdo de verdade (números, tabela, detalhe " +
+          "de uma matéria, comparar dois sites).",
+        parameters: {
+          type: "object",
+          properties: {
+            url: { type: "string", description: "endereço completo, começando com https://" },
+          },
+          required: ["url"],
+        },
+      },
+    },
+  ];
   for (const c of ctx.conectores) {
     if (!c.pronto) continue;
     for (const f of c.ferramentas) {
@@ -399,6 +445,19 @@ export async function executarFerramenta(
   args: Record<string, unknown>,
   conta: Conta,
 ): Promise<string> {
+  // ── as de BASE vêm primeiro: não têm dono entre os conectores ────────────
+  if (nome === FERRAMENTA_BUSCAR) {
+    const { buscarNaWeb, buscaEmTexto } = await import("./busca-web");
+    const limite = Number(args?.limite) > 0 ? Math.min(Number(args.limite), 10) : 5;
+    return buscaEmTexto(await buscarNaWeb(String(args?.consulta || ""), limite));
+  }
+  if (nome === FERRAMENTA_LER) {
+    const { lerPagina } = await import("./busca-web");
+    const p = await lerPagina(String(args?.url || ""));
+    if (!p.ok) return `Não consegui abrir essa página (${p.erro}).`;
+    return `${p.titulo ? p.titulo + "\n" : ""}${p.texto}`;
+  }
+
   const dono = ctx.conectores.find((c) => c.ferramentas.some((f) => f.nome === nome));
   if (!dono) return `erro: ferramenta não disponível para esta conta (${nome})`;
   if (dono.id === "crm" || dono.id === "saaso") {

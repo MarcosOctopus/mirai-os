@@ -85,7 +85,7 @@ export default function ChatEscrito({
       limpo está à mostra. Não interfere na conversa em andamento. */
   onInicioChange?: (inicio: boolean) => void;
 }) {
-  const { lista, aberta, carregada } = useConversas();
+  const { lista, aberta, carregada, emBranco } = useConversas();
 
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [texto, setTexto] = useState("");
@@ -150,15 +150,21 @@ export default function ChatEscrito({
   }, []);
 
   // Sem conversa escolhida, abre a MAIS RECENTE (o pedido: `/` abre a última).
+  // MAS não quando a pessoa pediu uma conversa em branco no "+ Novo": aí a tela
+  // tem de ficar vazia, esperando a primeira mensagem (que cria a conversa).
   useEffect(() => {
-    if (carregada && !aberta && lista.length) definirAberta(lista[0].id);
-  }, [carregada, aberta, lista]);
+    if (carregada && !aberta && !emBranco && lista.length) definirAberta(lista[0].id);
+  }, [carregada, aberta, lista, emBranco]);
 
   // Carrega as mensagens quando a conversa aberta muda. Não roda durante um
   // envio (senão apagaria as mensagens otimistas que a tela já mostrou).
   useEffect(() => {
     if (!aberta) {
       carregadaRef.current = null;
+      // Conversa em branco ("+ Novo"): a tela tem de ficar VAZIA, não mostrar as
+      // mensagens da conversa anterior. Nunca durante um envio — aí as mensagens
+      // otimistas estão à mostra e apagá-las seria perder o que a pessoa escreveu.
+      if (!enviando) setMensagens([]);
       return;
     }
     if (enviando) return;
@@ -184,7 +190,7 @@ export default function ChatEscrito({
   // Uma conversa COM mensagens nunca cai aqui (mensagens.length > 0). Enquanto
   // a lista carrega, ou a conversa da vez está vindo do servidor, ou ainda não
   // escolhemos qual abrir, também não é "início" — é espera.
-  const vaiAbrirAlguma = !aberta && lista.length > 0;
+  const vaiAbrirAlguma = !aberta && !emBranco && lista.length > 0;
   const mostrarInicio =
     carregada && !enviando && !carregandoConversa && !vaiAbrirAlguma && mensagens.length === 0;
 
