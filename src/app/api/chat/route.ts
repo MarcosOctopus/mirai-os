@@ -161,6 +161,8 @@ function montarSystem(opts: {
   chatMode: "conversa" | "arquiteto";
   ehDono?: boolean;
   saaso?: string;
+  /** A memória da Arca para este turno (o que já foi feito, decidido, vivido). */
+  memoria?: string;
   /** Qual dos três modos está rodando. O comportamento de pesquisa vem daqui. */
   modoPesquisa?: ModoId;
 }): string {
@@ -171,7 +173,7 @@ function montarSystem(opts: {
   // trataria "não achei" como "não existe".
   const modo = opts.modoPesquisa ? regraDoModo(opts.modoPesquisa) : "";
   // O CRM entra para os dois: é dado da conta de quem está falando.
-  return [base, guarda, modo, opts.saaso].filter(Boolean).join("\n\n");
+  return [base, guarda, modo, opts.saaso, opts.memoria].filter(Boolean).join("\n\n");
 }
 
 type Ctrl = ReadableStreamDefaultController<Uint8Array>;
@@ -364,26 +366,108 @@ recomende segundo elas.` +
   REGRAS_CRAFT +
   REGRAS_VISUAL;
 
-async function queryArca(msg: string): Promise<string> {
-  try {
-    const q = encodeURIComponent(msg.slice(0, 150));
-    const res = await fetch(`${ARCA_URL}/context?q=${q}`, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) return "";
-    const data = await res.json();
-    const docs = data.documents || [];
-    const mems = data.memories || [];
-    if (!docs.length && !mems.length) return "";
-    let ctx = "\n\n## Contexto da Arca (memória)";
-    for (const d of docs.slice(0, 3)) {
-      ctx += `\n📄 ${d.titulo || d.title || "Doc"} (${d.tipo || "doc"}): ${(d.resumo || d.summary || "").slice(0, 300)}`;
-    }
-    for (const m of mems.slice(0, 3)) {
-      ctx += `\n🧠 ${(m.content || "").slice(0, 300)}`;
-    }
-    return ctx;
-  } catch { return ""; }
+/** Palavras que não ajudam a procurar nada — não viram termo de busca. */
+const PARADAS = new Set([
+  "que","qual","quais","quando","onde","como","porque","por","para","pra","com","sem","sobre",
+  "isso","isto","aquilo","esse","essa","este","esta","aquele","aquela","meu","minha","seu","sua",
+  "foi","era","ser","sao","são","esta","está","estao","estão","tem","tinha","ter","fez","faz",
+  "fazer","pode","poderia","consegue","quero","queria","preciso","gostaria","me","te","nos","nós",
+  "de","da","do","das","dos","em","no","na","nos","nas","um","uma","uns","umas","e","ou","mas",
+  "se","ja","já","ainda","também","tambem","mais","menos","muito","pouco","tudo","nada","algo",
+  "aqui","ali","la","lá","hoje","ontem","amanha","amanhã","agora","depois","antes","responde",
+  "responda","diz","diga","fala","fale","explique","resuma","linhas","linha","favor","obrigado",
+]);
+
+/**
+ * Termos prováveis para consultar a Arca, do mais específico ao mais genérico.
+ *
+ * POR QUE ISTO EXISTE (medido em 14/10/2026): o `/context` da Arca casa com UM
+ * termo. "Mapa Paper" devolve 14 resultados; "Mapa Paper Instagram" devolve ZERO.
+ * Mandar a pergunta inteira — que era o que o código fazia — garantia silêncio.
+ * Então a pergunta vira candidatos: primeiro os pares de palavras (mais
+ * específicos), depois as palavras soltas (mais genéricas).
+ */
+function termosDaPergunta(msg: string): string[] {
+  const palavras = msg
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .split(/\s+/)
+    .filter((p) => p.length >= 3 && !PARADAS.has(p));
+
+  const cands: string[] = [];
+  for (let i = 0; i < palavras.length - 1; i++) cands.push(`${palavras[i]} ${palavras[i + 1]}`);
+  for (const p of palavras) cands.push(p);
+  return [...new Set(cands)];
 }
 
+/** Uma consulta crua à Arca. Devolve as listas ou vazio (nunca lança). */
+async function consultarArca(q: string): Promise<{ docs: unknown[]; mems: unknown[] }> {
+  const res = await fetch(`${ARCA_URL}/context?q=${encodeURIComponent(q)}`, {
+    signal: AbortSignal.timeout(4000),
+  });
+  if (!res.ok) return { docs: [], mems: [] };
+  const data = (await res.json()) as { documents?: unknown[]; memories?: unknown[] };
+  return { docs: data.documents || [], mems: data.memories || [] };
+}
+
+/**
+ * A memória da Arca para ESTE turno.
+ *
+ * Duas correções de 14/10/2026, as duas medidas:
+ *   1. a função existia e NUNCA era chamada — o chat não olhava a Arca;
+ *   2. quando chamada com a frase crua, a Arca devolvia vazio (ela casa por
+ *      termo, não por frase). Agora a pergunta vira alguns candidatos, o
+ *      primeiro que responde manda, e nada é repetido.
+ *
+ * Teto de tentativas e de tempo: a memória não pode atrasar a resposta.
+ */
+async function queryArca(msg: string): Promise<string> {
+  try {
+    const tentativas = [msg.slice(0, 150).trim(), ...termosDaPergunta(msg).slice(0, 6)];
+    const vistos = new Set<string>();
+    const docs: { rotulo: string }[] = [];
+    const mems: { texto: string }[] = [];
+
+    for (const t of tentativas) {
+      if (!t || (docs.length >= 3 && mems.length >= 3)) break;
+      let r: { docs: unknown[]; mems: unknown[] };
+      try {
+        r = await consultarArca(t);
+      } catch {
+        continue; // timeout/queda de uma tentativa não aborta as outras
+      }
+      for (const d of r.docs) {
+        const o = d as { id?: unknown; titulo?: unknown; title?: unknown; tipo?: unknown; resumo?: unknown; summary?: unknown };
+        const chave = String(o?.id ?? o?.titulo ?? o?.title ?? "");
+        if (!chave || vistos.has(`d:${chave}`)) continue;
+        vistos.add(`d:${chave}`);
+        docs.push({
+          rotulo: `📄 ${o.titulo || o.title || "Doc"} (${o.tipo || "doc"}): ${String(o.resumo || o.summary || "").slice(0, 300)}`,
+        });
+        if (docs.length >= 3) break;
+      }
+      for (const m of r.mems) {
+        const o = m as { id?: unknown; content?: unknown };
+        const texto = String(o?.content || "").slice(0, 300);
+        const chave = String(o?.id ?? texto);
+        if (!texto || vistos.has(`m:${chave}`)) continue;
+        vistos.add(`m:${chave}`);
+        mems.push({ texto: `🧠 ${texto}` });
+        if (mems.length >= 3) break;
+      }
+    }
+
+    if (!docs.length && !mems.length) return "";
+    return (
+      "\n\n## Contexto da Arca (memória do que já foi feito)" +
+      "\nUse isto como o que VOCÊ JÁ SABE. Não diga que não sabe nem peça o que já está aqui." +
+      docs.slice(0, 4).map((d) => `\n${d.rotulo}`).join("") +
+      mems.slice(0, 4).map((m) => `\n${m.texto}`).join("")
+    );
+  } catch {
+    return "";
+  }
+}
 function wantsClaude(txt: string): boolean {
   const kw = ["claude","opus","complexo","complicado","difícil","profundo",
     "análise detalhada","modelo forte","modelo melhor","manda o claude",
@@ -435,6 +519,16 @@ type ApoioConta = {
   ctxPessoa?: ContextoDaPessoa | null;
   conta?: import("@/lib/orgs").Conta | null;
   saasoToken?: string;
+  /**
+   * A MEMÓRIA DA ARCA, já consultada para a pergunta deste turno.
+   *
+   * Por que vive aqui: `queryArca` existia desde sempre e NUNCA era chamada —
+   * o chat gravava tudo na Arca e não perguntava nada a ela, então cada turno
+   * começava sem saber o que já tinha sido feito. O dono sentiu exatamente isso
+   * ("sempre está perdido a respeito de coisas que já fez"). Aqui a resposta da
+   * Arca é resolvida UMA vez, no POST, e desce pronta para os três modelos.
+   */
+  memoriaArca?: string;
 };
 
 /** Teto de rodadas do laço: 4 chamadas de ferramenta por pergunta. */
@@ -707,6 +801,30 @@ export async function POST(req: NextRequest) {
     }
     const apoio: ApoioConta = { ctxPessoa, conta, saasoToken };
 
+    // ── A MEMÓRIA DA ARCA (o que já foi feito não se perde) ──────────────────
+    // O dono (14/10/2026): *"n tem salvado os contextos e sempre está perdido a
+    // respeito de coisas que ja fez. Tem olhado e salvado tudo sempre na arca?"*
+    //
+    // Medido: SALVAVA sim (as notas estão lá, a Arca responde em 0,24 s), mas
+    // NUNCA OLHAVA — `queryArca` era código morto, ninguém a chamava. Resultado:
+    // cada turno nascia sem saber nada do que veio antes. Aqui ela passa a ser
+    // consultada de verdade, uma vez por turno, com a pergunta da pessoa.
+    //
+    // A REGRA DA SUPERFÍCIE CONTINUA (está escrita no callVerboo): a Arca é o
+    // mapa INTERNO. Ela só é consultada e injetada para a conta do DONO — conta
+    // de cliente não dispara a consulta (nem gasta o tempo dela) e nunca recebe
+    // o mapa interno. Cliente tem o CRM dele, que é dado dele.
+    //
+    // Falha da Arca não derruba o chat: sem memória, a resposta sai como saía
+    // antes — só não é mais o caso normal.
+    if (conta?.ehDono && textoUsuarioNovo) {
+      try {
+        apoio.memoriaArca = await queryArca(textoUsuarioNovo);
+      } catch {
+        apoio.memoriaArca = "";
+      }
+    }
+
     // ── ANEXOS: cada mensagem do usuário pode trazer {anexos:[{id}]}. ──
     // Extrai texto (documento), leitura+OCR (imagem) ou transcrição (áudio) e
     // injeta no conteúdo que vai pro modelo. Nunca quebra a conversa: se não
@@ -816,8 +934,11 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
   // Defesa (camadas 1 e 2): usuário comum NÃO dispara consulta à Arca e NÃO
   // recebe o mapa interno. Fica só o CRM, que é dado dele.
   // Superfície de cliente: entra o CRM da própria conta; Arca e mapa interno, não.
+  // (A memória só desce quando `ehDono` — a consulta já nem foi feita para cliente.)
   const saaso = await contextoDaConta(apoio);
-  const system = montarSystem({ chatMode, ehDono, saaso, modoPesquisa });
+  const system = montarSystem({
+    chatMode, ehDono, saaso, memoria: ehDono ? apoio.memoriaArca : undefined, modoPesquisa,
+  });
 
   // A pessoa PODE AGIR: se o resolutor ofereceu ferramentas, o modelo as chama
   // (ler e também marcar, cadastrar, atualizar, enviar). Sem ferramentas — ou
@@ -894,7 +1015,7 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
 async function callGemini(messages: {role:string;content:string}[], lastMsg: string, chatMode: "conversa" | "arquiteto" = "conversa", apoio: ApoioConta = {}, ehDono = false): Promise<Response> {
   // Superfície de cliente: entra o CRM da própria conta; Arca e mapa interno, não.
   const saaso = await contextoDaConta(apoio);
-  const system = montarSystem({ chatMode, ehDono, saaso });
+  const system = montarSystem({ chatMode, ehDono, saaso, memoria: ehDono ? apoio.memoriaArca : undefined });
 
   const contents: {role:string;parts:{text:string}[]}[] = [];
   for (const m of messages) {
@@ -930,7 +1051,7 @@ async function callGemini(messages: {role:string;content:string}[], lastMsg: str
 async function callOpenRouter(messages: {role:string;content:string}[], lastMsg: string, chatMode: "conversa" | "arquiteto" = "conversa", apoio: ApoioConta = {}, ehDono = false): Promise<Response> {
   // Superfície de cliente: entra o CRM da própria conta; Arca e mapa interno, não.
   const saaso = await contextoDaConta(apoio);
-  const system = montarSystem({ chatMode, ehDono, saaso });
+  const system = montarSystem({ chatMode, ehDono, saaso, memoria: ehDono ? apoio.memoriaArca : undefined });
   const msgs = buildMsgs(messages, system);
 
   const resp = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
