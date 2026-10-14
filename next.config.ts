@@ -1,6 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // ONDE O BUILD ESCREVE (dono, 14/10/2026).
+  //
+  // Por que existe: `next build` reescreve o `.next` — e é DELE que o app NO AR
+  // está servindo. Buildar na árvore viva derrubava o app por 30 a 122 segundos
+  // (medido: 9 janelas de queda em um dia, a pior de 2 minutos), porque o
+  // processo em uso perde os arquivos debaixo dos pés e o Cloudflare devolve 502.
+  //
+  // Com esta linha, a publicação builda num diretório SEPARADO
+  // (`NEXT_DIST_DIR=.next-novo npm run build`) e só depois faz a TROCA ATÔMICA
+  // (`mv`): o app no ar não é tocado durante o build e a janela cai para os
+  // poucos segundos do reinício. Sem a variável, o comportamento é o de SEMPRE
+  // (`.next`) — a receita antiga continua valendo.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // O CONVERSOR de fonte (TTF/OTF → WOFF2, dono 09/10/2026) carrega um `.wasm`
   // próprio: tem de ficar FORA do bundle do servidor (require em runtime), senão
   // o build quebra ao embalar o binário.
