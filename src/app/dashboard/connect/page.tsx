@@ -1248,10 +1248,11 @@ export default function IntegracoesPage() {
      (Dono, 14/10/2026: "ainda pedindo código e não clicando e indo direto pro
      login com conta Mirai".)
      
-     O botão leva DIRETO ao "Entrar com Mirai" do próprio CRM. Lá dentro:
+     O botão leva DIRETO à tela de login do CRM, onde está o botão "Entrar com
+     Mirai" — que é onde a pessoa espera encontrar isso. Lá dentro:
        - a conta tem o CRM no PLANO → entra, o CRM cunha a credencial da
          organização e a entrega a este app pela ponte. Nada é digitado.
-       - a conta NÃO tem o CRM no plano → a tela do CRM diz que falta liberação.
+       - a conta NÃO tem o CRM no plano → a tela diz que falta liberação.
      
      Pedir o código aqui seria pedir à pessoa o trabalho que o SSO já faz — e
      era exatamente o que o dono via na tela. */
@@ -1262,7 +1263,7 @@ export default function IntegracoesPage() {
       setAviso("O CRM ainda não tem endereço configurado neste servidor.");
       return;
     }
-    window.open(`${crm.site}/auth/mirai/start`, "_blank", "noopener");
+    window.open(`${crm.site}/login`, "_blank", "noopener");
   }, []);
 
   /* O caminho SECUNDÁRIO: quem já tem uma credencial `crm_…` em mãos cola
