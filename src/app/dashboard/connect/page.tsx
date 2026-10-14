@@ -45,7 +45,7 @@
  * Só a ação leva adiante, com o comportamento de sempre: tipo mcp abre o
  * site; api com OAuth abre a rota; api com campos abre o popup de chave
  * (ModalApi) e salva por POST /api/auth/connect. E o CRM tem fluxo PRÓPRIO
- * (ModalCrm): pede a credencial dsk_…, o SERVIDOR valida ao vivo e só então
+ * (ModalCrm): pede a credencial crm_…, o SERVIDOR valida ao vivo e só então
  * grava a linha DA PESSOA (POST /api/integracoes, tipo 'crm').
  * O popup reusa o MESMO vidro do login (src/lib/vidro.ts).
  *
@@ -583,7 +583,7 @@ function ModalApi({
 
 /* ── Popup do CRM (fluxo próprio: valida a credencial AO VIVO) ────────── */
 
-/* Pede a credencial do CRM (o token dsk_…), manda para POST /api/integracoes —
+/* Pede a credencial do CRM (o token crm_…), manda para POST /api/integracoes —
    que SÓ grava depois do próprio CRM confirmar, ao vivo, que a credencial
    serve. Credencial recusada ou CRM mudo = erro em PT-BR e NADA gravado. A
    credencial nunca é registrada em log, nunca fica na tela, nunca entra aqui
@@ -675,10 +675,11 @@ function ModalCrm({ onClose, onConectado }: { onClose: () => void; onConectado: 
             autoComplete="off"
             spellCheck={false}
             className="w-full rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
-            placeholder="Cole aqui — o token que começa com dsk_"
+            placeholder="Cole aqui — o token que começa com crm_"
           />
           <span className="mt-1.5 block text-[11px] text-dash-dim">
-            É o mesmo token de acesso do seu CRM (começa com dsk_).
+            É o mesmo token de acesso do seu CRM. Os novos começam com crm_; os antigos,
+            com dsk_, e continuam valendo.
           </span>
         </label>
 
@@ -849,7 +850,7 @@ function ModalProduto({
   const comoIntegra = crm
       ? conectada
       ? "Este CRM já está conectado nesta conta. Integrar abre o próprio CRM."
-      : "Conectar abre o espaço para colar a credencial do seu CRM (dsk_…). Ela é validada ao vivo com o CRM antes de salvar — credencial que não responde não é gravada."
+      : "Conectar abre o espaço para colar a credencial do seu CRM (crm_…). Ela é validada ao vivo com o CRM antes de salvar — credencial que não responde não é gravada."
     : item.tipo === "mcp"
       ? "Integrar abre o site da integração em uma nova aba."
       : item.oauthPath

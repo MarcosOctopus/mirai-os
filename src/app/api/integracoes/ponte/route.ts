@@ -4,7 +4,7 @@
  *
  * CORREÇÃO DO PROBLEMA: o cliente conectou o CRM dentro do próprio CRM (aba
  * "Integrar com Mirai" / a tela de chaves de API). A conexão e a credencial
- * `dsk_…` passaram a existir — mas a tabela `integracoes` deste app só ganhava
+ * `crm_…` passaram a existir — mas a tabela `integracoes` deste app só ganhava
  * uma linha quando a conexão era feita PELA tela do app. O app (e o chat dele)
  * ficava cego para o que o cliente conectou no CRM.
  *

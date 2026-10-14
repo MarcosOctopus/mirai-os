@@ -27,7 +27,7 @@
  *   - ninguém lê a camada pessoal de outra pessoa — nem outro cliente, nem
  *     outro produto, nem outro agente;
  *   - a credencial de um conector só é usada para a conta dona dela (o token
- *     `dsk_...` da organização é quem responde por qual CRM);
+ *     `crm_...` da organização é quem responde por qual CRM);
  *   - exceção única: o dono da plataforma atravessa contas, e isso é auditado.
  */
 

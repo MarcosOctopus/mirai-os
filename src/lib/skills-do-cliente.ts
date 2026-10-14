@@ -188,6 +188,10 @@ export function detectarCredencial(...textos: (string | null | undefined)[]): st
     { re: /-----BEGIN [A-Z ]*(PRIVATE KEY|CERTIFICATE)-----/, motivo: "uma chave privada (bloco PEM)" },
     { re: /\b(sk|pk|rk)-[A-Za-z0-9_-]{16,}/, motivo: "uma chave de API (formato sk-/pk-/rk-)" },
     { re: /\b(sk_live|sk_test|dsk_|ghp_|gho_|ghs_|xoxb-|xoxp-|AKIA[0-9A-Z]{16})\b/, motivo: "um token de serviço (dsk_/ghp_/xoxb-/AWS…)" },
+    // O token do CRM tem forma propria: prefixo + 8 hex + `_` + segredo. Ancorar no
+    // formato (e nao so no prefixo) evita confundir com nome de ferramenta
+    // (`crm_create_pipeline`) e continua pegando o `dsk_` que ja existe.
+    { re: /\b(dsk|crm)_[0-9a-f]{8}_[A-Za-z0-9_-]{20,}/, motivo: "um token de acesso do CRM (crm_/dsk_)" },
     { re: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{6,}\b/, motivo: "um JWT" },
     {
       re: /(api[_-]?key|access[_-]?token|secret|senha|password|credencial|bearer)\s*[:=]\s*\S{8,}/i,

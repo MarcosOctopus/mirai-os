@@ -3,7 +3,7 @@
  *
  * A Mirai NUNCA abre o banco do Saaso: ela fala com o MCP dele
  * (https://saaso.miraitohope.com/api/mcp, streamable HTTP / JSON-RPC 2.0).
- * O token `dsk_...` vive em SAASO_MCP_TOKEN (.env.local 600, fora do git) —
+ * O token `crm_...` vive em SAASO_MCP_TOKEN (.env.local 600, fora do git) —
  * nunca em codigo, nunca no chat.
  *
  * Quem responde por qual organizacao e o TOKEN, nunca o corpo da requisicao:
@@ -33,7 +33,11 @@ export type SaasoStatus = {
 };
 
 export function saasoConfigurado(token?: string | null): boolean {
-  return Boolean(token && token.trim().startsWith("dsk_"));
+  // O CRM cunha `crm_`; os tokens emitidos ANTES da troca sao `dsk_` e
+  // continuam valendo (o CRM tambem aceita os dois). Exigir so o novo
+  // recusaria toda credencial que o cliente ja tinha.
+  const t = (token || "").trim();
+  return t.startsWith("crm_") || t.startsWith("dsk_");
 }
 
 function extrairErro(texto: string): string {
@@ -218,7 +222,7 @@ export async function saasoStatus(token: string): Promise<SaasoStatus> {
  * primeira: uma acusa a credencial, a outra acusa o CRM).
  *
  *   ok           -> o CRM respondeu e devolveu ferramentas; pode salvar;
- *   formato      -> nem começou com `dsk_`: recusa sem chamar o CRM;
+ *   formato      -> nem começou com `crm_` (nem com o legado `dsk_`): recusa sem chamar o CRM;
  *   recusada     -> o CRM respondeu recusando (HTTP 4xx): credencial inválida;
  *   sem-resposta -> o CRM não respondeu (rede, timeout ou 5xx): tentar de novo.
  */
@@ -235,7 +239,7 @@ export async function saasoValidarCredencial(token: string): Promise<SaasoValida
     return {
       valida: false,
       motivo: "formato",
-      erro: "A credencial do CRM precisa começar com dsk_.",
+      erro: "A credencial do CRM precisa começar com crm_.",
       ferramentas: 0,
     };
   }
@@ -256,7 +260,7 @@ export async function saasoValidarCredencial(token: string): Promise<SaasoValida
   return {
     valida: false,
     motivo: "recusada",
-    erro: "O CRM recusou esta credencial. Confira o token (dsk_…) e tente de novo.",
+    erro: "O CRM recusou esta credencial. Confira o token (crm_…) e tente de novo.",
     ferramentas: 0,
   };
 }

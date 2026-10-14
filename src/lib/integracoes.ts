@@ -225,7 +225,7 @@ export function desligarIntegracao(
  *
  * O problema medido: o cliente conecta o CRM DENTRO do próprio CRM (a aba
  * "Integrar com Mirai" / a tela de chaves de API). A conexão existe, a
- * credencial `dsk_…` existe — mas a pessoa ainda NÃO tem conta neste app, então
+ * credencial `crm_…` existe — mas a pessoa ainda NÃO tem conta neste app, então
  * não há `dono_id` para gravar a integração. Antes disto o app ficava cego: a
  * linha de `integracoes` só nascia quando a conexão era feita PELA tela do app.
  *

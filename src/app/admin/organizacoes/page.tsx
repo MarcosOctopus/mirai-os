@@ -207,7 +207,7 @@ export default function OrganizacoesPage() {
               <input
                 value={saasoToken}
                 onChange={(e) => setSaasoToken(e.target.value)}
-                placeholder="token dsk_... do CRM daquele cliente"
+                placeholder="token crm_... do CRM daquele cliente"
                 className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
               />
             </label>
@@ -306,7 +306,7 @@ export default function OrganizacoesPage() {
                   <option value="admin">admin da empresa</option>
                 </select>
                 <input
-                  placeholder="token dsk_... do CRM desta organização"
+                  placeholder="token crm_... do CRM desta organização"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       salvarCredencial(org, "saasoToken", (e.target as HTMLInputElement).value);
