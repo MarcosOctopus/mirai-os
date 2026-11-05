@@ -57,7 +57,15 @@ export async function GET(req: NextRequest) {
   if (bilhete.projetoId) {
     guardarConexaoGithub(bilhete.projetoId, cifrar(troca.token), login);
   } else if (bilhete.userId) {
-    guardarGithubDaConta(bilhete.userId, cifrar(troca.token), login);
+    // O `refresh_token` vai junto: sem ele a conexão morre no vencimento e a
+    // tela continua dizendo "conectado" (defeito medido em 16/10/2026).
+    guardarGithubDaConta(
+      bilhete.userId,
+      cifrar(troca.token),
+      login,
+      troca.refreshToken ? cifrar(troca.refreshToken) : null,
+      troca.expiraEm,
+    );
   } else {
     return destino("falhou");
   }

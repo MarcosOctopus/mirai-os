@@ -276,6 +276,26 @@ export async function contaDaRequisicao(req: NextRequest): Promise<Conta | null>
   };
 }
 
+/**
+ * A conta pelo ID, sem requisição — para quem só tem o número (as ferramentas
+ * do chat recebem `userId`). Mesma régua de `ehDono` da `contaDaRequisicao`:
+ * uma única definição de "quem é o dono", senão as duas divergem.
+ */
+export function contaPorId(userId: number): Conta | null {
+  const user = getUserById(userId) as
+    | { id: number; name: string; email: string; role?: string }
+    | null;
+  if (!user) return null;
+  const email = normaliza(user.email);
+  return {
+    id: user.id,
+    nome: user.name,
+    email,
+    ehDono: OWNER_EMAILS.includes(email) || user.role === "owner",
+    org: orgPorEmail(email),
+  };
+}
+
 export async function exigirConta(
   req: NextRequest,
 ): Promise<{ ok: true; conta: Conta } | { ok: false; resposta: NextResponse }> {

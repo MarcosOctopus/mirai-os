@@ -36,6 +36,8 @@ import path from "path";
 import { normalizarTokens, assinaturaTokens, type Tokens } from "./arquiteto-tokens";
 import { normalizarDominio, motivoDominioInvalido } from "./dominio-projetos";
 import { githubDaConta } from "./github-conta";
+import { apagarWorkspace } from "./arquiteto-workspace";
+import { limitesDoUsuario } from "./limites-da-conta";
 
 
 const DB_PATH = path.join(process.cwd(), "data", "auth.db");
@@ -76,6 +78,15 @@ export type ProjetoCompleto = ProjetoResumo & {
   publicado_em: string | null;
   /** o token do link público ou null. Só o dono recebe isto (a tela dele). */
   publicar_token: string | null;
+  /**
+   * O QUE O APP É, decidido pelo runner depois de instalar/construir:
+   * `estatico` = pasta de build servida arquivo a arquivo;
+   * `servidor` = processo que fica RODANDO (login/API/banco) e precisa de porta.
+   * `null` = ainda não se sabe (nunca passou pelo runner).
+   */
+  app_tipo?: "estatico" | "servidor" | null;
+  /** a porta em que o app de servidor atende (null quando não é servidor). */
+  app_porta?: number | null;
 };
 
 /** Resumo leve de uma versão, para a LISTA (não carrega o conteúdo). */
@@ -123,6 +134,8 @@ function comoCompleto(
     tokens_json?: string | null;
     publicar_token?: string | null;
     publicado_em?: string | null;
+    app_tipo?: string | null;
+    app_porta?: number | null;
   },
   arquivos: ArquivoProjeto[],
 ): ProjetoCompleto {
@@ -134,6 +147,16 @@ function comoCompleto(
     // A pasta/categoria do projeto (dono, 11/10/2026): presente nas consultas
     // que a pedem, ausente (→ null = "Sem pasta") nas demais.
     pasta_id: typeof linha.pasta_id === "string" ? linha.pasta_id : null,
+    // O ENDEREÇO `<slug>.miraitohope.com` (dono, 16/10/2026): presente nas
+    // consultas que o pedem. A PRÉVIA precisa dele para montar o `<base>` do app
+    // construído — sem o campo aqui, o `slug` era selecionado no SQL e perdido
+    // na montagem, e a prévia continuava mostrando a página-guia do projeto.
+    slug: typeof linha.slug === "string" ? linha.slug : null,
+    // O VEREDITO DO RUNNER sobre o app: 'estatico' | 'servidor' e a porta do
+    // app de servidor. Quem serve o endereço público precisa dos dois.
+    app_tipo:
+      linha.app_tipo === "estatico" || linha.app_tipo === "servidor" ? linha.app_tipo : null,
+    app_porta: typeof linha.app_porta === "number" ? linha.app_porta : null,
     arquivos,
     tokens: tokensDoJson(linha.tokens_json),
     // Estado de publicação: presente nas consultas que o pedem, ausente (→ null)
@@ -230,6 +253,14 @@ function getDb() {
   // vários NULL no índice UNIQUE, então "não publicado" convive em paz.
   garantirColuna(db, "arquiteto_projetos", "publicar_token", "TEXT");
   garantirColuna(db, "arquiteto_projetos", "publicado_em", "TEXT");
+  // APP DE SERVIDOR (dono, 16/10/2026): *"Eu quero eles funcionais."* Um projeto
+  // importado pode ser site estático OU um processo que precisa ficar RODANDO
+  // (`node server.js`, com login/API/banco). Estas duas colunas guardam o
+  // veredito do runner — `app_tipo` = 'estatico' | 'servidor' e `app_porta` = a
+  // porta que o app de servidor atende. Sem elas, o endereço do cliente mostraria
+  // "isto é código" para um app que está de pé.
+  garantirColuna(db, "arquiteto_projetos", "app_tipo", "TEXT");
+  garantirColuna(db, "arquiteto_projetos", "app_porta", "INTEGER");
   db.exec(
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_arquiteto_projetos_publicar ON arquiteto_projetos(publicar_token)",
   );
@@ -278,6 +309,16 @@ function getDb() {
   // dado do projeto, e um segundo lugar seria um segundo caminho para o mesmo
   // dado. Linha antiga com NULL = lista vazia; nada de backfill inventado.
   garantirColuna(db, "arquiteto_projetos", "integracoes", "TEXT");
+  // ORIGEM DO PROJETO (dono, 15/10/2026 — "de fora como git e server coloca um
+  // limite por plano"). De ONDE este projeto veio:
+  //   NULL / ausente  → criado AQUI dentro (não conta contra o teto de externos)
+  //   'git'           → trazido de um repositório
+  //   'servidor'      → trazido do servidor do cliente
+  // É esta coluna que separa "quantos quiser, até bater o espaço" (interno) de
+  // "limite por plano" (externo). Aditiva e nullable — projeto antigo não muda.
+  // Sem backfill inventado: o que já existe fica como interno, que é o lado
+  // PERMISSIVO (nunca bloqueia alguém por um dado que a gente não tinha).
+  garantirColuna(db, "arquiteto_projetos", "origem", "TEXT");
   return db;
 }
 
@@ -514,7 +555,7 @@ export function obterProjeto(userId: number, projetoId: string): ProjetoCompleto
   const db = getDb();
   const projeto = db
     .prepare(
-      `SELECT id, titulo, criado_em, atualizado_em, pasta_id, tokens_json, publicar_token, publicado_em
+      `SELECT id, titulo, criado_em, atualizado_em, pasta_id, slug, tokens_json, publicar_token, publicado_em, app_tipo, app_porta
        FROM arquiteto_projetos WHERE id = ? AND user_id = ?`,
     )
     .get(projetoId, userId) as (ProjetoResumo & { tokens_json: string | null }) | undefined;
@@ -530,6 +571,29 @@ export function obterProjeto(userId: number, projetoId: string): ProjetoCompleto
     .all(projetoId) as ArquivoProjeto[];
   db.close();
   return comoCompleto(projeto, arquivos);
+}
+
+/**
+ * ANOTA O VEREDITO DO RUNNER no projeto: `estatico` ou `servidor` (+ porta).
+ *
+ * Por que existe (dono, 16/10/2026): depois de instalar e construir, é o RUNNER
+ * quem sabe o que o projeto é — e quem serve o endereço público precisa saber
+ * antes de responder. Sem esta anotação, o endereço de um app de servidor (com
+ * login e API) responderia "isto é código" com o app de pé ao lado.
+ *
+ * Escopo SEMPRE pelo `user_id`: anotar o app de outra conta é impossível aqui.
+ */
+export function anotarAppDoProjeto(
+  userId: number,
+  projetoId: string,
+  tipo: "estatico" | "servidor" | null,
+  porta: number | null = null,
+): void {
+  const db = getDb();
+  db.prepare(
+    "UPDATE arquiteto_projetos SET app_tipo = ?, app_porta = ? WHERE id = ? AND user_id = ?",
+  ).run(tipo, tipo === "servidor" ? porta : null, projetoId, userId);
+  db.close();
 }
 
 /** O ÚLTIMO projeto da conta (o mais recentemente atualizado). null se não há. */
@@ -548,17 +612,132 @@ export function ultimoProjeto(userId: number): ProjetoCompleto | null {
 }
 
 /** Cria um projeto vazio (sem arquivos) com o título dado ou o padrão. */
-export function criarProjeto(userId: number, titulo?: string): ProjetoResumo {
+export function criarProjeto(userId: number, titulo?: string, origem?: string): ProjetoResumo {
   const db = getDb();
   const agora = new Date().toISOString();
   const id = `proj_${randomUUID()}`;
   const tit = (titulo || "").trim() || TITULO_PADRAO;
   db.prepare(
-    `INSERT INTO arquiteto_projetos (id, user_id, titulo, criado_em, atualizado_em)
-     VALUES (?, ?, ?, ?, ?)`,
-  ).run(id, userId, tit, agora, agora);
+    `INSERT INTO arquiteto_projetos (id, user_id, titulo, criado_em, atualizado_em, origem)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(id, userId, tit, agora, agora, origem || null);
   db.close();
   return { id, titulo: tit, criado_em: agora, atualizado_em: agora };
+}
+
+/** Origens que CONTAM contra o teto de projetos externos do plano. */
+export const ORIGENS_DE_FORA = ["git", "servidor"] as const;
+
+/** Quantos projetos desta conta vieram de FORA (git/servidor). */
+export function contarProjetosDeFora(userId: number): number {
+  const db = getDb();
+  const linha = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM arquiteto_projetos
+        WHERE user_id = ? AND origem IN ('git','servidor')`,
+    )
+    .get(userId) as { n?: number } | undefined;
+  db.close();
+  return Number(linha?.n || 0);
+}
+
+/**
+ * Quantos apps de SERVIDOR desta conta estão publicados (e portanto rodando).
+ *
+ * Só conta o que roda de verdade: `app_tipo = 'servidor'` e publicado. App
+ * estático não ocupa container — ele é servido pela rota, e limitá-lo seria
+ * punir quem não consome nada.
+ */
+export function contarAppsNoAr(userId: number): number {
+  const db = getDb();
+  const linha = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM arquiteto_projetos
+        WHERE user_id = ? AND app_tipo = 'servidor' AND publicado_em IS NOT NULL`,
+    )
+    .get(userId) as { n?: number } | undefined;
+  db.close();
+  return Number(linha?.n || 0);
+}
+
+/**
+ * O TETO DE APPS NO AR POR CONTA (`acessos_simultaneos` do plano).
+ *
+ * Medido (19/10/2026): esse limite existia no código e NÃO era aplicado em lugar
+ * nenhum — 50 apps publicados seriam 50 containers `Up` 24/7, cada um com teto de
+ * 6 GB. Não estourava no primeiro dia; estourava no primeiro cliente animado.
+ *
+ * O `projetoId` de quem está publicando AGORA não entra na conta: se ele já é um
+ * app publicado, republicar não pode ser bloqueado por ele mesmo.
+ */
+export async function podePublicarMaisUmApp(
+  userId: number,
+  projetoId: string,
+): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const limites = await limitesDoUsuario(userId);
+  const teto = limites.acessosSimultaneos;
+  // `null` = o plano não declara a chave: NÃO limita (regra de continuidade —
+  // plano sem número não pode virar bloqueio de quem já estava trabalhando).
+  if (teto === null) return { ok: true };
+
+  const db = getDb();
+  const linha = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM arquiteto_projetos
+        WHERE user_id = ? AND id <> ? AND app_tipo = 'servidor'
+          AND publicado_em IS NOT NULL`,
+    )
+    .get(userId, projetoId) as { n?: number } | undefined;
+  db.close();
+
+  const outros = Number(linha?.n || 0);
+  if (outros >= teto) {
+    return {
+      ok: false,
+      erro:
+        `seu plano${limites.plano ? ` ${limites.plano}` : ""} mantém ${teto} ` +
+        `${teto === 1 ? "app" : "apps"} rodando ao mesmo tempo e você já tem ${outros}. ` +
+        "Despublique um deles para abrir vaga — o projeto e o código continuam " +
+        "salvos, só o processo é desligado.",
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * A PORTEIRA dos projetos de fora (dono, 15/10/2026): "de fora como git e server
+ * coloca um limite por plano. No Pro comeca por 3 projetos."
+ *
+ * O teto vem do PLANO (`projetos_externos`); `null` = sem teto. Projeto criado
+ * AQUI dentro não passa por aqui — para ele vale só o espaço.
+ *
+ * `jaExiste` serve para ATUALIZAR um projeto de fora que já é da conta: nesse
+ * caso ele não é um projeto NOVO e não consome outra vaga (senão reimportar o
+ * mesmo repositório travaria quem está exatamente no teto).
+ */
+export async function podeTrazerProjetoDeFora(
+  userId: number,
+  jaExiste = false,
+): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const limites = await limitesDoUsuario(userId);
+  const teto = limites.projetosExternos;
+  // `null` = o plano não declara essa chave (ou não deu para ler): NÃO limita.
+  // O limite passa a valer no instante em que o dono cadastrar o número no plano.
+  if (teto === null) return { ok: true };
+  if (jaExiste) return { ok: true };
+
+  const usados = contarProjetosDeFora(userId);
+  if (usados >= teto) {
+    return {
+      ok: false,
+      erro:
+        `seu plano${limites.plano ? ` ${limites.plano}` : ""} permite ${teto} ` +
+        `${teto === 1 ? "projeto" : "projetos"} trazido${teto === 1 ? "" : "s"} de fora ` +
+        `(git/servidor) e você já usa ${usados}. Projetos criados aqui dentro não têm ` +
+        `esse limite — apague um projeto de fora, ou fale com a gente para aumentar o plano.`,
+    };
+  }
+  return { ok: true };
 }
 
 /**
@@ -828,7 +1007,21 @@ export function renomearProjeto(
   return obterProjeto(userId, projetoId);
 }
 
-/** Apaga o projeto (e seus arquivos E SUA HISTÓRIA) — só se for da pessoa. */
+/** Apaga o projeto (e seus arquivos E SUA HISTÓRIA) — só se for da pessoa.
+ *
+ * APAGA TAMBÉM O WORKSPACE NA DISCO (dono, 16/10/2026).
+ *
+ * DEFEITO MEDIDO: apagava só o banco. A pasta em
+ * `data/arquiteto-workspaces/<user>/<projeto>/` ficava para sempre — 6 pastas
+ * órfãs, **56,6 MB** na conta do dono, de projetos que não existem mais. E como a
+ * cota da conta é medida NA DISCO (`tamanhoDoWorkspace`), quem apagava um projeto
+ * continuava pagando o espaço dele para sempre. Pior: o código do cliente
+ * continuava no servidor depois de ele pedir para apagar.
+ *
+ * A remoção é depois do banco (o banco é a verdade) e NÃO derruba a operação:
+ * se a pasta não sair, o projeto já não existe e sobra só o espaço — falhar aqui
+ * seria dizer "não apaguei" com o registro já apagado.
+ */
 export function apagarProjeto(userId: number, projetoId: string): boolean {
   const db = getDb();
   if (!ehDonoDoProjeto(db, userId, projetoId)) {
@@ -840,7 +1033,9 @@ export function apagarProjeto(userId: number, projetoId: string): boolean {
   db.prepare("DELETE FROM arquiteto_versoes WHERE projeto_id = ?").run(projetoId);
   const r = db.prepare("DELETE FROM arquiteto_projetos WHERE id = ?").run(projetoId);
   db.close();
-  return Number((r as { changes?: number }).changes ?? 0) > 0;
+  const apagou = Number((r as { changes?: number }).changes ?? 0) > 0;
+  if (apagou) apagarWorkspace(userId, projetoId);
+  return apagou;
 }
 
 /* ── ASSETS do projeto (imagens como BLOB, escopadas à conta) ────────────────
@@ -1211,7 +1406,7 @@ export function obterProjetoPublicoPorSlug(
   const db = getDb();
   const linha = db
     .prepare(
-      `SELECT id, user_id, titulo, criado_em, atualizado_em, tokens_json
+      `SELECT id, user_id, titulo, criado_em, atualizado_em, tokens_json, app_tipo, app_porta
        FROM arquiteto_projetos
        WHERE lower(slug) = ? AND slug IS NOT NULL AND publicado_em IS NOT NULL`,
     )
@@ -1558,7 +1753,7 @@ export function obterProjetoPublicoPorDominio(
   const db = getDb();
   const linha = db
     .prepare(
-      `SELECT id, user_id, titulo, criado_em, atualizado_em, tokens_json
+      `SELECT id, user_id, titulo, criado_em, atualizado_em, tokens_json, app_tipo, app_porta
        FROM arquiteto_projetos
        WHERE lower(dominio) = ? AND dominio IS NOT NULL AND publicado_em IS NOT NULL`,
     )

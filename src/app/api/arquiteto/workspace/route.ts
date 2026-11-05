@@ -7,15 +7,18 @@ import { integracoesDaPessoa } from "@/lib/integracoes";
 import { TIPO_SERVIDOR, lerAlvo, listarRecursivo, lerArquivo } from "@/lib/servidor-cliente";
 import {
   importarDoGit,
+  importarDoGitComToken,
   importarDoServidor,
   listarWorkspace,
   lerArquivoDoWorkspace,
   escreverArquivoDoWorkspace,
   tamanhoDoWorkspace,
-  validarRepo,
+  alvoDoEndereco,
   TETO,
 } from "@/lib/arquiteto-workspace";
-import { salvarProjeto, criarProjeto, obterProjeto } from "@/lib/arquiteto-projetos";
+import { salvarProjeto, criarProjeto, obterProjeto, podeTrazerProjetoDeFora, apagarProjeto } from "@/lib/arquiteto-projetos";
+import { tokenGithubDaConta, listarReposDoDono } from "@/lib/github-conta";
+import { publicarEConstruir } from "@/lib/arquiteto-publicar-rapido";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -120,6 +123,13 @@ export async function POST(req: NextRequest) {
     servidor?: { caminho?: string };
     projetoId?: string | null;
     titulo?: string | null;
+    /**
+     * PUBLICAR ASSIM QUE IMPORTAR (dono, 19/10/2026: "acho legal com essa
+     * escolha"). Marcado, o projeto vai ao ar sozinho: publica, constrói e o
+     * runner encadeia o `subir`. Desmarcado, o projeto só é importado — quem
+     * quer editar antes de expor tem esse direito.
+     */
+    publicar?: boolean;
   } = {};
   try {
     corpo = (await req.json()) as typeof corpo;
@@ -169,10 +179,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (!projetoId) {
-      const novo = criarProjeto(g.conta.id, (corpo.titulo || "").trim() || base.split("/").filter(Boolean).pop() || "do servidor");
+      // Teto de projetos DE FORA do plano (dono, 15/10/2026). Só barra projeto
+      // NOVO: trazer para um projeto que já é da conta não consome outra vaga.
+      const pode = await podeTrazerProjetoDeFora(g.conta.id, false);
+      if (!pode.ok) return NextResponse.json({ erro: pode.erro }, { status: 403 });
+      const novo = criarProjeto(g.conta.id, (corpo.titulo || "").trim() || base.split("/").filter(Boolean).pop() || "do servidor", "servidor");
       projetoId = novo.id;
     }
-    const imp = importarDoServidor(g.conta.id, projetoId, trazidos, `servidor:${base}`);
+    const imp = await importarDoServidor(g.conta.id, projetoId, trazidos, `servidor:${base}`);
     if (!imp.ok || !imp.arquivos) {
       return NextResponse.json({ erro: imp.erro || "não consegui trazer", relatorio: imp.relatorio }, { status: 422 });
     }
@@ -185,28 +199,83 @@ export async function POST(req: NextRequest) {
     if (!salvoSrv) {
       return NextResponse.json({ erro: "trouxe, mas não consegui registrar o projeto" }, { status: 500 });
     }
+    const publicacaoSrv = corpo.publicar === true
+      ? await publicarEConstruir(g.conta.id, salvoSrv.id)
+      : null;
+
     return NextResponse.json({
       ok: true,
       origem: "servidor",
       projeto: { id: salvoSrv.id, titulo: salvoSrv.titulo },
       workspace: imp.workspace,
       relatorio: imp.relatorio,
+      publicacao: publicacaoSrv,
     });
   }
 
   // ═══ CAMINHO B: DO GITHUB ════════════════════════════════════════════════
   const endereco = (corpo.endereco || "").trim();
-  const v = validarRepo(endereco);
-  if (!v.ok) return NextResponse.json({ erro: v.erro }, { status: 400 });
+  const alvo = alvoDoEndereco(endereco);
+
+  // CONTA (organização ou usuário), não repositório (dono, 16/10/2026): a resposta
+  // certa NÃO é erro — é a LISTA dos repositórios dela, para escolher. Antes, a URL
+  // de uma organização virava o slug `orgs/<org>` e a pessoa recebia *"não achei o
+  // repositório 'orgs/Mesh2Motion'"* — um erro que não faz sentido para quem colou
+  // a URL certa. Aqui a lista vai junto da resposta (mesmo status 200) e o diálogo
+  // mostra os repositórios para clicar.
+  if (alvo.tipo === "lista") {
+    const tokenLista = await tokenGithubDaConta(g.conta.id);
+    const l = await listarReposDoDono(alvo.dono, tokenLista);
+    return NextResponse.json(
+      {
+        ok: false,
+        escolha: {
+          dono: alvo.dono,
+          host: alvo.host,
+          tem_token: !!tokenLista,
+          repos: l.ok ? l.repos : [],
+          erro: l.ok ? "" : l.erro,
+        },
+      },
+      { status: 200 },
+    );
+  }
+  if (alvo.tipo === "invalido") {
+    return NextResponse.json({ erro: alvo.erro }, { status: 400 });
+  }
+  const v = { ok: true as const, url: alvo.url, slug: alvo.slug };
 
   // Sem projeto, nasce um: o repositório vira o projeto, com o nome dele.
+  // O teto de projetos DE FORA do plano vale aqui (só para projeto NOVO).
+  let criadoAgora = false;
   if (!projetoId) {
-    const novo = criarProjeto(g.conta.id, (corpo.titulo || "").trim() || v.slug);
+    const pode = await podeTrazerProjetoDeFora(g.conta.id, false);
+    if (!pode.ok) return NextResponse.json({ erro: pode.erro }, { status: 403 });
+    const novo = criarProjeto(g.conta.id, (corpo.titulo || "").trim() || v.slug, "git");
     projetoId = novo.id;
+    criadoAgora = true;
   }
 
-  const r = await importarDoGit(g.conta.id, projetoId, endereco);
+  // PELO TOKEN DA CONTA quando há GitHub conectado — a MESMA regra do chat
+  // (dono, 16/10/2026). Antes esta rota chamava `importarDoGit` direto, e isso
+  // tinha dois efeitos medidos: (1) a tela NÃO alcançava repositório privado nem
+  // com o GitHub conectado, porque o clone anônimo não enxerga o que é privado;
+  // (2) trazia o repositório CRU — `.git/` inteiro e binários — 2.479 arquivos e
+  // 64,4 MB no teste do flowise, contra 2.000 arquivos de TEXTO (13,7 MB) do
+  // caminho do chat. Duas implementações da mesma coisa divergem; aqui elas
+  // viram uma só: com conexão, o token; sem, o clone anônimo (público).
+  const tokenGit = await tokenGithubDaConta(g.conta.id);
+  const r = tokenGit
+    ? await importarDoGitComToken(g.conta.id, projetoId, endereco, tokenGit)
+    : await importarDoGit(g.conta.id, projetoId, endereco);
   if (!r.ok || !r.arquivos) {
+    // NÃO DEIXA PROJETO VAZIO (dono, 16/10/2026). O projeto nasce ANTES do import
+    // (o workspace precisa do id) — sem isto, uma falha deixava um projeto VAZIO na
+    // conta. Medido: `Mesh2Motion/nao-existe` e `gitlab-org/nao-existe-mesmo`
+    // ficaram para trás depois de um endereço que não existe. A ferramenta do CHAT
+    // já apagava o projeto nesse caso; a tela não. É a MESMA regra — se o projeto
+    // foi criado agora e o import falhou, ele não deve existir.
+    if (criadoAgora && projetoId) apagarProjeto(g.conta.id, projetoId);
     return NextResponse.json({ erro: r.erro || "não consegui importar", relatorio: r.relatorio }, { status: 422 });
   }
 
@@ -217,12 +286,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ erro: "importei, mas não consegui registrar o projeto" }, { status: 500 });
   }
 
+  // PUBLICAR JUNTO, QUANDO A PESSOA PEDIU (dono, 19/10/2026: "acho legal com
+  // essa escolha"). A escolha é dela e vem no corpo do pedido — importar sem
+  // publicar continua valendo para quem quer editar antes de expor.
+  const publicacao = corpo.publicar === true
+    ? await publicarEConstruir(g.conta.id, salvo.id)
+    : null;
+
   return NextResponse.json({
     ok: true,
     origem: "git",
     projeto: { id: salvo.id, titulo: salvo.titulo },
     workspace: r.workspace,
     relatorio: r.relatorio,
+    publicacao,
   });
 }
 
@@ -251,7 +328,7 @@ export async function PUT(req: NextRequest) {
   const atual = obterProjeto(g.conta.id, projetoId);
   if (!atual) return NextResponse.json({ erro: "projeto não encontrado" }, { status: 404 });
 
-  const w = escreverArquivoDoWorkspace(g.conta.id, projetoId, arquivo, corpo.conteudo ?? "");
+  const w = await escreverArquivoDoWorkspace(g.conta.id, projetoId, arquivo, corpo.conteudo ?? "");
   if (!w.ok) return NextResponse.json({ erro: w.erro }, { status: 422 });
 
   // O disco e a tela andam juntos: grava o arquivo e refaz o projeto com o novo

@@ -49,6 +49,11 @@ export const TIPO_DA_LINHA: Record<string, string> = {
   [CRM_ID]: "crm",
   telegram: "telegram",
   whatsapp: "whatsapp",
+  // O servidor SSH mora na tabela `integracoes` (tipo `servidor`), não no cofre
+  // do `platform_config` — por isso ele precisa do mapa para o cartão saber que
+  // está conectado. Sem esta linha, quem tem servidor plugado veria "não
+  // conectado" na grade, que é a mesma mentira ao contrário.
+  servidor: "servidor",
 };
 
 /* a LINHA desta conta para um item: a DA PESSOA primeiro, a da EMPRESA como

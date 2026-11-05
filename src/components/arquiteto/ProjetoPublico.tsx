@@ -1,5 +1,6 @@
 import { integracoesDoProjeto, listarAssets, type ArquivoProjeto, type ProjetoCompleto } from "@/lib/arquiteto-projetos";
 import { montarPrevia, type Asset } from "@/lib/arquiteto-preview";
+import { telaPadrao, marcasDoProjeto } from "@/lib/arquiteto-tela-padrao";
 import { assinarAsset } from "@/lib/arquiteto-asset-token";
 import { sufixoDoAsset } from "@/lib/arquiteto-asset-tipos";
 import { emitirTokenPonte } from "@/lib/ponte-token";
@@ -63,7 +64,14 @@ export function ProjetoPublico({
     >
       <iframe
         title={projeto.titulo}
-        srcDoc={previa.html}
+        srcDoc={
+          previa.html ||
+          telaPadrao({
+            titulo: projeto.titulo,
+            arquivos: lista.length,
+            marcas: marcasDoProjeto(lista),
+          })
+        }
         sandbox="allow-scripts"
         data-publico-preview
         style={{ display: "block", width: "100%", height: "100%", border: "0" }}

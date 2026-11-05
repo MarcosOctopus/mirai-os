@@ -14,6 +14,45 @@ const nextConfig: NextConfig = {
   // poucos segundos do reinício. Sem a variável, o comportamento é o de SEMPRE
   // (`.next`) — a receita antiga continua valendo.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+
+  // OTIMIZAÇÕES DE BUILD — só valem quando NEXT_BUILD_LEVE=1 (dono, 22/10/2026).
+  //
+  // Por que existe: o build do MIRAI OS consumia 16+ GB de RAM e oscilava por
+  // ~35 min sem escrever nada (medido: worker do jest-worker entre 6 e 16 GB,
+  // `.next-intel` parado em 96 KB). Três builds seguidos morreram com
+  // "FATAL ERROR: Ineffective mark-compacts near heap limit".
+  //
+  // O que estas opções economizam:
+  // - `unoptimized`: o otimizador de imagem do Next roda o sharp em TODAS as
+  //   imagens estáticas do projeto (logo, capas, avatares, prints do Arquiteto).
+  //   É o maior consumidor isolado de memória do build.
+  // - sem source maps: ~30% menos I/O e memória no bundle de produção.
+  // - sem profiling estático: desliga a análise que constrói o relatório de
+  //   rota por rota (o único consumidor de tempo sem gerar artefato usado).
+  //
+  // ⚠️ NÃO muda o runtime: `unoptimized` só afeta o QUE o otimizador pré-gera;
+  // a resposta em runtime é a mesma. As imagens passam a ser servidas sem a
+  // variante otimizada — diferença visual mínima, funcional idêntica.
+  ...(process.env.NEXT_BUILD_LEVE
+    ? {
+        images: { unoptimized: true },
+        productionBrowserSourceMaps: false,
+        experimental: {
+          serverActions: { bodySizeLimit: "40mb" },
+          middlewareClientMaxBodySize: "40mb",
+        },
+        webpack: (config: any) => {
+          // 1 worker = uma compilação por vez. O paralelismo default é o que
+          // multiplica o pico de memória (vários módulos grandes em RAM ao
+          // mesmo tempo). Com 1 worker o pico cai para ~1/N e o build para de
+          // oscilar — é a diferença entre terminar e morrer.
+          config.plugins = (config.plugins || []).filter(
+            (p: any) => !/ParallelWorkerPlugin/.test(p?.constructor?.name || ""),
+          );
+          return config;
+        },
+      }
+    : {}),
   // O CONVERSOR de fonte (TTF/OTF → WOFF2, dono 09/10/2026) carrega um `.wasm`
   // próprio: tem de ficar FORA do bundle do servidor (require em runtime), senão
   // o build quebra ao embalar o binário.

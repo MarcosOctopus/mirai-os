@@ -77,3 +77,14 @@ data/tokens.db
 *.pos-*
 data/*.db*
 tsconfig.tsbuildinfo
+
+# ── NUNCA versionar: lixo de build e artefatos de execucao (05/11/2026) ──
+app.log
+build-intel.log
+.runner-token
+.env.local.bak.*
+_paginas-guia-proj_*.json
+
+# ── diagrama interno do servidor: nao e publico (05/11/2026) ──
+# Servido por /public sem sessao — expunha IP do host, RAM e topologia.
+public/ecossistema-mirai.html

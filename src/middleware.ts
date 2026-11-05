@@ -45,6 +45,12 @@ const PUBLIC_PATHS = [
   // volta. Sem sessão de navegador: quem autoriza é o BILHETE assinado (cookie
   // httpOnly, `github-oauth.ts`) e o token do domínio, conferidos DENTRO das rotas.
   '/api/oauth/github',
+  // CONSENTIMENTO DO CANVA (dono, 19/10/2026 — "cada pessoa na própria conta"):
+  // mesmo desenho do GitHub. O cliente sai do nosso site, autoriza no Canva e
+  // volta; quem autoriza é o BILHETE assinado (cookie httpOnly, `canva-oauth.ts`)
+  // conferido DENTRO da rota — nunca a sessão. Sem isto o callback toma 401 e a
+  // conexão nunca se completa (medido 19/10/2026: volta respondia 401).
+  '/api/oauth/canva',
   '/login',
   '/register',
   '/limite', // tela de teto do plano: precisa aparecer de qualquer jeito
@@ -168,7 +174,21 @@ export async function middleware(request: NextRequest) {
   // fonte/imagem virava `/d/<slug>/api/...` e o site publicado ficava sem imagem
   // e sem fonte, em silêncio.
   const projetoDe = slugDoHost(request.headers.get('host'));
-  if (projetoDe && !isApiRoute) {
+  // AS ROTAS DE API DO PRÓPRIO APP (medido, 19/10/2026: TELA BRANCA).
+  //
+  // O `!isApiRoute` acima foi posto para o site HTML precisar das rotas do
+  // Arquiteto (bytes de asset com token assinado) no mesmo domínio. O efeito
+  // colateral só apareceu quando o projeto virou um APP DE SERVIDOR de verdade:
+  // o Flowise publica `/api/v1/ping`, `/api/v1/settings` — e essas chamadas NÃO
+  // eram reescritas para `/d/<slug>`, caíam na regra "`/api/*` fechado por
+  // padrão" e tomavam **401**. O HTML e o JS carregavam (200), a API não: a
+  // página abria e ficava BRANCA, sem um erro visível.
+  //
+  // A distinção certa não é "é API?", é "API DE QUEM?":
+  //   • `/api/arquiteto/...` é do Arquiteto (assets assinados do site) → fica;
+  //   • qualquer outra (`/api/v1/...`, a API do cliente) → vai para o app dele.
+  const ehApiDoArquiteto = pathname.startsWith('/api/arquiteto/');
+  if (projetoDe && (!isApiRoute || !ehApiDoArquiteto)) {
     const url = request.nextUrl.clone();
     url.pathname = `/d/${projetoDe}${pathname === '/' ? '' : pathname}`;
     return NextResponse.rewrite(url);

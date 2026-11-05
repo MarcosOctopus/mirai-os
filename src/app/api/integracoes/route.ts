@@ -85,6 +85,48 @@ function comStatus(i: Integracao): ReturnType<typeof semSegredo> & { status: "co
   };
 }
 
+/**
+ * O GitHub desta conta RESPONDE? — e o que fazer quando não responde.
+ *
+ * O selo "conectado" olhava só a PRESENÇA do blob no cofre. Medido em
+ * 16/10/2026: a tela dizia "conectado" com o token em 401 `Bad credentials`, e a
+ * pessoa só descobria ao pedir algo e receber "reconecte". Aqui a conexão é
+ * conferida de verdade:
+ *
+ *  - responde → nada muda;
+ *  - 401 SEM `refresh_token` → está morta e não há como renovar: é ESQUECIDA, e
+ *    o botão de conectar volta a aparecer. Manter o blob só serviria para a tela
+ *    continuar afirmando o que não é verdade;
+ *  - qualquer outra coisa (rede, 5xx) → NÃO mexe. Falha nossa não apaga a
+ *    credencial de ninguém.
+ */
+async function conferirGithubDaConta(userId: number): Promise<void> {
+  try {
+    const { githubDaConta, tokenGithubDaConta, esquecerGithubDaConta } = await import("@/lib/github-conta");
+    const c = githubDaConta(userId);
+    if (!c) return;
+    // Renova se venceu; se não houver o que renovar, devolve o token atual.
+    const token = await tokenGithubDaConta(userId);
+    if (!token) return;
+    const { usuarioDoToken } = await import("@/lib/github-api");
+    // Teto curto: conferir integração não pode segurar a tela se o GitHub
+    // estiver lento. Sem resposta em 6s, NÃO mexe em nada (falha nossa ≠
+    // credencial inválida).
+    const u = await Promise.race([
+      usuarioDoToken(token),
+      new Promise<{ ok: false; erro: string }>((r) =>
+        setTimeout(() => r({ ok: false, erro: "tempo esgotado ao conferir" }), 6000),
+      ),
+    ]);
+    if (u.ok) return;
+    // Só a recusa EXPLÍCITA derruba a conexão — e só quando não há renovação.
+    const morta = /401|Bad credentials|não está mais válida/i.test(u.erro || "");
+    if (morta && !c.refreshCifrado) esquecerGithubDaConta(userId);
+  } catch {
+    /* conferir integração não pode derrubar a lista de integrações */
+  }
+}
+
 export async function GET(req: NextRequest) {
   const r = await exigirConta(req);
   if (!r.ok) return r.resposta;
@@ -101,6 +143,17 @@ export async function GET(req: NextRequest) {
     consumirVinculosPendentes(conta.id, conta.email);
   } catch {
     /* integração que tropeça não derruba a lista de integrações */
+  }
+
+  // Conferir ANTES de montar a lista: é o que impede o selo de mentir.
+  await conferirGithubDaConta(conta.id);
+  // Canva (19/10/2026): conexão por PESSOA, token de 4h com refresh rotativo —
+  // sem esta conferência a tela diria "conectado" com o token morto.
+  try {
+    const { conferirCanvaDaConta } = await import("@/lib/canva-conta");
+    await conferirCanvaDaConta(conta.id);
+  } catch {
+    /* conferir integração não pode derrubar a lista */
   }
 
   const minhas = integracoesDaPessoa(conta.id).map(comStatus);

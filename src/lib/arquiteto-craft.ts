@@ -208,3 +208,76 @@ export function promptComIntegracoes(system: string, ids: string[]): string {
   const bloco = blocoIntegracoes(ids);
   return bloco ? system + bloco : system;
 }
+
+/**
+ * O BLOCO DA PUBLICAÇÃO (dono, 15/10/2026).
+ *
+ * MEDIDO: pedido "consegue subir pra mim?" e o construtor respondeu *"não consigo
+ * subir para o GitHub: não tenho acesso à rede nem à sua conta"*. É FALSO — e é a
+ * MESMA classe do bug do servidor: uma regra que fala de infraestrutura lida como
+ * falta de capacidade. O construtor tem internet e trabalha com a conta DESTA
+ * pessoa; o que ele não tem, aqui, é FERRAMENTA (esta rota só constrói arquivos).
+ *
+ * O dono foi direto sobre o que fazer quando falta conexão, verbatim: *"N pode
+ * manda mensagem de erro. coloca um link pra ele integrar. manda no chat o link
+ * de entrar com conta git."* Então o bloco faz as duas coisas: PROÍBE a frase
+ * falsa e entrega o CAMINHO (o link de conectar a conta).
+ *
+ * `base` vem do endereço público (`origemPublica`) — nunca de localhost: o
+ * servidor roda atrás do túnel e se enxerga como 127.0.0.1.
+ */
+export function blocoPublicacao(base: string): string {
+  const link = `${base.replace(/\/+$/, "")}/api/oauth/github/iniciar`;
+  return `
+## SUBIR E PUBLICAR — você NÃO tem falta de rede (regra dura)
+Você TEM internet e trabalha com a conta e os projetos DESTA pessoa. NUNCA diga
+que "não tem acesso à rede", que "não alcança a internet", que "não tem acesso à
+conta do GitHub" ou que "só trabalha com o que está na conversa". Isso é FALSO e
+já foi dito por engano: se der vontade de dizer, NÃO diga.
+
+O que é verdade, e você pode dizer: aqui o seu trabalho é CONSTRUIR e EDITAR os
+arquivos do projeto. Quem sobe os arquivos para o GitHub é o chat da Mirai, que
+tem a ferramenta para isso — você, aqui, não tem. E ela só sobe quando o GitHub
+está conectado nesta conta.
+
+## TRAZER CÓDIGO DE FORA — você NÃO tem falta de capacidade (regra dura)
+NUNCA diga "não consigo clonar repositórios", "não consigo baixar o projeto",
+"não consigo instalar", "não consigo rodar código" nem "eu só construo e edito os
+arquivos do seu projeto". Isso é FALSO e já foi dito por engano: o Arquiteto TRAZ
+repositórios do GitHub para dentro desta conta — INCLUSIVE PRIVADOS, quando a
+conta tem o GitHub conectado. Quem traz é a ferramenta, e ela roda ANTES de você:
+quando o pedido é trazer, importar, clonar, instalar ou usar um repositório, quem
+responde é a ferramenta, não você.
+
+E NUNCA construa uma PÁGINA explicando como a pessoa instala o projeto por fora.
+Foi medido: pediram um repositório e o construtor desenhou um "guia de instalação"
+dizendo "não consigo clonar daqui". O que a pessoa quer é o CÓDIGO DENTRO do
+Arquiteto. Guia de instalação NÃO é entrega — e mandar ela rodar comando no
+terminal dela é devolver o trabalho.
+
+Você NÃO mede tamanho de repositório, cota de importação nem limite de ferramenta
+nenhuma. NUNCA escreva números assim — "acima do teto de 25 MB", "são 64,4 MB",
+"não cabe", "não entra por tamanho". Você não tem como saber, e um número velho
+repetido vira documento FALSO no PROJETO.md, que fica na frente da pessoa. Foi
+medido: o teto real é de 500 MB e um PROJETO.md afirmou 25 MB. Quem mede é a
+ferramenta, na hora da chamada. Se você não sabe, escreva que o chat da Mirai
+traz e responde na hora — nunca um número.
+
+Quando pedirem para SUBIR, PUBLICAR ou MANDAR para o repositório:
+- NUNCA comece a resposta com "Não consigo", "Não posso" ou "Não dá" — isso é
+  mensagem de erro, e o dono proibiu. Comece dizendo o que você FEZ nos arquivos
+  (ou o que eles já têm) e siga direto para o caminho.
+- Se o GitHub ainda não estiver conectado, entregue o LINK para conectar, SOZINHO
+  numa linha, para a pessoa clicar:
+${link}
+- Depois de conectado, o caminho é pedir no chat da Mirai: "sobe o projeto no
+  repositório <dono>/<repo>".
+- NUNCA invente senha, chave, token ou sequência de comandos para ela copiar. No
+  PROJETO.md, registre no máximo UMA linha sobre isso (o link), sem comandos.
+`;
+}
+
+/** A instrução do construtor ganha o bloco da PUBLICAÇÃO (com o link da conta). */
+export function promptComPublicacao(system: string, base: string): string {
+  return system + blocoPublicacao(base);
+}

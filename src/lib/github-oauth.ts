@@ -157,10 +157,40 @@ export function urlDeAutorizacao(state: string, desafio: string, volta: string):
 
 type RespostaToken = {
   access_token?: string;
+  /**
+   * O GitHub devolve `refresh_token` quando o OAuth App tem **tokens
+   * expiráveis** ligados. Sem guardá-lo, a conexão morre no vencimento e o app
+   * continua dizendo "conectado" — medido em 16/10/2026: dois tokens em 401
+   * `Bad credentials` com a tela afirmando que estavam ligados.
+   */
+  refresh_token?: string;
+  /** Segundos de vida do `access_token`. Ausente = token sem prazo. */
+  expires_in?: number;
   scope?: string;
   error?: string;
   error_description?: string;
 };
+
+/** O que uma troca/renovação devolve: o token e como renová-lo depois. */
+export type TokenTrocado = {
+  token: string;
+  refreshToken: string | null;
+  /** ISO-8601 do vencimento, ou `null` quando o GitHub não declara prazo. */
+  expiraEm: string | null;
+};
+
+/** Traduz a resposta do GitHub para o formato da casa. */
+function comoToken(j: RespostaToken): TokenTrocado {
+  const segundos = Number(j.expires_in);
+  return {
+    token: String(j.access_token),
+    refreshToken: typeof j.refresh_token === "string" && j.refresh_token ? j.refresh_token : null,
+    // Margem de 60s: renovar ANTES de vencer evita o 401 na primeira chamada.
+    expiraEm: Number.isFinite(segundos) && segundos > 0
+      ? new Date(Date.now() + (segundos - 60) * 1000).toISOString()
+      : null,
+  };
+}
 
 /**
  * Troca o `code` pelo `access_token`. Diferente do Cloudflare, o GitHub EXIGE o
@@ -172,7 +202,7 @@ export async function trocarCodigoPorToken(
   codigo: string,
   verificador: string,
   volta: string,
-): Promise<{ ok: true; token: string } | { ok: false; erro: string }> {
+): Promise<({ ok: true } & TokenTrocado) | { ok: false; erro: string }> {
   try {
     const r = await fetch(GH_TOKEN, {
       method: "POST",
@@ -190,8 +220,40 @@ export async function trocarCodigoPorToken(
     if (!r.ok || !j.access_token) {
       return { ok: false, erro: j.error_description || j.error || `GitHub recusou (${r.status}).` };
     }
-    return { ok: true, token: j.access_token };
+    return { ok: true, ...comoToken(j) };
   } catch {
     return { ok: false, erro: "Não consegui falar com o GitHub agora. Tente de novo." };
+  }
+}
+
+/**
+ * RENOVA o token a partir do `refresh_token` (GitHub, `grant_type=refresh_token`).
+ *
+ * Existe porque o `access_token` do GitHub pode ter prazo: sem esta renovação a
+ * conexão da pessoa morre sozinha e o app segue dizendo "conectado" — o defeito
+ * medido em 16/10/2026. Nunca lança: erro volta como recado em PT-BR.
+ */
+export async function renovarTokenGithub(
+  refreshToken: string,
+): Promise<({ ok: true } & TokenTrocado) | { ok: false; erro: string }> {
+  try {
+    const r = await fetch(GH_TOKEN, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        client_id: clientId(),
+        client_secret: clientSecret(),
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const j = (await r.json().catch(() => ({}))) as RespostaToken;
+    if (!r.ok || !j.access_token) {
+      return { ok: false, erro: j.error_description || j.error || `GitHub recusou a renovação (${r.status}).` };
+    }
+    return { ok: true, ...comoToken(j) };
+  } catch {
+    return { ok: false, erro: "Não consegui falar com o GitHub para renovar agora." };
   }
 }

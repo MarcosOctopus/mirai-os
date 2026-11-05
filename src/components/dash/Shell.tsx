@@ -76,6 +76,7 @@ const PRIMARIO: Item[] = [
 // A ORDEM é a que o dono ditou: Clientes e Organizações primeiro, e só então
 // Explorar; Sistema fecha. O corte por `soDono` é o que muda conforme quem entrou.
 const SECUNDARIO: Item[] = [
+  { label: "Intelligence Control", href: "/admin/intelligence", icone: <IconeRobo />, soDono: true, selo: "NOVO" },
   { label: "Clientes", href: "/admin/clientes", icone: <IconeUsuarios />, soDono: true },
   { label: "Organizações", href: "/admin/organizacoes", icone: <IconeOrganizacoes />, soDono: true },
   { label: "Explorar", href: "/explorar", icone: <IconeBusca /> },

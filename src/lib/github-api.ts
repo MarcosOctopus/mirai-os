@@ -13,6 +13,8 @@
 // Cabeçalhos exigidos pela API (docs.github.com/rest): Bearer do token,
 // `Accept: application/vnd.github+json`, a versão fixada `2022-11-28` e um
 // `User-Agent` (o GitHub recusa requisição sem ele).
+import { clientId } from "./github-oauth";
+
 const API = "https://api.github.com";
 const VERSAO_API = "2022-11-28";
 
@@ -51,6 +53,67 @@ function pareceTexto(caminho: string): boolean {
   return EXTENSOES_TEXTO.has(nome.slice(ponto + 1).toLowerCase());
 }
 
+/**
+ * TRADUZ O ERRO DO GITHUB (dono, 15/10/2026: *"já deixe o caminho da liberação do app"*).
+ *
+ * MEDIDO: com o token VIVO e correto, a escrita falhou com **403** — e a causa
+ * não é token nem escopo: é POLÍTICA DA ORGANIZAÇÃO. Resposta crua do GitHub:
+ *   "Although you appear to have the correct authorization credentials, the
+ *    `<ORG>` organization has enabled OAuth App access restrictions, meaning
+ *    that data access to third-parties is limited."
+ *
+ * Sem tradução isso chega como "o GitHub recusou (403)" — que não diz a ninguém
+ * o que fazer. Aqui a resposta passa a TRAZER O CAMINHO, com DOIS endereços:
+ *
+ *  1. a página do PRÓPRIO APP na conta da pessoa — é onde aparece o NOME dele
+ *     (para achar na lista da organização) e onde se PEDE o acesso à org;
+ *  2. a página da ORGANIZAÇÃO onde o admin aprova.
+ *
+ * A ARMADILHA que motivou o segundo link (medido 15/10/2026): o dono aprovou e
+ * continuou bloqueado. O manifesto cria um **GitHub App**, mas o token que
+ * escreve nos repositórios é de um **OAuth App** — são coisas diferentes, com
+ * telas diferentes ("Installed GitHub Apps" × "OAuth app policy"). Aprovar um não
+ * libera o outro. O recado diz isso com todas as letras.
+ */
+function traduzErroGithub(status: number, msg: string): string {
+  const m = msg || "";
+  // A organização vem entre crases na própria mensagem do GitHub.
+  const org = /`([^`]+)`\s+organization has enabled OAuth App access restrictions/i.exec(m)?.[1];
+  if (org) {
+    const id = (() => {
+      try {
+        return clientId();
+      } catch {
+        return "";
+      }
+    })();
+    const paginaDoApp = id
+      ? `\n1) Para ver o NOME deste app e pedir o acesso dele à organização:\n` +
+        `https://github.com/settings/connections/applications/${encodeURIComponent(id)}\n`
+      : "";
+    return (
+      `A organização **${org}** mantém restrição de apps OAuth: ela precisa aprovar este app antes de ` +
+      `qualquer escrita nos repositórios dela. Não é o seu token (ele está válido) nem falta de ` +
+      `permissão sua.\n` +
+      paginaDoApp +
+      `\n2) Quem aprova precisa ser admin da organização:\n` +
+      `https://github.com/organizations/${encodeURIComponent(org)}/settings/oauth_application_policy\n\n` +
+      `Na tela da organização, em "OAuth app policy", ache este app, clique em Review e depois em ` +
+      `Grant access. É o app de **OAuth** (o que você autorizou ao conectar) — não confundir com o ` +
+      `"GitHub App" em "Installed GitHub Apps", que é outro e não libera este acesso.`
+    );
+  }
+  if (status === 401) {
+    return "A conexão do GitHub desta conta não está mais válida — reconecte e eu sigo de onde parei.";
+  }
+  return "";
+}
+
+/** O recado do GitHub: TRADUZIDO quando é um caso conhecido, senão o dele mesmo. */
+function erroDoGithub(status: number, msg: string, padrao: string): string {
+  return traduzErroGithub(status, msg) || msg || padrao;
+}
+
 export type RepositorioResumo = {
   full_name: string;
   private: boolean;
@@ -58,7 +121,6 @@ export type RepositorioResumo = {
   updated_at: string;
   description: string | null;
 };
-
 /** Os repositórios que este token enxerga (mais recentes primeiro). */
 export async function listarRepositorios(
   token: string,
@@ -73,8 +135,8 @@ export async function listarRepositorios(
       | { message?: string }
       | null;
     if (!r.ok || !Array.isArray(j)) {
-      const msg = !Array.isArray(j) && j && typeof j === "object" ? j.message : "";
-      return { ok: false, erro: msg || `O GitHub recusou a lista de repositórios (${r.status}).` };
+      const msg = (!Array.isArray(j) && j && typeof j === "object" ? j.message : "") || "";
+      return { ok: false, erro: erroDoGithub(r.status, msg, `O GitHub recusou a lista de repositórios (${r.status}).`) };
     }
     const repos = (j as Record<string, unknown>[]).map((x) => ({
       full_name: String(x.full_name ?? ""),
@@ -108,7 +170,7 @@ export async function lerArvore(
       message?: string;
     };
     if (!r.ok || !Array.isArray(j.tree)) {
-      return { ok: false, erro: j.message || `O GitHub recusou a árvore do repositório (${r.status}).` };
+      return { ok: false, erro: erroDoGithub(r.status, j.message || "", `O GitHub recusou a árvore do repositório (${r.status}).`) };
     }
     // Só os ARQUIVOS (blobs): a árvore traz também os diretórios (`tree`).
     const caminhos = j.tree
@@ -145,7 +207,7 @@ export async function lerArquivo(
       message?: string;
     };
     if (!r.ok || typeof j.content !== "string") {
-      return { ok: false, erro: j.message || `O GitHub recusou a leitura do arquivo (${r.status}).` };
+      return { ok: false, erro: erroDoGithub(r.status, j.message || "", `O GitHub recusou a leitura do arquivo (${r.status}).`) };
     }
     // O conteúdo vem em base64 (com quebras de linha) — decodifica para texto.
     const conteudo = Buffer.from(j.content.replace(/\n/g, ""), "base64").toString("utf8");
@@ -195,7 +257,7 @@ export async function escreverArquivo(
     });
     const j = (await r.json().catch(() => ({}))) as { content?: { sha?: string }; message?: string };
     if (!r.ok) {
-      return { ok: false, erro: j.message || `O GitHub recusou a escrita do arquivo (${r.status}).` };
+      return { ok: false, erro: erroDoGithub(r.status, j.message || "", `O GitHub recusou a escrita do arquivo (${r.status}).`) };
     }
     return { ok: true, sha: j.content?.sha || "" };
   } catch {
@@ -219,7 +281,7 @@ export async function criarBranch(
     });
     const j = (await r.json().catch(() => ({}))) as { ref?: string; message?: string };
     if (!r.ok) {
-      return { ok: false, erro: j.message || `O GitHub recusou criar a branch (${r.status}).` };
+      return { ok: false, erro: erroDoGithub(r.status, j.message || "", `O GitHub recusou criar a branch (${r.status}).`) };
     }
     return { ok: true, ref: j.ref || `refs/heads/${nome}` };
   } catch {
@@ -249,11 +311,51 @@ export async function abrirPullRequest(
       message?: string;
     };
     if (!r.ok || typeof j.number !== "number") {
-      return { ok: false, erro: j.message || `O GitHub recusou abrir o pull request (${r.status}).` };
+      return { ok: false, erro: erroDoGithub(r.status, j.message || "", `O GitHub recusou abrir o pull request (${r.status}).`) };
     }
     return { ok: true, numero: j.number, url: j.html_url || "" };
   } catch {
     return { ok: false, erro: "Não consegui abrir o pull request no GitHub agora." };
+  }
+}
+
+/**
+ * BAIXA O REPOSITÓRIO COMO TARBALL — UMA requisição (dono, 15/10/2026).
+ *
+ * POR QUE EXISTE: a primeira versão do import pelo token lia a árvore e pedia
+ * arquivo por arquivo. Medido no `flowiseai/flowise`: o pedido passou de 290
+ * segundos e estourou o tempo da conversa — porque são CENTENAS de idas e voltas
+ * à API. O GitHub oferece o repositório inteiro num único `.tar.gz`
+ * (`/repos/{dono}/{repo}/tarball/{ref}`), e o token vale nesse endereço: uma
+ * requisição, repositório privado incluído.
+ *
+ * O freio continua sendo o que FICA guardado (`colherArquivos` + tetos) — não o
+ * tamanho do download. É o download que pode ser generoso; o que fica, não.
+ */
+export async function baixarTarball(
+  token: string,
+  repo: string,
+  ref: string,
+): Promise<{ ok: true; bytes: Buffer } | { ok: false; erro: string }> {
+  try {
+    const r = await fetch(`${API}/repos/${repo}/tarball/${encodeURIComponent(ref)}`, {
+      headers: cabecalhos(token),
+      // O GitHub responde 302 para o `codeload` — seguir é o caminho normal.
+      redirect: "follow",
+      signal: AbortSignal.timeout(180000),
+    });
+    if (!r.ok) {
+      const j = (await r.json().catch(() => ({}))) as { message?: string };
+      return {
+        ok: false,
+        erro: erroDoGithub(r.status, j.message || "", `O GitHub recusou baixar o repositório (${r.status}).`),
+      };
+    }
+    const bytes = Buffer.from(await r.arrayBuffer());
+    if (!bytes.length) return { ok: false, erro: "o GitHub devolveu o repositório vazio" };
+    return { ok: true, bytes };
+  } catch {
+    return { ok: false, erro: "não consegui baixar o repositório do GitHub agora" };
   }
 }
 
@@ -273,5 +375,59 @@ export async function usuarioDoToken(
     return { ok: true, login: j.login };
   } catch {
     return { ok: false, erro: "Não consegui ler o perfil no GitHub agora." };
+  }
+}
+
+/**
+ * O REPOSITÓRIO: existe? qual a branch padrão? (dono, 15/10/2026)
+ *
+ * Por que existe: subir arquivo exige saber em QUE branch escrever. Chutar "main"
+ * funciona em repositório novo e FALHA em repositório que nasceu "master" — e o
+ * erro que o GitHub devolve ("Branch not found") não diz o que fazer. Aqui a
+ * pergunta é feita ao próprio GitHub, uma vez, e a resposta é a verdade do repo.
+ *
+ * 404 = não existe OU o token não alcança (o GitHub não distingue os dois de
+ * propósito). A mensagem diz exatamente isso, sem inventar qual dos dois é.
+ */
+export async function repositorio(
+  token: string,
+  repo: string,
+): Promise<
+  { ok: true; fullName: string; branchPadrao: string; privado: boolean } | { ok: false; erro: string }
+> {
+  const nome = (repo || "").trim().replace(/^\/+|\/+$/g, "");
+  if (!nome || !nome.includes("/")) {
+    return { ok: false, erro: "o repositório precisa ser 'dono/repo'." };
+  }
+  try {
+    const r = await fetch(`${API}/repos/${nome}`, {
+      headers: cabecalhos(token),
+      signal: AbortSignal.timeout(20000),
+    });
+    const j = (await r.json().catch(() => ({}))) as {
+      full_name?: string;
+      default_branch?: string;
+      private?: boolean;
+      message?: string;
+    };
+    if (r.status === 404) {
+      return {
+        ok: false,
+        erro:
+          `não achei o repositório '${nome}'. Ou ele não existe, ou a conexão de GitHub ` +
+          `desta conta não tem acesso a ele (o GitHub responde igual nos dois casos).`,
+      };
+    }
+    if (!r.ok) {
+      return { ok: false, erro: erroDoGithub(r.status, j.message || "", `O GitHub recusou ler o repositório (${r.status}).`) };
+    }
+    return {
+      ok: true,
+      fullName: j.full_name || nome,
+      branchPadrao: j.default_branch || "main",
+      privado: Boolean(j.private),
+    };
+  } catch {
+    return { ok: false, erro: "Não consegui falar com o GitHub agora." };
   }
 }

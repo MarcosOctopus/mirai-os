@@ -51,6 +51,7 @@ import {
   type Asset,
   type Previa,
 } from "@/lib/arquiteto-preview";
+import { telaPadrao, marcasDoProjeto } from "@/lib/arquiteto-tela-padrao";
 // BIBLIOTECA DE BLOCOS (item 9 do dono): blocos prontos que ENTRAM no projeto de
 // verdade — marcação no HTML de entrada, CSS na folha do projeto — pela MESMA
 // função, venham do painel ou da conversa. Ver src/lib/arquiteto-blocos.ts.
@@ -861,6 +862,21 @@ function Arquiteto() {
   const [erroTrazer, setErroTrazer] = useState("");
   // De onde trazer: do GitHub (público) ou do SERVIDOR dele (SSH já conectado).
   const [origemTrazer, setOrigemTrazer] = useState<"git" | "servidor">("git");
+  /**
+   * "Já publicar" no diálogo de trazer de fora — MARCADO por padrão (dono,
+   * 19/10/2026: *"acho legal com essa escolha"*). Marcado, o projeto vai ao ar
+   * sozinho: publica, constrói e o runner sobe. Desmarcado, só importa.
+   *
+   * O padrão é marcado porque a expectativa de quem cola um link é ver o site no
+   * ar; editar antes de expor é o caso menos comum, e quem quer isso desmarca.
+   */
+  const [publicarAoTrazer, setPublicarAoTrazer] = useState(true);
+  /**
+   * O aviso de "já está no ar" depois de trazer um projeto com publicação ligada.
+   * Sem isto, a pessoa traz o link, o projeto abre no editor e ela NÃO sabe se foi
+   * ao ar — que é exatamente a dúvida que gerou este trabalho.
+   */
+  const [avisoNoAr, setAvisoNoAr] = useState<{ endereco: string; construindo: boolean } | null>(null);
   const [pastaServidor, setPastaServidor] = useState("");
   const [temServidor, setTemServidor] = useState<boolean | null>(null);
   const [relatoImport, setRelatoImport] = useState<{
@@ -870,6 +886,26 @@ function Arquiteto() {
     bytes: number;
     pulados: { caminho: string; motivo: string }[];
     avisos: string[];
+  } | null>(null);
+  /**
+   * A LISTA de repositórios da conta colada (dono, 16/10/2026). Quando a pessoa
+   * cola a URL de uma organização/usuário, o servidor devolve os repositórios dela
+   * em vez de um erro — e aqui eles viram botões. Escolher um é o próximo passo,
+   * não uma explicação de como achar o endereço certo.
+   */
+  const [escolhaRepos, setEscolhaRepos] = useState<{
+    dono: string;
+    host: string;
+    tem_token: boolean;
+    repos: {
+      nome: string;
+      slug: string;
+      privado: boolean;
+      descricao: string;
+      linguagem: string;
+      atualizado_em: string;
+    }[];
+    erro: string;
   } | null>(null);
   const projetoIdRef = useRef<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -2230,15 +2266,50 @@ function Arquiteto() {
     }
     setTrazendo(true);
     setErroTrazer("");
+    setEscolhaRepos(null);
     try {
       const r = await fetch("/api/arquiteto/workspace", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ endereco: alvo }),
+        body: JSON.stringify({ endereco: alvo, publicar: publicarAoTrazer }),
       });
-      const j = await r.json().catch(() => null);
+      const j = (await r.json().catch(() => null)) as {
+        ok?: boolean;
+        erro?: string;
+        /** Vem quando o endereço é de uma CONTA (não de um repositório). */
+        escolha?: {
+          dono: string;
+          host: string;
+          tem_token: boolean;
+          repos: {
+            nome: string;
+            slug: string;
+            privado: boolean;
+            descricao: string;
+            linguagem: string;
+            atualizado_em: string;
+          }[];
+          erro: string;
+        };
+        relatorio?: {
+          repo: string;
+          lidos: number;
+          incluidos: number;
+          bytes: number;
+          pulados: { caminho: string; motivo: string }[];
+          avisos: string[];
+        };
+        projeto?: { id?: string };
+        publicacao?: { publicado?: boolean; endereco?: string | null; construindo?: boolean; erro?: string } | null;
+      } | null;
       if (r.status === 403) {
         setErroTrazer("O Arquiteto não está liberado para esta conta.");
+        return;
+      }
+      // CONTA em vez de repositório (dono, 16/10/2026): o servidor devolveu a LISTA
+      // dos repositórios dela. Não é erro — é escolha: os repositórios viram botões.
+      if (j?.escolha) {
+        setEscolhaRepos(j.escolha);
         return;
       }
       if (!r.ok || !j?.ok) {
@@ -2249,6 +2320,16 @@ function Arquiteto() {
       setRelatoImport(j.relatorio || null);
       setAbrirTrazer(false);
       setEnderecoRepo("");
+      setEscolhaRepos(null);
+      // A PUBLICAÇÃO QUE VEIO JUNTO: se foi ao ar, a pessoa precisa SABER.
+      // Se foi recusada (teto do plano), o projeto segue salvo e a razão aparece.
+      if (j?.publicacao?.publicado && j.publicacao.endereco) {
+        setAvisoNoAr({ endereco: j.publicacao.endereco, construindo: !!j.publicacao.construindo });
+      } else if (j?.publicacao?.erro) {
+        setErroTrazer(j.publicacao.erro);
+      } else {
+        setAvisoNoAr(null);
+      }
       await carregarProjetos();
       if (j?.projeto?.id) await abrirProjeto(j.projeto.id);
     } catch {
@@ -2280,7 +2361,7 @@ function Arquiteto() {
       const r = await fetch("/api/arquiteto/workspace", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ servidor: { caminho: alvo } }),
+        body: JSON.stringify({ servidor: { caminho: alvo }, publicar: publicarAoTrazer }),
       });
       const j = await r.json().catch(() => null);
       if (r.status === 403) {
@@ -2295,6 +2376,13 @@ function Arquiteto() {
       setRelatoImport(j.relatorio || null);
       setAbrirTrazer(false);
       setPastaServidor("");
+      if (j?.publicacao?.publicado && j.publicacao.endereco) {
+        setAvisoNoAr({ endereco: j.publicacao.endereco, construindo: !!j.publicacao.construindo });
+      } else if (j?.publicacao?.erro) {
+        setErroTrazer(j.publicacao.erro);
+      } else {
+        setAvisoNoAr(null);
+      }
       await carregarProjetos();
       if (j?.projeto?.id) await abrirProjeto(j.projeto.id);
     } catch {
@@ -3098,6 +3186,18 @@ function Arquiteto() {
 
   /** Copia o link público. Se a área de transferência estiver bloqueada, o link
       continua à vista no campo para copiar à mão — nada de mentir "copiado". */
+  /** Copia o endereço do APP (não o da prévia) — é o que se manda para alguém. */
+  async function copiarEnderecoDoApp() {
+    if (!urlAppNoAr) return;
+    try {
+      await navigator.clipboard.writeText(urlAppNoAr);
+      setLinkCopiado(true);
+      setTimeout(() => setLinkCopiado(false), 1600);
+    } catch {
+      /* área de transferência bloqueada: o campo segue copiável à mão */
+    }
+  }
+
   async function copiarLink() {
     const url = urlPublica();
     if (!url) return;
@@ -3363,6 +3463,20 @@ function Arquiteto() {
     [projeto, assets, assetsBase, tokens, projetoId, tokensInteg],
   );
   const [previa, setPrevia] = useState<Previa>({ html: "", faltando: [] });
+
+  /* O APP NO AR (dono, 16/10/2026): *"Eu quero eles funcionais."*
+     
+     Medido: o painel desenhava a tela padrão ("este projeto é código") para um
+     projeto que JÁ É uma aplicação — importado de repositório com `package.json`
+     e publicado. A tela contava uma história e o endereço contava outra.
+     
+     Quando o projeto é uma APLICAÇÃO (tem `package.json`) e está publicado, o
+     iframe aponta para o ENDEREÇO DE VERDADE em vez de montar a prévia local. O
+     site é público, então não há credencial nenhuma no meio. A prévia local
+     continua sendo o caminho do projeto HTML (que é texto e precisa ser montado). */
+  const ehAplicacao = !!projeto?.arquivos.some((a) => a.nome.toLowerCase() === "package.json");
+  const urlAppNoAr =
+    ehAplicacao && publicarToken && endSlug ? `https://${endSlug}.miraitohope.com/` : null;
   useEffect(() => {
     const t = setTimeout(() => setPrevia(previaCalculada), 300);
     return () => clearTimeout(t);
@@ -5234,25 +5348,32 @@ function Arquiteto() {
                     </button>
                   </div>
 
-                  {/* GITHUB já no projeto: o botão de UM clique (manifesto do GitHub App).
-                      Ele clica uma vez no GitHub, marca os repositórios e a chave privada
-                      chega direto no nosso servidor, cifrada. */}
+                  {/* GITHUB já no projeto: o botão de UM clique — CONECTAR A CONTA
+                      DO GITHUB de quem está usando (dono, 15/10/2026).
+
+                      Era `/api/oauth/github/manifesto`, que cria o GitHub APP da
+                      PLATAFORMA (ação do dono, uma vez) e NÃO grava no cofre da
+                      conta. O efeito medido: a pessoa clicava, "conectava", e o chat
+                      continuava dizendo que o GitHub não estava conectado — porque o
+                      que o chat lê (`users.platform_config.github`) é escrito SÓ pelo
+                      retorno do fluxo `iniciar`. Agora é o MESMO endereço do cartão
+                      de Integrações: um clique, vale para todos os projetos. */}
                   {usadas.includes("github") && (
                     <div className="rounded-[8px] border border-dash-hair/[0.09] bg-dash-scrim/20 px-2.5 py-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[11px] text-dash-fg/85">GitHub</span>
-                        <span className="hidden text-[10px] text-dash-dim sm:inline">editar projeto que já existe</span>
+                        <span className="hidden text-[10px] text-dash-dim sm:inline">conectar sua conta</span>
                       </div>
                       <a
-                        href="/api/oauth/github/manifesto"
+                        href="/api/oauth/github/iniciar"
                         data-arquiteto-config-github
                         className="mt-1.5 inline-flex w-fit items-center gap-1.5 rounded-full bg-dash-raise px-2.5 py-1 text-[10.5px] text-dash-muted transition hover:text-dash-fg"
                       >
-                        criar o app e escolher os repositórios
+                        entrar com a conta do GitHub
                       </a>
                       <p className="mt-1.5 text-[10px] leading-[1.5] text-dash-dim">
-                        Abre o GitHub, você clica uma vez e marca quais repositórios liberar. Sem copiar chave: ela
-                        chega direto aqui, cifrada.
+                        Abre o GitHub, você autoriza uma vez e vale para todos os seus projetos. Sem copiar chave: o
+                        acesso chega direto aqui, cifrado.
                       </p>
                     </div>
                   )}
@@ -5395,28 +5516,82 @@ function Arquiteto() {
               ) : publicarToken ? (
                 <div className="flex flex-col gap-2.5">
                   <p data-arquiteto-publicar-estado className="px-1 text-[12px] leading-[1.6] text-dash-ok">
-                    Publicado{publicadoEm ? ` em ${formatarData(publicadoEm)}` : ""} — link somente leitura.
+                    Publicado{publicadoEm ? ` em ${formatarData(publicadoEm)}` : ""}
+                    {urlAppNoAr ? " — este é o endereço do app." : " — link somente leitura."}
                   </p>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      readOnly
-                      value={urlPublica()}
-                      data-arquiteto-publicar-link
-                      onFocus={(e) => e.currentTarget.select()}
-                      className="min-w-0 flex-1 rounded-[8px] border border-dash-hair/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-dash-fg/90 outline-none"
-                    />
-                    <button
-                      onClick={() => void copiarLink()}
-                      data-arquiteto-publicar-copiar
-                      className="shrink-0 rounded-[8px] border border-dash-hair/12 px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-dash-fg"
-                    >
-                      {linkCopiado ? "copiado" : "copiar"}
-                    </button>
-                  </div>
-                  <p className="px-1 text-[10.5px] leading-[1.5] text-dash-dim">
-                    O link sempre mostra o estado ATUAL do projeto. Republicar mantém o mesmo
-                    endereço. As imagens carregam por URL assinada.
-                  </p>
+
+                  {/* O QUE O DONO QUER VER AQUI (dono, 19/10/2026: *"n foi pra isso"*).
+                      Medido no print dele: publicou um APP e o painel entregou o link
+                      de PRÉVIA (`/p/<token>`) — um endereço que abre o projeto em modo
+                      somente leitura. O app que ele publicou está em
+                      `<slug>.miraitohope.com`. O painel contava a história errada: dava
+                      o link da VITRINE quando o que foi posto no ar foi o APP. */}
+                  {urlAppNoAr ? (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          readOnly
+                          value={urlAppNoAr}
+                          data-arquiteto-publicar-endereco
+                          onFocus={(e) => e.currentTarget.select()}
+                          className="min-w-0 flex-1 rounded-[8px] border border-dash-hair/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-dash-fg/90 outline-none"
+                        />
+                        <button
+                          onClick={() => void copiarEnderecoDoApp()}
+                          data-arquiteto-publicar-copiar
+                          className="shrink-0 rounded-[8px] border border-dash-hair/12 px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-dash-fg"
+                        >
+                          {linkCopiado ? "copiado" : "copiar"}
+                        </button>
+                        <a
+                          href={urlAppNoAr}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-arquiteto-publicar-abrir
+                          className="shrink-0 rounded-[8px] border border-dash-hair/12 px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-dash-fg"
+                        >
+                          abrir
+                        </a>
+                      </div>
+                      <p className="px-1 text-[10.5px] leading-[1.5] text-dash-dim">
+                        Este é o app rodando, no endereço dele. Republicar mantém o mesmo endereço.
+                      </p>
+                      <p className="px-1 text-[10.5px] leading-[1.5] text-dash-dim">
+                        <a
+                          href={urlPublica()}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline decoration-dash-hair/40 underline-offset-2 transition hover:text-dash-fg"
+                        >
+                          ver a prévia do projeto
+                        </a>{" "}
+                        (somente leitura, sem sessão).
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          readOnly
+                          value={urlPublica()}
+                          data-arquiteto-publicar-link
+                          onFocus={(e) => e.currentTarget.select()}
+                          className="min-w-0 flex-1 rounded-[8px] border border-dash-hair/10 bg-dash-bg px-2 py-1.5 font-mono text-[11px] text-dash-fg/90 outline-none"
+                        />
+                        <button
+                          onClick={() => void copiarLink()}
+                          data-arquiteto-publicar-copiar
+                          className="shrink-0 rounded-[8px] border border-dash-hair/12 px-2.5 py-1.5 text-[11px] text-dash-muted transition hover:text-dash-fg"
+                        >
+                          {linkCopiado ? "copiado" : "copiar"}
+                        </button>
+                      </div>
+                      <p className="px-1 text-[10.5px] leading-[1.5] text-dash-dim">
+                        O link sempre mostra o estado ATUAL do projeto. Republicar mantém o mesmo
+                        endereço. As imagens carregam por URL assinada.
+                      </p>
+                    </>
+                  )}
                   <div className="flex items-center gap-2 px-1 pt-0.5">
                     <button
                       onClick={() => void publicar()}
@@ -5464,6 +5639,48 @@ function Arquiteto() {
         </div>
       </header>
 
+      {/* "JÁ ESTÁ NO AR" (dono, 19/10/2026). Aparece só quando o projeto foi
+          trazido COM publicação ligada. Diz o endereço e se ainda está
+          construindo — sem isso a pessoa não sabe se o link funcionou. */}
+      {avisoNoAr && (
+        <div
+          data-arquiteto-aviso-no-ar
+          className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-dash-ok/20 bg-dash-ok/[0.07] px-3 py-1.5 text-[11.5px] sm:px-4"
+        >
+          <span className="text-dash-ok">
+            {avisoNoAr.construindo ? "Publicado — construindo." : "Publicado."}
+          </span>
+          <a
+            href={`https://${avisoNoAr.endereco}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-dash-fg/90 underline decoration-dash-hair/40 underline-offset-2 hover:text-dash-fg"
+          >
+            {avisoNoAr.endereco}
+          </a>
+          <button
+            onClick={() => {
+              void navigator.clipboard.writeText(`https://${avisoNoAr.endereco}`).catch(() => {});
+            }}
+            className="rounded-[7px] border border-dash-hair/12 px-2 py-0.5 text-[10.5px] text-dash-muted transition hover:text-dash-fg"
+          >
+            copiar
+          </button>
+          {avisoNoAr.construindo && (
+            <span className="text-dash-dim">
+              o app fica pronto sozinho — pode fechar esta página
+            </span>
+          )}
+          <button
+            onClick={() => setAvisoNoAr(null)}
+            className="ml-auto text-[10.5px] text-dash-dim transition hover:text-dash-fg"
+            aria-label="fechar aviso"
+          >
+            fechar
+          </button>
+        </div>
+      )}
+
       {/* O input REAL do envio de imagem — escondido, um só para a bancada
           (tanto o botão da lista de arquivos quanto o da barra da prévia o abrem). */}
       <input
@@ -5503,7 +5720,7 @@ function Arquiteto() {
               iframe oficial) e sem toque (`pointer-events-none`) — não rouba o
               dedo nem interfere na edição. Na largura real do celular, para ele
               ver exatamente como fica no aparelho dele. Some no computador. */}
-          {abaMobile === "conversa" && verPreviaCelular && previa.html && (
+          {abaMobile === "conversa" && verPreviaCelular && (previa.html || urlAppNoAr) && (
             <div className="shrink-0 lg:hidden" data-arquiteto-faixa-previa>
               <div className="flex items-center justify-between px-3 pb-1 pt-2">
                 <span className="text-[10px] uppercase tracking-[0.12em] text-dash-dim">Prévia</span>
@@ -5521,8 +5738,18 @@ function Arquiteto() {
               <div className="mx-3 mb-2 h-[130px] overflow-hidden rounded-[12px] border border-dash-hair/10 bg-white">
                 <iframe
                   title="Prévia (espelho)"
-                  srcDoc={previa.html}
-                  sandbox="allow-scripts"
+                  {...(urlAppNoAr
+                    ? { src: urlAppNoAr }
+                    : {
+                        srcDoc:
+                          previa.html ||
+                          telaPadrao({
+                            titulo: projeto?.resumo || "Projeto",
+                            arquivos: projeto?.arquivos.length || 0,
+                            marcas: marcasDoProjeto(projeto?.arquivos || []),
+                          }),
+                      })}
+                  sandbox={urlAppNoAr ? "allow-scripts allow-same-origin" : "allow-scripts"}
                   className="pointer-events-none border-0"
                   style={{ width: "100%", height: 844 }}
                 />
@@ -6285,8 +6512,26 @@ function Arquiteto() {
                             <iframe
                               ref={iframeRef}
                               title="Prévia do projeto"
-                              srcDoc={previa.html}
-                              sandbox="allow-scripts"
+                              /* Aplicação publicada: o iframe vai para o
+                                 ENDEREÇO REAL (o app rodando), em vez de montar
+                                 a prévia local — que era o que mostrava "este
+                                 projeto é código" com a aplicação no ar. */
+                              {...(urlAppNoAr
+                                ? { src: urlAppNoAr }
+                                : {
+                                    srcDoc:
+                                      previa.html ||
+                                      telaPadrao({
+                                        titulo: projeto?.resumo || "Projeto",
+                                        arquivos: projeto?.arquivos.length || 0,
+                                        marcas: marcasDoProjeto(projeto?.arquivos || []),
+                                      }),
+                                  })}
+                              sandbox={
+                                urlAppNoAr
+                                  ? "allow-scripts allow-same-origin allow-forms allow-popups"
+                                  : "allow-scripts"
+                              }
                               onLoad={aoCarregarPrevia}
                               className="h-full w-full bg-white"
                             />
@@ -6752,6 +6997,65 @@ function Arquiteto() {
               </div>
             )}
 
+            {/* A LISTA de repositórios da conta colada (dono, 16/10/2026). Antes, a URL
+                de uma organização devolvia *"não achei o repositório 'orgs/Mesh2Motion'"*.
+                Agora os repositórios dela aparecem aqui, para clicar. */}
+            {escolhaRepos && (
+              <div className="mt-3 rounded-[10px] border border-dash-hair/12 bg-dash-card/50 px-3 py-3">
+                <p className="text-[12px] text-dash-fg">
+                  <span className="text-dash-muted">Repositórios de</span>{" "}
+                  <span className="font-medium">{escolhaRepos.dono}</span>
+                  {escolhaRepos.repos.length > 0 ? (
+                    <span className="text-dash-dim"> · {escolhaRepos.repos.length}</span>
+                  ) : null}
+                </p>
+                {escolhaRepos.erro && (
+                  <p className="mt-1.5 text-[11.5px] leading-snug text-dash-warn">{escolhaRepos.erro}</p>
+                )}
+                {escolhaRepos.repos.length > 0 && (
+                  <>
+                    <p className="mt-1 text-[11px] text-dash-dim">Escolha um para trazer:</p>
+                    <div className="mt-2 max-h-[240px] overflow-y-auto rounded-[8px] border border-dash-hair/10">
+                      {escolhaRepos.repos.map((rp) => (
+                        <button
+                          key={rp.slug}
+                          onClick={() =>
+                            void trazerDoGitHub(`https://${escolhaRepos.host}/${rp.slug}`)
+                          }
+                          disabled={trazendo}
+                          className="flex w-full items-center gap-2 border-b border-dash-hair/[0.06] px-3 py-2 text-left transition last:border-b-0 hover:bg-dash-hair/[0.05] disabled:opacity-40"
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-1.5">
+                              <span className="truncate text-[12.5px] text-dash-fg">{rp.nome}</span>
+                              {rp.privado && (
+                                <span className="shrink-0 rounded-[4px] bg-dash-warn/15 px-1.5 py-[1px] text-[9.5px] uppercase tracking-wide text-dash-warn">
+                                  privado
+                                </span>
+                              )}
+                            </span>
+                            {rp.descricao && (
+                              <span className="mt-0.5 block truncate text-[11px] text-dash-dim">
+                                {rp.descricao}
+                              </span>
+                            )}
+                          </span>
+                          {rp.linguagem && (
+                            <span className="shrink-0 text-[10.5px] text-dash-dim">{rp.linguagem}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {!escolhaRepos.tem_token && escolhaRepos.repos.length === 0 && !escolhaRepos.erro && (
+                  <p className="mt-1.5 text-[11.5px] leading-snug text-dash-dim">
+                    Conecte sua conta de GitHub em Integrações para ver também os privados.
+                  </p>
+                )}
+              </div>
+            )}
+
             {relato && (
               <div className="mt-3 rounded-[10px] border border-dash-hair/10 bg-dash-card/60 px-3 py-3">
                 <p className="flex items-center gap-2 text-[12px] text-dash-fg">
@@ -6792,6 +7096,22 @@ function Arquiteto() {
             </div>
 
             <div className="flex shrink-0 items-center justify-end gap-2 border-t border-dash-hair/[0.07] px-4 py-3">
+            {/* A ESCOLHA (dono, 19/10/2026: *"acho legal com essa escolha"*).
+                Marcado = importa e já põe no ar (publica, constrói e o runner
+                sobe). Desmarcado = só importa, para editar antes de expor. */}
+            <label
+              className="mr-auto flex cursor-pointer items-center gap-2 text-[11.5px] text-dash-muted"
+              title="Publica e constrói assim que terminar de trazer. Desmarque para editar antes de expor."
+            >
+              <input
+                type="checkbox"
+                checked={publicarAoTrazer}
+                onChange={(e) => setPublicarAoTrazer(e.target.checked)}
+                data-arquiteto-trazer-publicar
+                className="h-3.5 w-3.5 shrink-0 accent-dash-brand"
+              />
+              <span>já publicar</span>
+            </label>
             <button
               onClick={() => setAbrirTrazer(false)}
               disabled={trazendo}

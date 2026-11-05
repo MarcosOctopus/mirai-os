@@ -553,6 +553,7 @@ function ModalApi({
               {c.dica && <span className="mt-1.5 block text-[11px] text-dash-dim">{c.dica}</span>}
             </label>
           ))}
+
         </div>
 
         {erro && <p className="relative z-10 mt-3 text-[12px] text-[#ff2d55]">{erro}</p>}
@@ -1154,7 +1155,21 @@ export default function IntegracoesPage() {
             : "A conexão com o GitHub não foi concluída. Tente de novo.",
       );
     }
-    if (a || id || gh) window.history.replaceState(null, "", window.location.pathname);
+    /* Voltando do consentimento do CANVA (dono, 19/10/2026 — "cada pessoa na
+       própria conta"). Mesma obrigação do GitHub: dizer o resultado. Sem isto a
+       FALHA seria silenciosa — a pessoa voltaria para a tela sem saber por que o
+       cartão continua desconectado. */
+    const cv = q.get("canva");
+    if (cv) {
+      setAviso(
+        cv === "conectado"
+          ? "Canva conectado nesta conta — os designs são os seus, não os de outra pessoa."
+          : cv === "recusado"
+            ? "Você não autorizou o Canva. Nada foi alterado."
+            : "A conexão com o Canva não foi concluída. Tente de novo.",
+      );
+    }
+    if (a || id || gh || cv) window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
   /* categoria + busca + filtro: a grade da referência (mesma faixa que rola na

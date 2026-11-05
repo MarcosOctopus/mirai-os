@@ -71,7 +71,12 @@ export type Integracao = {
 - **Mirai**: CRM Saaso (MCP), Arca (MCP), Media Factory (MCP)
 - **Essenciais**: Google Drive (API), YouTube (API), Telegram (API), Instagram (API)
 - **APIs**: Verboo, OpenAI, Google Gemini, OpenRouter, Groq, ElevenLabs, Picovoice
-- **Media**: Canva (MCP), Figma (MCP), Higgsfield (API), Suno (API), Magnific (API), Kling (API)
+- **Media**: Canva (**OAuth por pessoa** — cada cliente na própria conta), Figma (MCP), Higgsfield (API), Suno (API), Magnific (API), Kling (API)
+
+> **Canva saiu do MCP (19/10/2026).** Design pertence à conta que o criou: um token
+> só (MCP) serve o dono e mais ninguém. Agora é `tipo: "api"` + `oauthPath` +
+> `chaveConfig: "canva"`, com o token no cofre de CADA conta. Detalhes na skill
+> `synapse-integracoes`.
 
 ## Convenção de logo (frozen — usado por duas frentes)
 

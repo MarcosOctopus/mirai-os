@@ -45,11 +45,11 @@ function loadEnv(name: string): string {
   return process.env[name] || "";
 }
 
-const VERBOO_API_KEY = process.env.VERBOO_API_KEY || loadEnv("VERBOO_API_KEY");
+const VERBOO_API_KEY = process.env.AIBEE_API_KEY || loadEnv("AIBEE_API_KEY");
 const GOOGLE_API_KEY = loadEnv("GOOGLE_API_KEY");
 
-const VERBOO_BASE = "https://code.verboo.ai/router/v1";
-const VERBOO_MODELOS = ["deepseek-v4.1-flash", "glm-5.3-flash", "qwen3.8-27b"];
+const VERBOO_BASE = "https://api.kpalabz.com/v1";
+const VERBOO_MODELOS = ["claude-opus-5-5", "claude-sonnet-5", "claude-opus-4-8"];
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_MODEL = "gemini-2.5-flash";
 

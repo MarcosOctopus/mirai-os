@@ -129,8 +129,8 @@ export async function GET(req: NextRequest) {
       return Response.json({
         status: "ok",
         hermes: {
-          providers: ["verboo (deepseek-v4.1-flash)", "verboo (deepseek-v4-flash reserva)", "gemini-2.5-flash (reserva)", "openrouter (claude-sonnet-4.6 reserva)"],
-          modelo_ativo: "deepseek-v4.1-flash (V4.1) via Verboo",
+          providers: ["kpalabz/aibee (claude-opus-5-5)", "kpalabz/aibee (claude-sonnet-5 reserva)", "kpalabz/aibee (claude-sonnet-4-6 reserva)", "kpalabz/aibee (claude-haiku-5-5 reserva)"],
+          modelo_ativo: "claude-opus-5-5 via kpalabz (aibee)",
           mcps: [
             { name: "Higgsfield", funcao: "imagem/video", status: "ok" },
             { name: "YouTube", funcao: "API do YouTube", status: "expirado" },

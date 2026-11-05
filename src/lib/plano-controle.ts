@@ -108,7 +108,19 @@ type OrganizacaoNoControle = {
   tenant_id?: string;
   plan_id?: string;
   capacidades_extras?: string[];
+  /** JSONB `limits` do plano — vem do GET /v1/admin/organizacoes (15/10/2026). */
+  limites?: Record<string, unknown>;
 };
+
+/** Coage os valores do JSONB para número, descartando lixo. */
+function numeros(bruto?: Record<string, unknown>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(bruto || {})) {
+    const n = typeof v === "number" ? v : Number(v);
+    if (Number.isFinite(n)) out[k] = n;
+  }
+  return out;
+}
 
 export type CapacidadesDoTenant = {
   /** true só quando o plano de controle respondeu e a organização foi achada. */
@@ -155,4 +167,48 @@ export async function capacidadesDoTenant(tenantId: string): Promise<Capacidades
   }
 
   return { ok: true, capacidades: [...capacidades] };
+}
+
+// ─── Limites de um tenant (espaço, projetos externos, bancos, simultâneos) ──
+//
+// Mesma fonte e mesma autenticação das capacidades. Os limites moram no JSONB
+// `limits` do PLANO — o app pergunta e obedece, nunca guarda cópia (regra da
+// casa: a lista mora só no plano de controle).
+//
+// Chaves em uso (15/10/2026):
+//   storage_gb           espaço total da conta, em GB   (já existia nos planos)
+//   projetos_externos    quantos projetos trazidos de FORA (git/servidor)
+//   bancos               quantos bancos de dados
+//   acessos_simultaneos  teto base de acessos simultâneos
+//   requests_day         requisições de IA por dia      (já existia nos planos)
+//
+// Projetos criados AQUI dentro não têm teto de quantidade: quem manda é o
+// espaço. O teto de quantidade é só para o que vem de fora (decisão do dono).
+
+export type LimitesDoTenant = {
+  /** true só quando o plano de controle respondeu e a organização foi achada. */
+  ok: boolean;
+  /** plano vigente da organização (ex.: "mirai_pro"). */
+  plano?: string;
+  /** limites do plano já como número. Vazio quando `ok` é false. */
+  limites: Record<string, number>;
+  erro?: string;
+};
+
+export async function limitesDoTenant(tenantId: string): Promise<LimitesDoTenant> {
+  if (!tenantId) {
+    return { ok: false, limites: {}, erro: "conta sem organização no plano de controle" };
+  }
+
+  const orgs = await chamarPlanoDeControle("/v1/admin/organizacoes", { method: "GET" });
+  if (orgs.status !== 200) {
+    return { ok: false, limites: {}, erro: `plano de controle respondeu ${orgs.status}` };
+  }
+  const lista = (orgs.corpo as { organizacoes?: OrganizacaoNoControle[] })?.organizacoes || [];
+  const org = lista.find((o) => o.tenant_id === tenantId);
+  if (!org) {
+    return { ok: false, limites: {}, erro: "organização não encontrada no plano de controle" };
+  }
+
+  return { ok: true, plano: org.plan_id, limites: numeros(org.limites) };
 }

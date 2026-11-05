@@ -46,21 +46,26 @@ function loadEnv(name: string): string {
 const OPENROUTER_KEY = loadEnv("OPENROUTER_API_KEY");
 
 // ─── Transporte de VISÃO (imagem/PDF → texto) ──────────────────────────────
-// 09/10/2026, dono: "o GLM entende imagem? então nem precisamos do OpenRouter pra olhar
-// imagem né?" — resposta medida: SIM, e melhor. A chave do OpenRouter NÃO está configurada
-// neste app (a leitura caía em "sem chave de visão configurada"), enquanto o Verboo é a MESMA
-// chave que o resto do app já usa. Medido: `glm-5.3-flash` leu uma imagem de 44 KB em 8s
-// (descrição + OCR fiel) e um PDF em 4s. O OpenRouter fica só como RESERVA, e só se houver chave.
-const VERBOO_KEY = process.env.VERBOO_API_KEY || loadEnv("VERBOO_API_KEY");
-const VERBOO_BASE = "https://code.verboo.ai/router/v1";
-const MODELO_VISAO = "glm-5.3-flash"; // Verboo (principal)
+// 28/10/2026: o Verboo saiu do app (instabilidade de fila). A visão passou
+// para o kpalabz, que MEDIDAMENTE enxerga: `claude-opus-5-5` e `claude-sonnet-5`
+// leram uma imagem PNG e responderam "Vermelho" nos DOIS formatos
+// (/v1/messages e /v1/chat/completions). O OpenRouter fica só como RESERVA,
+// e só se houver chave (medido 28/10: a chave do OpenRouter responde 402).
+const VERBOO_KEY = process.env.AIBEE_API_KEY || loadEnv("AIBEE_API_KEY");
+const VERBOO_BASE = "https://api.kpalabz.com/v1";
+const MODELO_VISAO = "claude-opus-5-5"; // kpalabz (principal) — enxerga imagem
 const MODELO_LEITURA = "google/gemini-2.5-flash"; // OpenRouter (reserva)
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
 /**
  * Visão do app: manda as partes (texto + imagem/arquivo) para quem ENXERGA e devolve o texto.
- * Principal = Verboo (`glm-5.3-flash`); se falhar e houver chave, tenta o OpenRouter. O `motor`
+ * Principal = kpalabz (`claude-opus-5-5`); se falhar e houver chave, tenta o OpenRouter. O `motor`
  * que volta é o que de verdade leu — é ele que aparece na tela, então nada de fingir.
+ *
+ * PDF: o kpalabz IGNORA o bloco `type: "file"` no formato OpenAI (medido 28/10:
+ * devolveu 200 com "Nenhum PDF foi anexado" — arquivo perdido sem erro). No formato
+ * ANTHROPIC (`/v1/messages` + `type: "document"`) ele lê certo (medido: extraiu o
+ * texto de um PDF). Então PDF vai pelo caminho Anthropic e imagem pelo OpenAI.
  */
 async function chamarVisao(partes: unknown[], maxTok = 2048): Promise<{ texto: string; motor: string }> {
   const tentativas: { motor: string; base: string; key: string; model: string }[] = [];
@@ -70,6 +75,55 @@ async function chamarVisao(partes: unknown[], maxTok = 2048): Promise<{ texto: s
   if (!tentativas.length) throw new Error("leitura de documento indisponível (sem chave de visão configurada)");
 
   let ultimoErro: Error | null = null;
+
+  // PDF: caminho Anthropic no kpalabz (o formato OpenAI perde o arquivo).
+  const temPdf = (partes as any[])?.some?.((p: any) => p?.type === "file" && p?.file?.file_data);
+  if (temPdf && VERBOO_KEY) {
+    try {
+      const conteudo = (partes as any[]).map((p: any) => {
+        if (p?.type === "file" && p?.file?.file_data) {
+          const bruto = String(p.file.file_data).replace(/^data:application\/pdf;base64,/, "");
+          return { type: "document", source: { type: "base64", media_type: "application/pdf", data: bruto } };
+        }
+        if (p?.type === "image_url" && p?.image_url?.url) {
+          const url = String(p.image_url.url);
+          const m = /^data:(image\/(?:png|jpeg|webp|gif));base64,(.+)$/.exec(url);
+          if (m) return { type: "image", source: { type: "base64", media_type: m[1], data: m[2] } };
+        }
+        return p;
+      });
+      const resp = await fetch(`${VERBOO_BASE.replace(/\/v1$/, "")}/messages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": VERBOO_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: MODELO_VISAO,
+          max_tokens: maxTok,
+          messages: [{ role: "user", content: conteudo }],
+        }),
+        signal: AbortSignal.timeout(90000),
+      });
+      if (resp.ok) {
+        const j = await resp.json();
+        const texto = (j?.content || [])
+          .filter((b: any) => b?.type === "text")
+          .map((b: any) => b.text || "")
+          .join("")
+          .trim();
+        if (texto) return { texto, motor: `vision:${MODELO_VISAO}(anthropic)` };
+      }
+      const txt = await resp.text().catch(() => "");
+      ultimoErro = new Error(`leitura falhou (${resp.status}) ${txt.slice(0, 160)}`);
+      console.error("Visão PDF (anthropic):", resp.status, txt.slice(0, 160));
+    } catch (e) {
+      ultimoErro = e as Error;
+      console.error("Visão PDF (anthropic) rede:", e instanceof Error ? e.message : e);
+    }
+  }
+
   for (const t of tentativas) {
     try {
       const resp = await fetch(`${t.base}/chat/completions`, {
@@ -80,7 +134,7 @@ async function chamarVisao(partes: unknown[], maxTok = 2048): Promise<{ texto: s
           max_tokens: maxTok,
           temperature: 0.1,
           stream: false,
-          ...(t.base === VERBOO_BASE ? { reasoning_effort: "low" } : {}),
+          ...(t.base === VERBOO_BASE ? {} : { reasoning_effort: "low" }),
           messages: [{ role: "user", content: partes }],
         }),
         signal: AbortSignal.timeout(90000),

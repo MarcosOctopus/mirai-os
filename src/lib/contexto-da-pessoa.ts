@@ -35,8 +35,10 @@ import type { Conta } from "./orgs";
 import { credencialSaasoDaConta } from "./orgs";
 import { integracoesDaPessoa, integracoesDaOrganizacao } from "./integracoes";
 import { leituraDeCredencial } from "./segredo-guardado";
+import { TIPO_SERVIDOR } from "./servidor-cliente";
 import { lerVinculo } from "./vinculo-conta-mirai";
 import { executarFerramentaArquiteto, ferramentasDoArquiteto } from "./ferramentas-arquiteto";
+import { definicoesCanva } from "./canva-ferramentas";
 
 export type FerramentaDoConector = {
   /** Nome técnico do método. NUNCA é falado à pessoa (ver regra anti-vazamento). */
@@ -250,8 +252,19 @@ export async function montarContextoDaPessoa(
 
   // Outros tipos que a pessoa plugou: declarados, não ignorados. Porta que
   // ainda não existe é dita como pendente — nunca fingida ligada.
+  //
+  // ⚠️ O `servidor` NÃO entra aqui, e é importante entender por quê. Ele TEM
+  // porta: `servidor_listar/ler/gravar/executar` são oferecidas pelo Arquiteto
+  // (ver `ferramentasDoArquiteto`). Até 15/10/2026 ele caía neste laço genérico e
+  // virava "plugado, mas esta porta ainda não fala com ele" — e o bloco de
+  // contexto ia além, ORDENANDO ao modelo recusar ("Se ela pedir algo disso, diga
+  // que está plugado mas ainda não ligado"). Medido numa sessão real: o chat
+  // executou 2 comandos e no 3º recusou citando essa frase de cor. A ferramenta
+  // estava na mão dele; o contexto dizia que não. Quem tem porta declarada não é
+  // pendente.
   for (const i of minhas) {
     if (i.tipo === "crm") continue;
+    if (i.tipo === TIPO_SERVIDOR) continue;
     conectores.push({
       id: i.tipo,
       nome: i.tipo.charAt(0).toUpperCase() + i.tipo.slice(1),
@@ -388,7 +401,43 @@ export const FERRAMENTA_PROFUNDO = "pesquisar_a_fundo";
  * O padrão é `observador` para nenhum chamador antigo perder a busca por
  * descuido — a escolha do cliente é resolvida em `modos-do-chat.ts` antes.
  */
-export function ferramentasParaOModelo(ctx: ContextoDaPessoa, modo: string = "observador", arquiteto = false): {
+/**
+ * A mensagem fala de design? (dono, 22/10/2026)
+ *
+ * ANTES as 6 ferramentas Canva entravam em TODO pedido. Medido: um "oi" seco
+ * disparou `canva_estado`, o gateway devolveu 401, e a rota caiu no provedor
+ * direto — 40s de espera para um oi. Não é o Canva sendo lento: é o Canva
+ * sendo OFERECIDO onde ninguém pediu.
+ *
+ * A regra do dono: *"so coloca o Canva quando alguem fala de design, ou fala
+ * de Canva"*. Aqui é lexical e sem_refresh: melhor deixar passar uma frase
+ * sobre "post" que forrar uma ferramenta desnecessária do que esconder o Canva
+ * de quem pediu. Se a pessoa falar "cria um design no Canva", cai.
+ */
+function mensagemPedeCanva(msg: string): boolean {
+  if (!msg) return true; // sem contexto (ex.: chamada interna), não esconde
+  const m = msg.toLowerCase();
+  const PISTAS = [
+    "canva", "design", "desenho", "desenhar", "layout", "capa", "arte",
+    "post", "carrossel", "story", "stories", "reels", "feed", "thumbnail",
+    "imagem", "imagens", "foto", "fotos", "banner", "flyer", "folder",
+    "template", "apresenta", "slide", "infogr", "materia visual", "peça",
+    "peca visual", "identidade visual", "logo", "marca",
+    // Formatos e verbs de exportacao: "exporta em png" NAO fala de design, mas
+    // e' um pedido de export de design — sem esta pista o Canva sumia da lista
+    // e o modelo respondia "nao consigo" numa frase que claramente pedia ele.
+    "exporta", "exportar", "export", "png", "jpg", "jpeg", "pdf", "gif", "pptx",
+    "svg", "webp", "thumbnail de", "download do design",
+  ];
+  return PISTAS.some((k) => m.includes(k));
+}
+
+export function ferramentasParaOModelo(
+  ctx: ContextoDaPessoa,
+  modo: string = "observador",
+  arquiteto = false,
+  mensagem = ""
+): {
   type: "function";
   function: { name: string; description: string; parameters: Record<string, unknown> };
 }[] {
@@ -502,6 +551,18 @@ export function ferramentasParaOModelo(ctx: ContextoDaPessoa, modo: string = "ob
   // (`mirai.arquiteto.construir`), decidida ANTES pelo chamador; a lista não é
   // oferecida a quem não pode, para o modelo não prometer o que não há.
   if (arquiteto) defs.push(...ferramentasDoArquiteto());
+
+  // ── O CANVA (dono, 19/10/2026) — FORA da porteira do Arquiteto, de propósito.
+  // Canva é integração comum de mídia, não capacidade de risco alto. Se ficasse
+  // dentro do `if (arquiteto)`, um cliente sem Arquiteto receberia o cartão
+  // "conectado" na Synapse e o chat continuaria sem nenhuma ferramenta — o
+  // mesmo defeito que já custou uma rodada no GitHub.
+  // As ferramentas se defendem sozinhas: sem conexão, a resposta traz o LINK
+  // para conectar a própria conta (regra do dono: nunca só o erro).
+  //
+  // MAS SÓ QUANDO A MENSAGEM PEDE (22/10/2026): oferecer em todo pedido fazia
+  // o modelo testar o Canva num "oi" e custar 40s de espera.
+  if (mensagemPedeCanva(mensagem)) defs.push(...definicoesCanva());
 
   return defs;
 }

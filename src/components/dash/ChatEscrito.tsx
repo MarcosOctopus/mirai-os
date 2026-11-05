@@ -77,6 +77,46 @@ function IconeDoAnexo({ categoria, className }: { categoria: AnexoCliente["categ
   return <IconeDocumento className={className} />;
 }
 
+/**
+ * ENTREGA DE ARQUIVO NA CONVERSA (dono, 20/10/2026).
+ *
+ * Pedido, verbatim: *"send a PDF or a image to chat for a person, not to be able
+ * to get out of the chat"*. Antes disto a Mirai só sabia devolver um LINK do
+ * Canva (que vale 24h e obriga a pessoa a sair da conversa para baixar).
+ *
+ * Contrato: a resposta da ferramenta traz `[arquivo:<id>]` no meio do texto. Aqui
+ * o marcador vira um cartão clicável servido por `/api/arquivo/<id>?dl=1` — a
+ * rota confere a POSSE (só o dono do anexo baixa), então o id não é público.
+ *
+ * O texto é renderizado como está (o chat não usa markdown): o marcador é
+ * substituído no meio da frase, sem quebrar o resto.
+ */
+function TextoComArquivos({ texto }: { texto: string }) {
+  const partes = texto.split(/(\[arquivo:[0-9a-f-]{36}\])/i);
+  if (partes.length === 1) return <>{texto}</>;
+  return (
+    <>
+      {partes.map((p, i) => {
+        const m = p.match(/^\[arquivo:([0-9a-f-]{36})\]$/i);
+        if (!m) return <span key={i}>{p}</span>;
+        const id = m[1];
+        return (
+          <a
+            key={i}
+            href={`/api/arquivo/${id}?dl=1`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="my-1 flex w-fit items-center gap-2 rounded-lg border border-dash-line bg-dash-surface px-3 py-2 text-[13px] text-dash-text transition hover:border-dash-brand"
+          >
+            <IconeDocumento className="h-4 w-4 shrink-0 text-dash-brand" />
+            <span className="font-medium">Baixar arquivo</span>
+          </a>
+        );
+      })}
+    </>
+  );
+}
+
 export default function ChatEscrito({
   cheio = false,
   onInicioChange,
@@ -817,7 +857,7 @@ export default function ChatEscrito({
 
                     {m.content ? (
                       <span className="whitespace-pre-wrap break-words">
-                        {m.content}
+                        <TextoComArquivos texto={m.content} />
                         {enviando && i === mensagens.length - 1 && (
                           <span className="ml-0.5 inline-block h-[13px] w-[2px] animate-pulse bg-dash-brand align-middle" />
                         )}

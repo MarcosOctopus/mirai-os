@@ -36,6 +36,48 @@ export function arquivoDeEntrada(arquivos: Arquivo[]): Arquivo | null {
   );
 }
 
+/**
+ * A PÁGINA de entrada — só HTML, e de preferência NA RAIZ.
+ *
+ * POR QUE EXISTE (dono, 16/10/2026): um repositório IMPORTADO (flowise, justy)
+ * não tem página. O `arquivoDeEntrada` caía em `arquivos[0]` e a prévia montava
+ * um documento com o PRIMEIRO arquivo da lista — medido: `.changeset/config.json`.
+ * A miniatura do projeto virava uma página aleatória.
+ *
+ * A REGRA É ESTREITA DE PROPÓSITO: projeto feito aqui no Arquiteto tem
+ * `index.html` NA RAIZ — é assim que ele é construído. Um `.html` no fundo de um
+ * monorepo (template, fixture, partial) NÃO é "a página do projeto": medido, o
+ * flowise tem um e a prévia mostrava 23 KB de um arquivo interno qualquer. Na
+ * dúvida, a resposta certa é a TELA PADRÃO — que diz o que o projeto é — e não um
+ * arquivo que por acaso termina em .html.
+ */
+export function paginaDeEntrada(arquivos: Arquivo[]): Arquivo | null {
+  const baixo = (s: string) => s.trim().toLowerCase();
+  const naRaiz = (n: string) => !baixo(n).includes("/");
+  const candidato =
+    arquivos.find((a) => naRaiz(a.nome) && baixo(a.nome) === "index.html") ??
+    arquivos.find((a) => naRaiz(a.nome) && baixo(a.nome).endsWith(".html")) ??
+    null;
+  if (!candidato) return null;
+  // TEMPLATE DE BUILD não é página (dono, 16/10/2026). Medido: o flowise tem
+  // `index.html` NA RAIZ, mas é o template do Vite — um `<script type="module"
+  // src="/src/main.tsx">` que só vira página DEPOIS de compilar. Mostrá-lo rende
+  // uma tela em branco, que é exatamente o "erro" que a tela padrão existe para
+  // evitar. Se o HTML manda o navegador buscar código-fonte (.ts/.tsx/.jsx ou
+  // `/src/`), ele não é a página do projeto.
+  const c = candidato.conteudo || "";
+  const ehTemplate =
+    /<script[^>]+src\s*=\s*["'][^"']*\.(tsx?|jsx)["']/i.test(c) ||
+    /<script[^>]+src\s*=\s*["']\/src\//i.test(c) ||
+    /src\s*=\s*["']\.?\/?src\/[^"']*\.(tsx?|jsx|css)["']/i.test(c);
+  return ehTemplate ? null : candidato;
+}
+
+/** O projeto tem uma PÁGINA para mostrar? (usado pela tela padrão e pela prévia) */
+export function temPaginaVisual(arquivos: Arquivo[]): boolean {
+  return paginaDeEntrada(arquivos) !== null;
+}
+
 /** Caminho relativo dentro do projeto (tira "./" e barra inicial, minúsculas). */
 function caminhoRelativo(p: string): string {
   return p.trim().replace(/^\.?\//, "").toLowerCase();
@@ -460,7 +502,7 @@ export function montarPrevia(
   tokens: Tokens,
   opcoes?: { comPonte?: boolean; integracoes?: { projetoId: string; tokens: Record<string, string> } },
 ): Previa {
-  const entrada = arquivoDeEntrada(arquivos);
+  const entrada = paginaDeEntrada(arquivos);
   if (!entrada) return { html: "", faltando: [] };
 
   let html = entrada.conteudo;

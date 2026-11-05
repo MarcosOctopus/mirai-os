@@ -25,19 +25,53 @@ function loadEnv(name: string): string {
 }
 
 const GOOGLE_API_KEY  = loadEnv("GOOGLE_API_KEY");
-const OPENROUTER_KEY  = loadEnv("OPENROUTER_API_KEY");
-const VERBOO_API_KEY  = loadEnv("VERBOO_API_KEY");
+const AIAPIFLOW_KEY   = loadEnv("AIAPIFLOW_API_KEY");
+// Provedor do chat: kpalabz (AIBEE). O Verboo saiu por instabilidade de fila
+// (medido 28/10/2026): 4/40 respostas com 40 requisições simultaneas e 36 s de
+// latencia media; o kpalabz respondeu 60/60 na mesma carga.
+const CHAT_PROV_KEY   = loadEnv("AIBEE_API_KEY");
 
 import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
 import { regraDoModo, modoDaMensagem, type ModoId } from "@/lib/modos-do-chat";
 
-const VERBOO_BASE     = "https://code.verboo.ai/router/v1";
-const VERBOO_MODEL    = "deepseek-v4.1-flash";      // V4.1 (principal do ecossistema)
-const VERBOO_RESERVA  = "glm-5.3-flash";            // reserva (o "deepseek-v4-flash" saiu do provedor: 404)
+/**
+ * Circuit breakers do gateway da conta.
+ *
+ * Chave: `gw-cb:<contaId>` → até quando o gateway fica fora, em ms.
+ * Vive no escopo do módulo (não em `globalThis`) porque o Next compila por
+ * worker, e o que importa é que as requisições do MESMO processo compartilhem
+ * o estado — que é exatamente o caso do escopo de módulo.
+ */
+const CIRCUITOS = new Map<string, number>();
+
+/** O gateway desta conta está fora do circuito? */
+function gatewayForaDoCircuito(contaId: number): boolean {
+  return (CIRCUITOS.get(`gw-cb:${contaId}`) ?? 0) > Date.now();
+}
+function abrirCircuitoDoGateway(contaId: number): void {
+  CIRCUITOS.set(`gw-cb:${contaId}`, Date.now() + 5 * 60 * 1000);
+}
+function fecharCircuitoDoGateway(contaId: number): void {
+  CIRCUITOS.delete(`gw-cb:${contaId}`);
+}
+
+// BASE E CHAVE PODEM VIR DO AMBIENTE (teste A/B sem rebuild, 23/10/2026):
+// medido — o AIBEE (`api.kpalabz.com/v1`) fala o MESMO formato OpenAI e
+// responde o "ping" em 1,5s, contra 2,5–49s do Verboo conforme o tamanho da
+// resposta. Apontar `MIRAI_CHAT_BASE_URL` + `MIRAI_CHAT_API_KEY` + `MIRAI_CHAT_MODEL`
+// troca o provedor do chat sem tocar no resto do caminho.
+const CHAT_BASE_URL = process.env.MIRAI_CHAT_BASE_URL || loadEnv("MIRAI_CHAT_BASE_URL") || "";
+const CHAT_API_KEY  = process.env.MIRAI_CHAT_API_KEY  || loadEnv("MIRAI_CHAT_API_KEY")  || "";
+const CHAT_MODEL    = process.env.MIRAI_CHAT_MODEL    || loadEnv("MIRAI_CHAT_MODEL")    || "";
+const CHAT_BASE    = CHAT_BASE_URL || "https://api.kpalabz.com/v1";
+const CHAT_KEY     = CHAT_API_KEY  || CHAT_PROV_KEY;
+const CHAT_MODEL_USADO = CHAT_MODEL || "claude-opus-5-5";
+const CHAT_MODEL_PRINCIPAL = "claude-opus-5-5";   // principal do chat
+const CHAT_MODEL_RESERVA   = "claude-sonnet-5";   // reserva (mesmo provedor, modelo diferente)
 const GEMINI_BASE     = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_MODEL    = "gemini-2.5-flash";
-const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
-const OPENROUTER_MODEL= "anthropic/claude-sonnet-4-6";
+const AIAPIFLOW_BASE  = loadEnv("AIAPIFLOW_BASE_URL") || "https://aiapiflow.com/v1";
+const AIAPIFLOW_MODEL = loadEnv("MIRAI_CHAT_MODEL") || "claude-opus-5-5";
 const ARCA_URL        = "https://arca.miraitohope.com";
 
 export const runtime = "nodejs";
@@ -652,7 +686,12 @@ async function conversarComFerramentas(opts: {
     }
     // No modo Leve só sobram as ferramentas do CONECTOR (o produto do cliente):
     // as de pesquisa não entram na lista, e o modelo não tem como chamá-las.
-    ferramentas = ferramentasParaOModelo(apoio.ctxPessoa, modo ?? "observador", podeArquiteto);
+    // A mensagem vai junto porque o Canva SÓ é oferecido quando o pedido é sobre
+    // design (dono, 22/10/2026). Sem isso o modelo testava o Canva num "oi".
+    const textoDoUsuario = [...messages].reverse()
+      .map((m) => (typeof m?.content === "string" ? m.content : ""))
+      .find((c) => c.trim().length > 0) || "";
+    ferramentas = ferramentasParaOModelo(apoio.ctxPessoa, modo ?? "observador", podeArquiteto, textoDoUsuario);
     executor = (nome, args) => executarFerramenta(apoio.ctxPessoa as ContextoDaPessoa, nome, args, conta);
   } catch (e) {
     console.error("Ferramentas do resolutor:", e instanceof Error ? e.message : e);
@@ -676,31 +715,55 @@ async function conversarComFerramentas(opts: {
   });
 
   const chamarDireto = (comFerramentas: boolean) =>
-    fetch(`${VERBOO_BASE}/chat/completions`, {
+    fetch(`${CHAT_BASE}/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${VERBOO_API_KEY}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${CHAT_KEY}` },
       body: JSON.stringify({
-        model: modelo,
+        model: CHAT_MODEL_USADO,
         messages: msgs,
         ...(comFerramentas ? { tools: ferramentas, tool_choice: "auto" } : {}),
         max_tokens: 4096,
         temperature: 0.4,
-        // RACIOCÍNIO DESLIGADO (correção 10/10/2026, medida no construtor): com o
-        // raciocínio LIGADO o modelo entra em LOOP INFINITO — o stream corre e nunca
-        // emite `content`, e a resposta TRAVA (o botão de enviar fica desabilitado
-        // "para sempre"). Com `enable_thinking: false` responde em segundos.
-        enable_thinking: false,
       }),
     });
 
   // Conta vinculada tenta o gateway DELA; se ele recusar ou cair, o mesmo
   // corpo (com as ferramentas) vai pelo provedor direto — a pessoa não perde
   // o CRM porque o gateway piscou.
+  // ── CIRCUIT BREAKER do gateway (22/10/2026) ──────────────────────────────
+  // Medido: com um token de integração inválido (Canva 401), TODA mensagem paga
+  // a falha do gateway antes de cair no Verboo. "oi" chegou a 46s e um pedido
+  // estourou 60s e caiu o stream ("Caiu a conexão no meio"). O gateway não
+  // estava lento: estava sendo consulto por algo que ele não pode atender.
+  //
+  // Depois de uma recusa, ele fica fora por 5 MINUTOS. É tempo suficiente para a
+  // pessoa reconectar em /dashboard/connect antes de a rota voltar a chamá-lo, e
+  // curto o bastante para que a conexão boa volte sozinha. Só recusa de
+  // AUTENTICAÇÃO abre o circuito: erro 5xx é do fornecedor e pode passar.
+  const CONTA_ID = apoio?.ctxPessoa?.identidade?.contaId ?? 0;
+  const circuitoAberto = () => gatewayForaDoCircuito(CONTA_ID);
+  const abrirCircuito = () => abrirCircuitoDoGateway(CONTA_ID);
+  const fecharCircuito = () => fecharCircuitoDoGateway(CONTA_ID);
+
   const chamar = async (comFerramentas: boolean) => {
-    if (gw) {
+    if (gw && !circuitoAberto()) {
       try {
         const r = await gw.chamar(corpoDe(comFerramentas));
-        if (r.ok) return r;
+        if (r.ok) {
+          fecharCircuito();
+          return r;
+        }
+        // ── O QUE ABRE O CIRCUITO (medido 23/10/2026) ─────────────────────
+        // O gateway NÃO devolve 401 quando uma integração da conta falha: ele
+        // devolve **400**, com o 401 do provedor DENTRO do corpo:
+        //   400 {"detail":"o provedor recusou o pedido (401):
+        //          {\"error\":\"invalid or expired token\"}"}
+        // Checar só `r.status === 401` nunca disparava — o circuito ficava
+        // fechado e cada pedido pagava a falha toda vez (46s para um "oi").
+        // Por isso a regra é: **400 também abre**. O 400 do gateway é sempre
+        // "recusa", nunca "pedido malformado"; e um pedido malformado cair no
+        // provedor direto é o comportamento certo de qualquer forma.
+        if (r.status === 400 || r.status === 401 || r.status === 403) abrirCircuito();
         console.error("Laço: gateway da conta recusou, indo pelo provedor direto:", r.status);
       } catch (e) {
         console.error(
@@ -912,23 +975,24 @@ export async function POST(req: NextRequest) {
 
     let resposta: Response;
     if (useClaude || wantsClaude(lastMsg)) {
-      // Tenta OpenRouter Claude primeiro
-      if (OPENROUTER_KEY) {
-        resposta = await callOpenRouter(messages, lastMsg, chatMode, apoio, ehDono);
+      // Tenta aiapiflow Claude primeiro
+      if (AIAPIFLOW_KEY) {
+        resposta = await callAiapiflow(messages, lastMsg, chatMode, apoio, ehDono);
       } else if (GOOGLE_API_KEY) {
         // Fallback: Gemini
         resposta = await callGemini(messages, lastMsg, chatMode, apoio, ehDono);
       } else {
         return Response.json({ error: "Nenhum provider configurado" }, { status: 500 });
       }
-    } else if (VERBOO_API_KEY) {
-      // Padrão: DeepSeek V4.1 (Verboo) -> V4.0 -> Gemini -> Claude
-      resposta = await callVerboo(messages, lastMsg, chatMode, VERBOO_MODEL, apoio, ehDono, escalada.modo);
+    } else if (CHAT_PROV_KEY) {
+      // Padrão: Claude Opus 5.5 no kpalabz -> Claude Sonnet 5 (mesmo provedor,
+      // modelo diferente) -> Gemini -> aiapiflow
+      resposta = await callVerboo(messages, lastMsg, chatMode, CHAT_MODEL_PRINCIPAL, apoio, ehDono, escalada.modo);
     } else if (GOOGLE_API_KEY) {
       resposta = await callGemini(messages, lastMsg, chatMode, apoio, ehDono);
-    } else if (OPENROUTER_KEY) {
-      // Fallback: OpenRouter
-      resposta = await callOpenRouter(messages, lastMsg, chatMode, apoio, ehDono);
+    } else if (AIAPIFLOW_KEY) {
+      // Fallback: aiapiflow
+      resposta = await callAiapiflow(messages, lastMsg, chatMode, apoio, ehDono);
     } else {
       return Response.json({ error: "Nenhum provider configurado" }, { status: 500 });
     }
@@ -965,7 +1029,7 @@ export async function POST(req: NextRequest) {
 // ─── Verboo Handler (DeepSeek V4.1 -> V4.0 -> Gemini -> Claude) ──
 async function callVerboo(messages: {role:string;content:string}[], lastMsg: string,
                           chatMode: "conversa" | "arquiteto" = "conversa",
-                          modelo: string = VERBOO_MODEL,
+                          modelo: string = CHAT_MODEL_PRINCIPAL,
                           apoio: ApoioConta = {},
                           ehDono = false,
                           modoPesquisa: ModoId = "observador"): Promise<Response> {
@@ -992,7 +1056,17 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
   // stream (o gateway devolve SSE igual ao provedor, então o resto do chat não
   // muda). Se ele recusar ou cair, o caminho de sempre assume logo abaixo.
   const gw = gatewayDaConta(apoio?.ctxPessoa?.identidade?.contaId ?? 0);
-  if (gw) {
+  // O CIRCUITO É COMPARTILHADO COM O LAÇO DE FERRAMENTAS (correção 23/10/2026).
+  //
+  // Antes, este bloco — que é o caminho do pedido SIMPLES, sem ferramentas —
+  // chamava o gateway direto, sem consultar o circuito. Resultado medido: um
+  // "oi" pagava a falha do gateway (400: o Canva recusou o token) e caía no
+  // Verboo, e o circuito do laço de ferramentas continuava fechando porque
+  // ninguém abria. Foi este bloco que produziu os 2 de 8 quebrando.
+  //
+  // Por isso `CIRCUITOS` é uma constante de módulo (não local): os dois
+  // caminhos precisam enxergar a mesma queda.
+  if (gw && !gatewayForaDoCircuito(apoio?.ctxPessoa?.identidade?.contaId ?? 0)) {
     try {
       const r = await gw.chamar({
         model: modelo || MODELO_DA_CONTA,
@@ -1003,46 +1077,54 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
         stream_options: { include_usage: true },
       });
       if (r.ok && r.body) {
+        fecharCircuitoDoGateway(apoio?.ctxPessoa?.identidade?.contaId ?? 0);
         console.log(`Conta ${gw.tenant}: respondendo pelo gateway da conta`);
         return streamOpenAIResponse(r, { provedor: "conta", modelo, proteger: !ehDono });
       }
       const erro = await r.text().catch(() => "");
+      // Mesma regra do laço: 400/401/403 abrem o circuito. O gateway embrulha o
+      // 401 do provedor num 400, então esperar 401 nunca acontecia.
+      if (r.status === 400 || r.status === 401 || r.status === 403) {
+        abrirCircuitoDoGateway(apoio?.ctxPessoa?.identidade?.contaId ?? 0);
+      }
       console.error("Gateway da conta recusou:", r.status, erro.slice(0, 200));
     } catch (e) {
       console.error("Gateway da conta — rede:", e instanceof Error ? e.message : e);
     }
+  } else if (gw) {
+    console.log(`Conta ${gw.tenant}: gateway fora do circuito, indo direto ao provedor`);
   }
 
   let resp: Response;
   try {
-    resp = await fetch(`${VERBOO_BASE}/chat/completions`, {
+    resp = await fetch(`${CHAT_BASE}/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${VERBOO_API_KEY}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${CHAT_KEY}` },
       body: JSON.stringify({
-        model: modelo,
+        model: CHAT_MODEL_USADO,
         messages: msgs,
         max_tokens: 4096,
         stream: true,
         temperature: 0.6,
-        // Pede o bloco de uso no fim do stream (Verboo e compativel com OpenAI).
+        // Pede o bloco de uso no fim do stream (kpalabz e compativel com OpenAI).
         stream_options: { include_usage: true },
       }),
     });
   } catch (e: any) {
-    console.error("Verboo rede:", modelo, e?.message);
+    console.error("Provedor do chat — rede:", modelo, e?.message);
     resp = new Response("falha de rede", { status: 599 });
   }
 
   if (!resp.ok) {
     const err = await resp.text().catch(() => "");
-    console.error(`Verboo ${modelo} error:`, resp.status, err.slice(0, 300));
-    if (modelo === VERBOO_MODEL) {
-      console.log("V4.1 caiu — indo para a reserva...");
-      return await callVerboo(messages, lastMsg, chatMode, VERBOO_RESERVA, apoio, ehDono);
+    console.error(`Provedor do chat ${modelo} error:`, resp.status, err.slice(0, 300));
+    if (modelo === CHAT_MODEL_PRINCIPAL) {
+      console.log("Principal caiu — indo para a reserva...");
+      return await callVerboo(messages, lastMsg, chatMode, CHAT_MODEL_RESERVA, apoio, ehDono);
     }
     if (GOOGLE_API_KEY) return await callGemini(messages, lastMsg, chatMode, apoio, ehDono);
-    if (OPENROUTER_KEY) return await callOpenRouter(messages, lastMsg, chatMode, apoio, ehDono);
-    return Response.json({ error: `Verboo error: ${resp.status}`, details: err }, { status: 502 });
+    if (AIAPIFLOW_KEY) return await callAiapiflow(messages, lastMsg, chatMode, apoio, ehDono);
+    return Response.json({ error: `Erro do provedor: ${resp.status}`, details: err }, { status: 502 });
   }
 
   console.log(`Verboo respondeu OK com o modelo: ${modelo}`);
@@ -1074,10 +1156,10 @@ async function callGemini(messages: {role:string;content:string}[], lastMsg: str
   if (!resp.ok) {
     const err = await resp.text();
     console.error("Gemini error:", resp.status, err);
-    // Fallback: OpenRouter
-    if (OPENROUTER_KEY) {
-      console.log("Gemini failed, falling back to OpenRouter Claude...");
-      return await callOpenRouter(messages, lastMsg, chatMode, apoio, ehDono);
+    // Fallback: aiapiflow
+    if (AIAPIFLOW_KEY) {
+      console.log("Gemini failed, falling back to aiapiflow Claude...");
+      return await callAiapiflow(messages, lastMsg, chatMode, apoio, ehDono);
     }
     return Response.json({ error: `Gemini error: ${resp.status}`, details: err }, { status: 502 });
   }
@@ -1085,37 +1167,37 @@ async function callGemini(messages: {role:string;content:string}[], lastMsg: str
   return streamGeminiResponse(resp, { provedor: "google", modelo: GEMINI_MODEL, proteger: !ehDono });
 }
 
-// ─── OpenRouter Handler ──────────────────────────────────────────
-async function callOpenRouter(messages: {role:string;content:string}[], lastMsg: string, chatMode: "conversa" | "arquiteto" = "conversa", apoio: ApoioConta = {}, ehDono = false): Promise<Response> {
+// ─── aiapiflow Handler ──────────────────────────────────────────
+async function callAiapiflow(messages: {role:string;content:string}[], lastMsg: string, chatMode: "conversa" | "arquiteto" = "conversa", apoio: ApoioConta = {}, ehDono = false): Promise<Response> {
   // Superfície de cliente: entra o CRM da própria conta; Arca e mapa interno, não.
   const saaso = await contextoDaConta(apoio);
   const system = montarSystem({ chatMode, ehDono, saaso, memoria: ehDono ? apoio.memoriaArca : undefined });
   const msgs = buildMsgs(messages, system);
 
-  const resp = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+  const resp = await fetch(`${AIAPIFLOW_BASE}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENROUTER_KEY}`,
+      Authorization: `Bearer ${AIAPIFLOW_KEY}`,
     },
     body: JSON.stringify({
-      model: OPENROUTER_MODEL,
+      model: AIAPIFLOW_MODEL,
       messages: msgs,
       max_tokens: 4096,
       stream: true,
       temperature: 0.7,
-      // OpenRouter devolve `usage` no ultimo chunk (com custo em dolar).
+      // aiapiflow devolve `usage` no ultimo chunk (com custo em dolar).
       usage: { include: true },
     }),
   });
 
   if (!resp.ok) {
     const err = await resp.text();
-    console.error("OpenRouter error:", resp.status, err);
-    return Response.json({ error: `OpenRouter error: ${resp.status}`, details: err }, { status: 502 });
+    console.error("aiapiflow error:", resp.status, err);
+    return Response.json({ error: `aiapiflow error: ${resp.status}`, details: err }, { status: 502 });
   }
 
-  return streamOpenAIResponse(resp, { provedor: "openrouter", modelo: OPENROUTER_MODEL, proteger: !ehDono });
+  return streamOpenAIResponse(resp, { provedor: "aiapiflow", modelo: AIAPIFLOW_MODEL, proteger: !ehDono });
 }
 
 // ─── Stream: Gemini SSE -> nosso SSE ─────────────────────────────
@@ -1201,7 +1283,7 @@ async function streamOpenAIResponse(resp: Response, ctx: { provedor: string; mod
       const filtro = ctx.proteger ? criarFiltroSaida(controller, encoder) : null;
       let viuConteudo = false;
       let guardado = "";
-      // Uso REAL no ultimo chunk (Verboo/OpenRouter: usage.prompt_tokens/completion_tokens).
+      // Uso REAL no ultimo chunk (Verboo/aiapiflow: usage.prompt_tokens/completion_tokens).
       let uso: { pe: number; cs: number; custo?: number } | null = null;
       try {
         while (true) {

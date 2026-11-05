@@ -4,22 +4,32 @@
  * Regra do dono (09/out/2026, textual): *"não trazer o projeto para o nosso
  * servidor — a gente entra no servidor DELE e trabalha lá dentro."*
  *
- * Este arquivo é a FUNDAÇÃO disso, e só isso por enquanto:
+ * Este arquivo é a FUNDAÇÃO disso:
  *   - guardar a credencial SSH da pessoa DE FORMA CIFRADA (a cifra é feita
  *     fora daqui — aqui só se usa a chave já em claro, na hora, e some);
  *   - PROVAR que conecta (roda `true` no servidor dele);
- *   - LISTAR arquivos (`ls`), leitura só.
+ *   - LISTAR (`ls`), LER (`head`), GRAVAR (`cat >`, com backup antes) e
+ *     EXECUTAR (`executar`) arquivos e comandos no servidor dele.
  *
- * NÃO HÁ ESCRITA AQUI. Criar, editar, subir e rodar arquivo no servidor do
- * cliente vem DEPOIS, com decisão explícita do dono — uma tarefa por vez, e
- * esta para na leitura. Enquanto a decisão não vier, nada neste app escreve,
- * move ou apaga um byte no servidor do cliente.
+ * A história deste arquivo, em uma linha: nasceu SÓ LEITURA de propósito
+ * (*"Criar, editar, subir e rodar arquivo no servidor do cliente vem DEPOIS, com
+ * decisão explícita do dono"*). A decisão veio em 14/10/2026 (*"quero que consiga
+ * editar coisas em outros servidores"*) e de novo em 15/10/2026 (*"entrar no
+ * server ou instalar git ou qualquer coisa — integra tudo pelo chat"*). Cada
+ * pedido ligou uma capacidade a mais, e cada uma entrou com as travas que a
+ * decisão não dispensa.
  *
  * COMO: usa o binário `ssh` que já existe, por `execFile` com ARRAY de
- * argumentos (NUNCA `shell`). Não há interpretador de shell no meio, então nada
- * do que vem do formulário pode virar comando. Além disso o alvo (host,
- * usuário, porta) é VALIDADO por regex estrita ANTES de qualquer uso — a chave
- * só é escrita em disco depois que o alvo passou.
+ * argumentos (NUNCA `shell` local). Não há interpretador de shell NESTA ponta,
+ * então nada do que vem do formulário pode virar comando AQUI. Além disso o alvo
+ * (host, usuário, porta) é VALIDADO por regex estrita ANTES de qualquer uso — a
+ * chave só é escrita em disco depois que o alvo passou.
+ *
+ * ⚠️ O shell REMOTO é outra história, e é bom que seja: `executar` existe
+ * justamente para rodar comando de shell no servidor dele. Lá o comando É
+ * interpretado, por desenho. O que protege não é o escape — é o alvo ser fixo
+ * (a integração desta conta) e o comando vir de quem pediu, nunca de conteúdo
+ * lido.
  *
  * A CHAVE PRIVADA NUNCA aparece em resposta, log, mensagem de erro nem
  * relatório: ela chega do formulário, é escrita num arquivo temporário 600 só
@@ -201,6 +211,12 @@ function executarSsh(opts: {
    * comando.
    */
   entrada?: string;
+  /**
+   * Teto do processo. A leitura tem teto curto (20 s) porque ler arquivo é
+   * rápido; EXECUTAR não é — `apt-get install` e `npm install` demoram minutos.
+   * Quem executa passa o teto maior; o default continua sendo o curto.
+   */
+  timeoutMs?: number;
 }): Promise<ResultadoBruto> {
   const args = [
     "-i", opts.keyPath,
@@ -220,7 +236,11 @@ function executarSsh(opts: {
     const filho = execFile(
       "ssh",
       args,
-      { timeout: TIMEOUT_MS, maxBuffer: 1_048_576, encoding: "utf8" },
+      {
+        timeout: opts.timeoutMs ?? TIMEOUT_MS,
+        maxBuffer: 4 * 1_048_576,
+        encoding: "utf8",
+      },
       (erro, stdout, stderr) => {
         // Nada do que sai daqui pode carregar o caminho da chave — troca por um
         // marcador neutro antes de virar qualquer coisa.
@@ -609,6 +629,120 @@ export async function listarRecursivo(opts: {
       .filter(Boolean)
       .slice(0, MAX_ARQUIVOS_IMPORT);
     return { ok: true, arquivos };
+  } finally {
+    await prep.limpar();
+  }
+}
+
+// ─── EXECUTAR no servidor dele (dono, 15/10/2026) ───────────────────────────
+//
+//   "Entrar no server ou instalar git ou qualquer coisa. integra tudo pelo chat
+//    tbm. Tudo que quisermos sempre quero que possa fazer pelo chat"
+//
+// ATÉ AQUI o desenho era: o que vem de fora é dado A LER E EDITAR, NUNCA A
+// EXECUTAR. A decisão do dono muda isso — e muda de propósito. Ele quer operar o
+// servidor pelo chat, igual ele opera a própria máquina.
+//
+// O QUE CONTINUA VALENDO (a decisão não dispensa nenhuma destas):
+//   1. o ALVO (host, usuário, porta) passa por `validarAlvo` — o comando nunca
+//      escolhe para onde vai; o destino é a integração guardada DESTA conta;
+//   2. a CHAVE é decifrada na hora, escrita 600 só para o ssh ler, e apagada no
+//      fim — nunca aparece em resposta, log ou erro;
+//   3. teto de tamanho no comando e na saída, e teto de TEMPO no processo;
+//   4. `BatchMode=yes` — nada de prompt interativo pendurando o turno do chat.
+//
+// O QUE MUDA, E É O PONTO: aqui o comando É interpretado pelo shell REMOTO. É
+// exatamente o que "instalar git" exige. A defesa contra injeção NÃO é deixar de
+// interpretar — é que o comando venha de quem pediu (a pessoa, pelo chat), e
+// NUNCA de conteúdo lido (arquivo do repositório, README, saída de comando). Essa
+// regra vive no prompt do modo; a ferramenta recusa o que é absurdo, não o que é
+// poderoso.
+
+/** Teto do comando remoto. Acima disto é roteiro, não comando. */
+export const LIMITE_COMANDO = 8192;
+/** Teto da saída devolvida (o resto é cortado — e se DIZ que cortou). */
+export const LIMITE_SAIDA = 48 * 1024;
+/** Teto do processo ao executar: instalar pacote demora, mas não para sempre. */
+const TIMEOUT_EXEC_MS = 120000;
+
+/**
+ * Roda um comando NO SERVIDOR DO CLIENTE, pelo ssh, e devolve a saída.
+ *
+ * `cwd` (opcional) é validado como caminho absoluto e o comando roda lá dentro —
+ * é o que permite `git status` no projeto certo sem o modelo ter de acertar um
+ * `cd` no meio do comando.
+ */
+export async function executar(opts: {
+  host: unknown;
+  porta?: unknown;
+  usuario: unknown;
+  chave: unknown;
+  comando: unknown;
+  cwd?: unknown;
+}): Promise<{ ok: boolean; codigo?: number | null; saida?: string; truncado?: boolean; erro?: string }> {
+  const alvo = validarAlvo(opts.host, opts.usuario);
+  if (!alvo.ok) return { ok: false, erro: alvo.erro };
+
+  const porta = normalizarPorta(opts.porta);
+  if (porta === null) return { ok: false, erro: "porta inválida (use um número de 1 a 65535)" };
+
+  const comando = typeof opts.comando === "string" ? opts.comando.trim() : "";
+  if (!comando) return { ok: false, erro: "informe o comando" };
+  if (comando.length > LIMITE_COMANDO) return { ok: false, erro: "comando longo demais" };
+  if (comando.includes("\u0000")) return { ok: false, erro: "o comando tem byte nulo" };
+
+  // O diretório de trabalho, quando informado, tem de ser caminho absoluto
+  // válido — e entra CITADO, para não virar opção nem comando.
+  let prefixo = "";
+  if (opts.cwd !== undefined && opts.cwd !== null && String(opts.cwd).trim() !== "") {
+    const dir = validarCaminho(opts.cwd);
+    if (!dir.ok) return { ok: false, erro: `diretório: ${dir.erro}` };
+    prefixo = `cd ${aspasSimples(dir.caminho)} && `;
+  }
+
+  const chave = typeof opts.chave === "string" ? opts.chave : "";
+  if (!chave.trim()) return { ok: false, erro: "a credencial do servidor está vazia" };
+
+  const prep = await prepararChave(chave);
+  if (!prep) return { ok: false, erro: "não consegui preparar a chave no servidor (arquivo temporário indisponível)" };
+
+  try {
+    const r = await executarSsh({
+      keyPath: prep.caminho,
+      knownHosts: prep.knownHosts,
+      host: alvo.host,
+      porta,
+      usuario: alvo.usuario,
+      comando: `${prefixo}${comando}`,
+      timeoutMs: TIMEOUT_EXEC_MS,
+    });
+
+    // A saída junta os DOIS canais na ordem em que a pessoa leria um terminal:
+    // muito comando escreve o progresso no stderr, e escondê-lo faria o chat
+    // dizer "não saiu nada" com o trabalho feito.
+    const bruto = [r.stdout, r.stderr].filter((t) => t && t.length).join("\n").trim();
+
+    if (r.erro === "ETIMEDOUT") {
+      return {
+        ok: false,
+        erro: "o comando passou do tempo limite (2 min) e foi interrompido — o que ele já tinha feito, ficou feito",
+        saida: bruto.slice(0, LIMITE_SAIDA),
+      };
+    }
+    if (r.codigo === null && r.erro) {
+      return { ok: false, erro: traduzirFalha(r, alvo.usuario, alvo.host), saida: bruto.slice(0, LIMITE_SAIDA) };
+    }
+
+    const truncado = bruto.length > LIMITE_SAIDA;
+    return {
+      ok: r.codigo === 0,
+      codigo: r.codigo,
+      saida: bruto.slice(0, LIMITE_SAIDA),
+      truncado,
+      // Código diferente de zero NÃO é falha de transporte: o comando rodou e
+      // disse que não deu certo. Quem lê decide — não traduzo por cima.
+      erro: r.codigo === 0 ? undefined : `o comando terminou com código ${r.codigo}`,
+    };
   } finally {
     await prep.limpar();
   }

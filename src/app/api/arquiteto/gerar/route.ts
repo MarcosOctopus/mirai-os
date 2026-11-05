@@ -8,7 +8,11 @@ import { normalizarTokens, type Tokens } from "@/lib/arquiteto-tokens";
 import { mesclarMudanca } from "@/lib/arquiteto-mescla";
 import { aplicarEdicoes, extrairEdicoes } from "@/lib/arquiteto-edicoes";
 import { donoDoProjeto, obterProjeto, salvarProjeto } from "@/lib/arquiteto-projetos";
-import { promptComCraft, promptComIntegracoes, promptComVisual } from "@/lib/arquiteto-craft";
+import { promptComCraft, promptComIntegracoes, promptComPublicacao, promptComVisual } from "@/lib/arquiteto-craft";
+import { PUBLICO_PADRAO } from "@/lib/base-publica";
+import { origemPublica } from "@/lib/mirai-oidc";
+import { ferramentasDoArquiteto, executarFerramentaArquiteto } from "@/lib/ferramentas-arquiteto";
+import type { Conta } from "@/lib/orgs";
 import {
   alvosCitados,
   alvosPorPadrao,
@@ -61,12 +65,14 @@ function loadEnv(name: string): string {
   return process.env[name] || "";
 }
 
-const VERBOO_API_KEY = process.env.VERBOO_API_KEY || loadEnv("VERBOO_API_KEY");
+const VERBOO_API_KEY = process.env.AIBEE_API_KEY || loadEnv("AIBEE_API_KEY");
 const GOOGLE_API_KEY = loadEnv("GOOGLE_API_KEY");
 
-const VERBOO_BASE = "https://code.verboo.ai/router/v1";
-// Mesmos modelos do chat: V4.1 (principal) com o V4.0 logo atrás como reserva.
-const VERBOO_MODELOS = ["deepseek-v4.1-flash", "glm-5.3-flash", "qwen3.8-27b"];
+const VERBOO_BASE = "https://api.kpalabz.com/v1";
+// Cadeia de modelos do construtor, no kpalabz. Modelos DIFERENTES de propósito:
+// se o principal saturar, o seguinte é outra rota de inferência (medido 28/10:
+// o kpalabz respondeu 60/60 com 60 requisições simultâneas).
+const VERBOO_MODELOS = ["claude-opus-5-5", "claude-sonnet-5", "claude-opus-4-8"];
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -369,12 +375,13 @@ async function lerTexto(resp: Response, onProgresso?: (caracteres: number) => vo
 }
 
 // ── VISÃO (dono, 09/10/2026) ────────────────────────────────────────────────
-// O modelo que CONSTRÓI (deepseek-v4.1-flash) NÃO enxerga imagem: pedido com
-// imagem nele volta 502 "upstream unavailable" (medido em 09/10/2026). Quem
-// enxerga — na MESMA chave e no MESMO provedor — é o `glm-5.3-flash` (medido:
-// descreveu corretamente a marca da Mirai). Então a foto do pedaço marcado vai
-// para ELE, que devolve TEXTO; a descrição entra na instrução de quem constrói.
-const MODELO_VISAO = "glm-5.3-flash";
+// 28/10/2026: no Verboo, o modelo que CONSTRÓI (deepseek-v4.1-flash) NÃO
+// enxerga imagem — quem enxergava era o `glm-5.3-flash`, na mesma chave.
+// No kpalabz a situação é MELHOR: o `claude-opus-5-5` ENXERGA (medido: leu um
+// PNG e respondeu "Vermelho" nos dois formatos). Então a foto do pedaço marcado
+// vai para o `claude-opus-5-5`, que devolve TEXTO; a descrição entra na
+// instrução de quem constrói.
+const MODELO_VISAO = "claude-opus-5-5";
 
 /** Lê a FOTO do pedaço marcado com o modelo que ENXERGA. Falhou → "" e o pedido
     segue só com a referência de texto — nunca finge que viu a imagem. */
@@ -391,7 +398,6 @@ async function lerFotoComVisao(foto: string): Promise<string> {
         max_tokens: 500,
         temperature: 0.2,
         stream: false,
-        reasoning_effort: "low",
         messages: [
           {
             role: "user",
@@ -942,7 +948,28 @@ export async function POST(req: NextRequest) {
       let saida: unknown = { erro: "Falha inesperada ao construir. Tente de novo." };
       const inicioConstrucao = Date.now();
       try {
-        saida = await construirProjeto(
+        // ── A FASE DE AÇÃO (dono, 15/10/2026: "dá mãos a ela") ────────────────
+        // Antes do construtor: se o pedido é AÇÃO (subir, git, servidor), quem
+        // responde são as FERRAMENTAS — o construtor nem é chamado. Se não for
+        // ação, o modelo responde SEM_ACAO e tudo segue como sempre foi.
+        // Devolver `arquivos: arquivosAtuais` (e não lista vazia) é de propósito:
+        // a tela usa essa lista como o estado do projeto, e lista vazia apagaria
+        // o que a pessoa já tem.
+        const ultimoPedido =
+          [...mensagens].reverse().find((m) => m.role !== "assistant")?.content || "";
+        const acao = PEDE_ACAO.test(ultimoPedido)
+          ? await faseDeFerramentas(ultimoPedido, g.conta)
+          : null;
+        if (acao && !/^\s*SEM_ACAO\s*$/i.test(acao.texto)) {
+          console.log("[arquiteto] ação resolvida por ferramenta:", acao.usou.join(", ") || "(nenhuma)");
+          saida = {
+            ok: true,
+            resumo: acao.texto,
+            arquivos: arquivosAtuais,
+            ferramentas: acao.usou,
+          };
+        } else {
+          saida = await construirProjeto(
           {
             mensagens,
             assets,
@@ -967,7 +994,8 @@ export async function POST(req: NextRequest) {
             loteDaFila.lote = l;
             loteDaFila.total = t;
           },
-        );
+          );
+        }
       } catch (e) {
         console.error("Arquiteto: falha no construir:", e instanceof Error ? e.message : e);
       } finally {
@@ -1014,6 +1042,146 @@ type EntradaConstrutor = {
   projetoId: string;
 };
 
+/**
+ * A FASE DE FERRAMENTAS (dono, 15/10/2026: *"dá mãos a ela"*).
+ *
+ * A tela do Arquiteto tinha chat próprio mas NENHUMA ferramenta: ela construía
+ * arquivos e, quando a pessoa pedia "sobe pra mim", só sabia dizer que não
+ * conseguia. Aqui ela ganha as MESMAS mãos do chat da Mirai — o conjunto
+ * `ferramentasDoArquiteto()` (github_conta, github_publicar, servidor_*,
+ * arquiteto_*), pela MESMA porteira da conta.
+ *
+ * Roda ANTES do construtor, e só quando o pedido parece AÇÃO (ver PEDE_ACAO):
+ * construir tela não paga o custo de uma ida a mais ao modelo. Se o modelo
+ * concluir que o pedido não é ação, responde SEM_ACAO e o construtor assume —
+ * exatamente como antes desta mudança.
+ */
+const PEDE_ACAO =
+  /\b(subir|suba|sobe|publicar|publica|reposit[óo]rio|repo|github|git|commit|branch|servidor|ssh|rodar|roda|rode|executar|executa|instalar|instala|comando|terminal|clonar|clone|trazer|importar)\b/i;
+
+/** Teto de idas ao modelo na fase de ação (cada uma pode pedir ferramenta). */
+const RODADAS_FERRAMENTAS = 4;
+/** Teto do que volta ao modelo: resultado gigante não pode estourar o contexto. */
+const MAX_RESULTADO_FERRAMENTA = 6000;
+
+const INSTRUCOES_FERRAMENTAS =
+  "Você é o Arquiteto da Mirai no modo AÇÃO. Aqui você NÃO escreve código: você USA " +
+  "as ferramentas para fazer o que a pessoa pediu no mundo real — subir o projeto para " +
+  "o GitHub, mexer no servidor dela, trazer projeto de fora, ler e gravar arquivos.\n\n" +
+  "Regras:\n" +
+  "- Se o pedido for para CONSTRUIR ou MUDAR o app (tela, cor, texto, layout, " +
+  "comportamento), NÃO use ferramenta nenhuma: responda apenas com a palavra SEM_ACAO.\n" +
+  "- Se a mensagem CITA um repositório (link do GitHub ou 'dono/repo') e pede para " +
+  "trazer, importar, clonar, instalar, configurar, analisar ou mexer nele, isso é AÇÃO: " +
+  "chame `arquiteto_trazer_git`. NÃO responda SEM_ACAO nesse caso, e NUNCA construa uma " +
+  "página de instruções no lugar de trazer o código — foi medido: pediram um repositório " +
+  "e o construtor desenhou um 'guia de instalação' dizendo que não conseguia clonar.\n" +
+  "- Se for AÇÃO (subir, publicar, git, repositório, servidor, rodar comando, trazer " +
+  "projeto de fora), use a ferramenta certa e depois responda em português do Brasil, " +
+  "curto e direto, dizendo o que aconteceu DE VERDADE.\n" +
+  "- Você TEM internet e trabalha com a conta e os projetos DESTA pessoa. NUNCA diga que " +
+  "não tem acesso à rede ou à conta: as ferramentas são a prova de que tem.\n" +
+  "- Se faltar conexão, a própria ferramenta devolve o LINK para conectar — entregue esse " +
+  "link na resposta, sozinho numa linha, para a pessoa clicar.\n" +
+  "- NUNCA invente resultado: conte só o que a ferramenta devolveu.\n" +
+  "- NUNCA peça senha, token ou chave, e nunca mande a pessoa colar comando de terminal.";
+
+/** O que a fase de ação devolveu: o texto final e quais ferramentas foram usadas. */
+type FaseFerramentas = { texto: string; usou: string[] };
+
+/** A forma da resposta do provedor quando se oferecem ferramentas. */
+type RespostaComFerramentas = {
+  choices?: {
+    message?: {
+      content?: string | null;
+      tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[];
+    };
+  }[];
+};
+
+async function faseDeFerramentas(
+  pedido: string,
+  conta: Conta,
+  orcamentoMs = 90000,
+): Promise<FaseFerramentas | null> {
+  const ferramentas = ferramentasDoArquiteto();
+  if (!ferramentas.length || !VERBOO_API_KEY) return null;
+  const msgs: unknown[] = [
+    { role: "system", content: INSTRUCOES_FERRAMENTAS },
+    { role: "user", content: pedido },
+  ];
+  const usou: string[] = [];
+  const inicio = Date.now();
+
+  for (let rodada = 0; rodada < RODADAS_FERRAMENTAS; rodada++) {
+    const resta = orcamentoMs - (Date.now() - inicio);
+    if (resta < 10000) break;
+
+    let j: RespostaComFerramentas | null = null;
+
+    for (const modelo of VERBOO_MODELOS) {
+      try {
+        const r = await fetch(VERBOO_BASE + "/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + VERBOO_API_KEY },
+          body: JSON.stringify({
+            model: modelo,
+            messages: msgs,
+            tools: ferramentas,
+            tool_choice: "auto",
+            max_tokens: 2048,
+            temperature: 0.2,
+            // Mesma correção do construtor: raciocínio LIGADO trava o stream.
+            enable_thinking: false,
+          }),
+          signal: AbortSignal.timeout(Math.max(10000, Math.min(120000, resta))),
+        });
+        if (!r.ok) {
+          console.error("Arquiteto ação " + modelo + ":", r.status);
+          continue;
+        }
+        j = (await r.json()) as RespostaComFerramentas;
+        break;
+      } catch (e) {
+        console.error("Arquiteto ação rede:", e instanceof Error ? e.message : e);
+      }
+    }
+    if (!j) return null;
+
+    const msg = j.choices?.[0]?.message;
+    const pedidos = msg?.tool_calls || [];
+    if (!pedidos.length) {
+      const texto = (msg?.content || "").trim();
+      return texto ? { texto, usou } : null;
+    }
+
+    msgs.push({ role: "assistant", content: msg?.content || "", tool_calls: pedidos });
+    for (const p of pedidos) {
+      const nome = p?.function?.name || "";
+      let args: Record<string, unknown> = {};
+      try {
+        args = JSON.parse(p?.function?.arguments || "{}") as Record<string, unknown>;
+      } catch {
+        /* argumento ilegível: a ferramenta decide o que fazer com {}. */
+      }
+      // Registro do que a conta executou — sem despejar dado pessoal no log.
+      console.log("[arquiteto] ação: " + nome);
+      let saida = "";
+      try {
+        saida = (await executarFerramentaArquiteto(nome, args, conta)) || "(ferramenta desconhecida)";
+      } catch (e) {
+        saida = "erro ao executar: " + (e instanceof Error ? e.message : "?");
+      }
+      if (saida.length > MAX_RESULTADO_FERRAMENTA) {
+        saida = saida.slice(0, MAX_RESULTADO_FERRAMENTA) + "…(resultado cortado)";
+      }
+      usou.push(nome);
+      msgs.push({ role: "tool", tool_call_id: p?.id || nome, content: saida || "(sem resultado)" });
+    }
+  }
+  return null;
+}
+
 /** Acima de LIMITE_LOTE alvos, o pedido vira FILA EM LOTE em vez de uma chamada só. */
 const LIMITE_LOTE = 8;
 const TAMANHO_LOTE = 4;
@@ -1046,12 +1214,15 @@ async function construirProjeto(
   // sempre o sistema inteiro." Projeto grande NÃO manda todos os arquivos: manda o MAPA e
   // só os que o pedido toca. O pedido da pessoa é o último turno de fala dela.
   const pedido = [...(p.mensagens || [])].reverse().find((m) => m.role !== "assistant")?.content || "";
-  const base = promptComIntegracoes(
-    promptComDoc(
-      promptComVisual(promptComCraft(promptComTokens(promptComAssets(CONSTRUTOR_PROMPT, p.assets), p.tokens))),
-      p.docProjeto,
+  const base = promptComPublicacao(
+    promptComIntegracoes(
+      promptComDoc(
+        promptComVisual(promptComCraft(promptComTokens(promptComAssets(CONSTRUTOR_PROMPT, p.assets), p.tokens))),
+        p.docProjeto,
+      ),
+      p.integracoes,
     ),
-    p.integracoes,
+    origemPublica() || PUBLICO_PADRAO,
   );
   const pequeno = projetoPequeno(p.arquivosAtuais);
   let alvos: string[];

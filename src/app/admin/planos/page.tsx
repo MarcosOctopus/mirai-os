@@ -91,6 +91,27 @@ const LIMITES: { chave: string; rotulo: string; nota?: string }[] = [
     rotulo: "Teto diário de envio por número",
     nota: "channel_sessions.daily_message_limit",
   },
+  // ── Espaço, projetos de fora e bancos (dono, 15/10/2026) ──────────────────
+  // "Projetos aqui dentro do Mirai OS ele pode ter quanto quiser ate bater os 3gb
+  //  dele, porem de fora como git e server coloca um limite por plano."
+  // Logo: `storage_gb` é o teto de ESPAÇO (vale para tudo, inclusive interno) e
+  // `projetos_externos` é o teto de QUANTIDADE — que só existe para o que vem de
+  // fora. Projeto criado aqui dentro não tem teto de quantidade nenhum.
+  {
+    chave: "storage_gb",
+    rotulo: "Espaço (GB)",
+    nota: "teto de espaço da conta no Arquiteto · ex.: 3 = 3 GB",
+  },
+  {
+    chave: "projetos_externos",
+    rotulo: "Projetos de fora (git/servidor)",
+    nota: "só os trazidos de fora · criado aqui dentro não tem teto de quantidade · ex.: 3",
+  },
+  {
+    chave: "bancos",
+    rotulo: "Bancos de dados",
+    nota: "quantos bancos a conta pode ter · ex.: 5",
+  },
   // ── Acesso simultâneo + faixa de pico (decidido por Marcos, 06/out/2026) ──
   // O preço é editado AQUI e vive em `limites` (JSONB no plano de controle —
   // zero migration). Modelo e faixas: docs/PLANOS-E-CAPACIDADES.md §4.1.

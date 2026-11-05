@@ -112,8 +112,29 @@ async function rpc(
 }
 
 function textoDoResultado(r: SaasoRpcResponse): string {
-  const res = r.result as { content?: { text?: string }[] } | undefined;
+  const res = r.result as { content?: { text?: string }[]; isError?: boolean } | undefined;
   const conteudo = res?.content;
+
+  // A FERRAMENTA RECUSOU — e isso tem de ser DITO (dono, 16/10/2026).
+  //
+  // MEDIDO: quando o CRM recusa (ex.: `Role 'agent' insufficient (required:
+  // 'manager')`), ele responde com `isError: true` no RESULTADO — não no campo
+  // `error`. Este código lia só o `text` e devolvia a recusa como se fosse um
+  // resultado NORMAL e bem-sucedido. O modelo recebia "Role 'agent'
+  // insufficient" sem nenhuma marca de falha, não reconhecia como erro e
+  // respondia "pronto, criei o funil" — e a pessoa ia ao CRM e não tinha nada.
+  //
+  // O `error` (fora do result) já era tratado; o `isError` não era. Aqui os dois
+  // passam a ser tratados igual: o modelo recebe uma FRASE DE ERRO inequívoca.
+  if (res?.isError) {
+    const motivo =
+      (Array.isArray(conteudo) && conteudo[0]?.text) || r.error?.message || "sem detalhe";
+    return (
+      `ERRO: a ferramenta NÃO foi executada. O sistema recusou: ${motivo}\n` +
+      `Não diga que deu certo. Explique a recusa e o que destrava.`
+    );
+  }
+
   if (Array.isArray(conteudo) && conteudo.length > 0) {
     const primeiro = conteudo[0];
     if (primeiro && typeof primeiro.text === "string") return primeiro.text;
