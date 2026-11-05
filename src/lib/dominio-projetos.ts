@@ -27,6 +27,10 @@ export const HOSTS_DO_APP = new Set([
   "saaso.miraitohope.com",
   "mapa-paper.miraitohope.com",
   "observador.miraitohope.com",
+  // Mirai 2 (VM isolada) — mesma aplicação, outra borda. Sem esta linha o
+  // middleware trata "mirai-os" como SLUG DE PROJETO, reescreve para
+  // /d/mirai-os e devolve 404. Medido 05/11/2026.
+  "mirai-os.miraitohope.com",
 ]);
 
 /** Host sem porta, minúsculo. Nunca lança. */
