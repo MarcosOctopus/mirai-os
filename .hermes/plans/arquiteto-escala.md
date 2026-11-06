@@ -53,9 +53,13 @@ Pedido que toca MUITOS arquivos não vira uma chamada gigante: vira uma **FILA**
 
 ## ORDEM DE EXECUÇÃO (cada fase provada e commitada)
 
-1. FASE 1 — `arquiteto-indice.ts` + `promptComIndice` + escalação. Prova: `scripts/prova-indice.ts`.
-2. FASE 1 — provar ponta a ponta num **projeto de TESTE** (nunca no projeto do dono).
-3. FASE 2 — fila em lote + progresso por lote. Prova: `scripts/prova-lotes.ts`.
+1. ✅ FASE 1 — `arquiteto-indice.ts` + `promptComIndice` + escalação. Prova: `scripts/prova-indice.ts` (**32/32**).
+2. ✅ FASE 1 — provado ponta a ponta num **projeto de TESTE**: `scripts/prova-escala.ts` (**11/11**).
+   Medido: 14 arquivos / 139 mil chars → escopo de 1 → 200 OK em 19-33s; os outros 13 byte a byte iguais.
+3. ✅ FASE 2 — fila em lote + progresso por lote. Prova: `scripts/prova-fila.ts` (**13/13**).
+   Medido: pedido em 10 páginas html → fila de 3 lotes; as 10 mudam; css/js/md intactos; cada lote gravado.
+
+Commits: `a98a48e` (a peça pura) + `1735298` (escopo, escalação e fila).
 
 ## REGRAS DE PROCESSO (aprendidas, valem aqui)
 
