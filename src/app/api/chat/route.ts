@@ -32,6 +32,7 @@ const AIAPIFLOW_KEY   = loadEnv("AIAPIFLOW_API_KEY");
 const CHAT_PROV_KEY   = loadEnv("AIBEE_API_KEY");
 
 import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
+import { arcaConfigurada, headersDaArca } from "@/lib/arca-cliente";
 import { regraDoModo, modoDaMensagem, type ModoId } from "@/lib/modos-do-chat";
 
 /**
@@ -460,7 +461,13 @@ function termosDaPergunta(msg: string): string[] {
 
 /** Uma consulta crua à Arca. Devolve as listas ou vazio (nunca lança). */
 async function consultarArca(q: string): Promise<{ docs: unknown[]; mems: unknown[] }> {
+  // Sem credencial de Arca neste ambiente, a memória simplesmente não existe —
+  // e isso NÃO é o mesmo que "a Arca está vazia". Devolver vazio aqui (em vez
+  // de tentar) evita 4-6 requisições inúteis por turno.
+  if (!arcaConfigurada()) return { docs: [], mems: [] };
+
   const res = await fetch(`${ARCA_URL}/context?q=${encodeURIComponent(q)}`, {
+    headers: headersDaArca(),
     signal: AbortSignal.timeout(4000),
   });
   if (!res.ok) return { docs: [], mems: [] };

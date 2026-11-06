@@ -1,5 +1,7 @@
 /// <reference types="react/experimental" />
 
+import { arcaConfigurada, headersDaArca } from "@/lib/arca-cliente";
+
 const ARCA_URL = "https://arca.miraitohope.com";
 
 export interface ArcaDoc {
@@ -28,13 +30,17 @@ export interface ArcaResponse {
 }
 
 export async function searchArca(query: string): Promise<ArcaResponse> {
-  const res = await fetch(`${ARCA_URL}/context?q=${encodeURIComponent(query)}`);
+  if (!arcaConfigurada()) throw new Error("Arca sem credencial neste ambiente");
+  const res = await fetch(`${ARCA_URL}/context?q=${encodeURIComponent(query)}`, {
+    headers: headersDaArca(),
+  });
   if (!res.ok) throw new Error(`Arca error: ${res.status}`);
   return res.json();
 }
 
 export async function getViaApi(path: string): Promise<any> {
-  const res = await fetch(`${ARCA_URL}${path}`);
+  if (!arcaConfigurada()) throw new Error("Arca sem credencial neste ambiente");
+  const res = await fetch(`${ARCA_URL}${path}`, { headers: headersDaArca() });
   if (!res.ok) throw new Error(`Arca error: ${res.status}`);
   return res.json();
 }
@@ -48,7 +54,10 @@ export interface ExecutiveBriefing {
 
 export async function getBriefing(): Promise<ExecutiveBriefing | null> {
   try {
-    const res = await fetch(`${ARCA_URL}/executive-brief`);
+    if (!arcaConfigurada()) return null;
+    const res = await fetch(`${ARCA_URL}/executive-brief`, {
+      headers: headersDaArca(),
+    });
     if (!res.ok) return null;
     return res.json();
   } catch {

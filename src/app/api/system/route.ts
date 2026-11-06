@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { execSync } from "child_process";
 import { existsSync, readFileSync, readdirSync } from "fs";
+import { arcaConfigurada, headersDaArca } from "@/lib/arca-cliente";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,8 +37,15 @@ export async function GET(req: NextRequest) {
 
       let arcaOnline = false;
       try {
-        const arcaRes = await fetch(`${ARCA_URL}/health`, { signal: AbortSignal.timeout(5000) });
-        arcaOnline = arcaRes.ok;
+        if (arcaConfigurada()) {
+          const arcaRes = await fetch(`${ARCA_URL}/health`, {
+            headers: headersDaArca(),
+            signal: AbortSignal.timeout(5000),
+          });
+          arcaOnline = arcaRes.ok;
+        }
+        // Sem credencial, `arcaOnline` fica false — honesto: neste ambiente a
+        // Arca não é alcançável por token, e isso é o que o painel deve dizer.
       } catch {}
 
       let lastBackup = "desconhecido";
