@@ -22,6 +22,7 @@ import {
   IconeEstrela,
   IconeEstrelaCheia,
   IconeFechar,
+  IconeCamadas,
   IconeLixeira,
   IconeLua,
   IconeMais,
@@ -29,6 +30,7 @@ import {
   IconeOrganizacoes,
   IconePontos,
   IconeProdutos,
+  IconeRelogio,
   IconeRobo,
   IconeSeta,
   IconeSino,
@@ -38,6 +40,7 @@ import {
   IconeUsuarios,
 } from "./icons";
 import { usarTema } from "@/lib/tema";
+import { Sininho } from "./Sininho";
 
 type Item = {
   label: string;
@@ -64,6 +67,13 @@ const PRIMARIO: Item[] = [
   // seções (Integrações e Skills), trocadas pelo seletor do topo.
   { label: "Synapse", href: "/dashboard/connect", icone: <IconeSynapse /> },
   { label: "Arquiteto", href: "/arquiteto", icone: <IconeRobo /> },
+  // A Arca desceu do grupo secundario para a lista principal (dono, 10/11/2026:
+  // "no menu lateral de baixo do arquiteto coloca 'A Arca'"). Continua NAO
+  // sendo so-dono: o acervo e de quem entrou.
+  { label: "A Arca", href: "/dashboard/arca", icone: <IconeCamadas /> },
+  // Agendamentos logo abaixo da Arca (dono, 12/11/2026): o que o time faz
+  // sozinho — mesma família visual e mesmo corte por papel dos vizinhos.
+  { label: "Agendamentos", href: "/dashboard/agendamentos", icone: <IconeRelogio /> },
   // A entrada "Skills" saiu do menu (dono, 08/10/2026): "Essa página do menu
   // esquerdo chamada skill tem que sumir. Só existir da Synapse junto com essa do
   // botão de explorar todas as skills." A vitrine vive na aba Skills da Synapse
@@ -212,6 +222,7 @@ export default function Shell({
   recolhidaInicial = false,
   cheio = false,
   cabecalhoDireita,
+  cabecalhoCentro,
 }: {
   titulo: string;
   usuario?: { nome?: string; email?: string; ehDono?: boolean } | null;
@@ -224,6 +235,8 @@ export default function Shell({
   /** peça opcional encaixada à DIREITA do cabeçalho (ex.: o seletor
       Integrações/Skills da Synapse). Sem ela, o cabeçalho é o de sempre. */
   cabecalhoDireita?: React.ReactNode;
+  /** No MEIO do topo (pedido do dono: igual ao toggle de chat/orb). */
+  cabecalhoCentro?: React.ReactNode;
 }) {
   const [aberto, setAberto] = useState(false);
   const [recolhida, setRecolhida] = useState(recolhidaInicial);
@@ -329,7 +342,7 @@ export default function Shell({
         <button
           aria-label="Abrir menu"
           onClick={() => setAberto(true)}
-          className="fixed left-3 top-3 z-40 grid h-9 w-9 place-items-center rounded-[10px] bg-dash-side/85 text-dash-muted backdrop-blur transition hover:text-dash-fg lg:hidden"
+          className="fixed left-5 top-5 z-40 grid h-9 w-9 place-items-center rounded-[10px] bg-dash-side/85 text-dash-muted backdrop-blur transition hover:text-dash-fg lg:hidden"
         >
           <IconeMenu />
         </button>
@@ -342,7 +355,7 @@ export default function Shell({
           gaveta não o mostra (decisão do dono) e o avatar não existia. Fica no topo
           direito, espelhando o botão de menu à esquerda, e some com a gaveta aberta. */}
       {cheio && !aberto && (
-        <div className="fixed right-3 top-3 z-40">
+        <div className="fixed right-5 top-5 z-40 lg:right-[44px] lg:top-8">
           <MenuDaConta inicial={inicial} usuario={usuario} caminho={caminho} />
         </div>
       )}
@@ -464,21 +477,6 @@ export default function Shell({
             existe). Se o dono quiser o atalho direto nessas telas, o caminho é pôr
             o avatar fixo no topo à direita — NÃO devolver a gaveta. */}
 
-        <div className={`mt-auto pt-8 ${recolhida ? "lg:hidden" : ""}`}>
-          <div className="rounded-[20px] bg-dash-raise/70 p-5">
-            <p className="text-[13px] font-semibold text-dash-fg">Mirai está de pé</p>
-            <p className="mt-2 text-[12px] leading-[1.5] text-dash-muted">
-              Para conversar, é na tela inicial: escrita ou voz, no mesmo lugar.
-            </p>
-            <Link
-              href="/"
-              onClick={() => setAberto(false)}
-              className="mt-4 inline-flex rounded-[10px] bg-dash-brand px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-dash-brandHi"
-            >
-              Abrir a Mirai
-            </Link>
-          </div>
-        </div>
       </aside>
 
       {/* O MENU DA CONVERSA — favoritar / apagar (dono, 12/10/2026: "põe três
@@ -551,17 +549,33 @@ export default function Shell({
 
       <main
         className={`transition-all ${recolhida ? "lg:ml-[84px]" : "lg:ml-[320px]"} ${
-          cheio ? "dash-cheio flex h-dvh flex-col overflow-hidden" : "min-h-dvh"
+          cheio ? "dash-cheio relative flex h-dvh flex-col overflow-hidden" : "min-h-dvh"
         }`}
       >
         <div
           className={
             cheio
-              ? "mx-auto flex h-full min-h-0 w-full max-w-none flex-col px-5 pb-0 pt-5 sm:px-8 lg:px-[44px] lg:pt-10"
+              ? "relative flex h-full min-h-0 w-full max-w-none flex-col"
               : "mx-auto max-w-[1145px] px-5 pb-16 pt-5 sm:px-8 lg:px-[44px] lg:pt-10"
           }
         >
-          <header className="flex items-center justify-between gap-4">
+          {/* Em `cheio` o cabeçalho FLUTUA sobre o conteúdo (pedido do dono, 10/11/2026):
+              antes ele empurrava o conteúdo, e a tela cheia ficava com uma faixa vazia em
+              cima e sem o seletor de modo à vista. Agora o céu/3D vai até a borda e o
+              seletor de modo continua acessível, como no toggle do chat/orb. */}
+          <header
+            className={
+              "flex items-center justify-between gap-4 " +
+              (cheio
+                ? "absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-[#04060c]/92 via-[#04060c]/55 to-transparent px-5 pb-7 pt-4 sm:px-8 lg:px-[44px] lg:pt-6"
+                : "relative")
+            }
+          >
+            {cabecalhoCentro && (
+              <div className="pointer-events-auto absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
+                {cabecalhoCentro}
+              </div>
+            )}
             <div className="flex min-w-0 items-center gap-4">
               <button
                 aria-label="Abrir menu"
@@ -574,14 +588,15 @@ export default function Shell({
             </div>
             <div className="flex shrink-0 items-center gap-4">
               {cabecalhoDireita}
-              <span className="relative grid h-[34px] w-[34px] place-items-center rounded-full bg-dash-side text-dash-muted">
-                <IconeSino />
-              </span>
+              {/* Sininho de VERDADE (11/11/2026): antes era um `<span>` só de
+                  enfeite. Agora conta as pastas compartilhadas com esta conta e
+                  leva DIRETO na pasta. */}
+              <Sininho />
               <MenuDaConta inicial={inicial} usuario={usuario} caminho={caminho} />
             </div>
           </header>
 
-          <div className="mt-8">{children}</div>
+          <div className={cheio ? "min-h-0 flex-1" : "mt-8"}>{children}</div>
         </div>
       </main>
     </div>

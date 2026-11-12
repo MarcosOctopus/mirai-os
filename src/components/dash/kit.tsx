@@ -294,18 +294,32 @@ export function Botao({
   children,
   variante = "marca",
   className = "",
+  onClick,
+  desabilitado,
+  type = "button",
 }: {
-  href: string;
+  /** Sem href o botão é de AÇÃO (clique), não de navegação — mesmas classes. */
+  href?: string;
   externo?: boolean;
   children: React.ReactNode;
   variante?: "marca" | "linha";
   className?: string;
+  onClick?: () => void;
+  desabilitado?: boolean;
+  type?: "button" | "submit";
 }) {
   const classe = `inline-flex items-center justify-center gap-2 rounded-[10px] px-5 py-2.5 text-[12px] font-semibold transition ${
     variante === "marca"
       ? "bg-dash-brand text-white hover:bg-dash-brandHi"
-      : "border border-dash-hair/12 text-dash-muted hover:text-dash-fg"
+      : "border border-dash-hair/[0.12] text-dash-muted hover:text-dash-fg"
   } ${className}`;
+  if (!href) {
+    return (
+      <button type={type} onClick={onClick} disabled={desabilitado} className={classe + " disabled:opacity-50"}>
+        {children}
+      </button>
+    );
+  }
   return externo ? (
     <a href={href} target="_blank" rel="noreferrer" className={classe}>
       {children}

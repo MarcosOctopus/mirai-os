@@ -3,6 +3,7 @@ import { createUser, getUserByEmail, hashPassword, signToken, updateUserPlatform
 import { ensureMfUser } from "@/lib/mf-bridge";
 import { vincularContaMirai } from "@/lib/vinculo-conta-mirai";
 import { consumirVinculosPendentes } from "@/lib/integracoes";
+import { garantirEspacoArca } from "@/lib/espaco-arca";
 
 export async function POST(req: NextRequest) {
   try {
@@ -64,6 +65,15 @@ export async function POST(req: NextRequest) {
       nome: name,
       senha: password,
     });
+
+    // ── Espaço dela na Arca: banco + acervo próprios (item 1 do plano) ──
+    // Idempotente e não fatal. O palácio (memória minerada) vem pelo cron de
+    // sync: minerar não cabe no tempo de um cadastro.
+    try {
+      await garantirEspacoArca(user.email, name);
+    } catch (espacoErr) {
+      console.warn("Espaço na Arca não criado (não fatal):", espacoErr);
+    }
 
     // ── PONTE: o que o cliente conectou DENTRO do CRM, agora que ele existe ──
     // O vínculo pendente é por e-mail e é consumido UMA vez. Não é fatal.

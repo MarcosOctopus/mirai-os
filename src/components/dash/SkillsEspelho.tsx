@@ -14,15 +14,20 @@
  * O QUE É CÓPIA (mesma ordem, mesmas caixas, mesma língua visual):
  *   Integrações            →  Skills
  *   ────────────────────────────────────────────────────────────────────
- *   1. banner (hero)       →  banner de SKILLS (o "slide principal")
- *   2. Uso de tokens       →  SKILLS DA COMUNIDADE   (em breve)
- *   3. Destaques           →  TOP CRIADORES DA COMUNIDADE (em breve)
+ *   1. banner (hero)       →  (vazio) — hero fora da tela (11/11/2026)
+ *   2. Uso de tokens       →  (vazio) — bloco de comunidade FORA da tela (11/11/2026)
+ *   3. Destaques           →  (vazio) — bloco de comunidade FORA da tela (11/11/2026)
  *   4. catálogo Integrações→  catálogo de SKILLS (contagem + chips + cartões)
  *   5. Minhas integrações  →  MINHAS SKILLS (contagem + as skills da conta)
  *
  * HONESTIDADE (não negociável — a comunidade NÃO existe ainda): as seções 2 e 3
- * são ESPAÇOS ESTRUTURADOS com estado honesto ("em breve"). Nenhum criador é
+ * são ESPAÇOS ESTRUTURADOS com estado honesto. Nenhum criador é
  * inventado, nenhuma skill de comunidade é inventada, nenhum número é fingido.
+ * ⚠️ 11/11/2026 — o dono RISCOU em vermelho todos os "em breve" desta tela (print
+ * de referência): promessa de futuro não vai ao ar. Saíram o texto grande do
+ * painel, o selo do cabeçalho, os selos das linhas e os dois parágrafos que
+ * anunciavam a abertura. As seções FICARAM — são o espelho estrutural das
+ * Integrações — só sem o anúncio.
  * A faixa de ORIGENS (nossa / do cliente / comunidade — em breve) continua, no
  * rodapé, com os NÚMEROS REAIS.
  *
@@ -160,11 +165,8 @@ function SkillsDaComunidade() {
           <span className="text-[14px]">Skills da comunidade</span>
         </div>
 
-        <p className="mt-3 public-sans text-[24px] font-medium text-dash-muted">em breve</p>
-
-        <p className="mt-2 max-w-[240px] text-[12px] leading-[1.5] text-dash-muted">
-          A comunidade abre em breve — aqui vão aparecer as skills compartilhadas pelas pessoas.
-        </p>
+        {/* REMOVIDO 11/11/2026: o dono riscou os "em breve" no print — promessa de
+            comunidade na tela não fica. O estado honesto segue na barra de baixo. */}
       </div>
 
       {/* a MESMA barra de baixo do saldo, agora com a informação honesta: sem
@@ -186,7 +188,6 @@ function TopCriadores() {
     <section data-top-criadores className="min-w-0 pt-2 text-dash-fg">
       <header className="mb-[14px] flex items-center justify-between">
         <h2 className="text-[14px] font-bold">Top criadores da comunidade</h2>
-        <span className="text-[11px] text-dash-dim">em breve</span>
       </header>
 
       <div className="space-y-[10px]">
@@ -198,17 +199,16 @@ function TopCriadores() {
             <div className="min-w-0">
               <span className="block h-[9px] w-[58%] rounded-full bg-dash-raise" />
               <span className="mt-[7px] block h-[7px] w-[36%] rounded-full bg-dash-line" />
+              {/* 11/11/2026: o selo "em breve" saiu — o dono riscou no print. A
+                  linha segue como SILHUETA do que virá, sem crachá de promessa. */}
             </div>
-            <span className="rounded-full bg-dash-raise px-2.5 py-[5px] text-[10px] text-dash-dim">
-              em breve
-            </span>
           </div>
         ))}
       </div>
 
-      <p className="mt-3 text-[12px] leading-[1.5] text-dash-muted">
-        A comunidade abre em breve — aqui vão aparecer os criadores das skills compartilhadas.
-      </p>
+      {/* REMOVIDO 11/11/2026 (riscado no print pelo dono): o parágrafo que prometia
+          "A comunidade abre em breve — aqui vão aparecer os criadores das skills
+          compartilhadas". As silhuetas acima falam por si. */}
     </section>
   );
 }
@@ -216,8 +216,8 @@ function TopCriadores() {
 /* ── Faixa de ORIGENS — REMOVIDA (08/10/2026). O dono pediu que a Synapse não
    diga quem fez nem de onde veio: as skills aparecem como skills, ponto. A
    separação "o que é meu" fica na seção MINHAS SKILLS (que continua com
-   criar/editar/apagar). Os blocos honestos "Skills da comunidade" e "Top
-   criadores" seguem como estavam (em breve). */
+   criar/editar/apagar). Os blocos "Skills da comunidade" e "Top criadores"
+   seguem como estão — SEM os "em breve", riscados pelo dono em 11/11/2026. */
 
 /* ── CARD de skill do catálogo (espelho do card de integração) ──────────────
    Mesma altura/faixa horizontal do catálogo de Integrações. Skills não têm logo
@@ -575,15 +575,18 @@ export default function SkillsEspelho() {
         </p>
       )}
 
-      {/* ── o topo da referência, na MESMA grade de 3 colunas das Integrações:
-             hero (skills) · Skills da comunidade · Top criadores ─────────── */}
-      <div className="mt-[55px] grid gap-5 xl:grid-cols-[1.35fr_1fr_0.65fr]">
-        <BannerSkills />
-        <SkillsDaComunidade />
-        <TopCriadores />
-      </div>
+      {/* ── 11/11/2026 (dono, em duas rodadas): a aba Skills fica SEM TOPO — nem
+             hero, nem blocos de comunidade. Primeiro saíram os dois blocos;
+             depois o próprio hero ("Suas skills, no comando" + os dois botões),
+             com print em cima dele: "ainda tem aqui". Aqui ficava a grade de 3
+             colunas copiada das Integrações; o que a aba entrega começa agora
+             direto no CATÁLOGO, abaixo do fio. As três funções (`BannerSkills`,
+             `SkillsDaComunidade`, `TopCriadores`) seguem no arquivo, sem uso,
+             para voltarem em uma linha se o dono quiser. ──────────────────── */}
 
-      <div className="mt-[30px] border-t border-dash-line2" />
+      {/* 11/11/2026 (dono): a LINHA divisória saiu — ela cortava o slide logo acima
+          do catálogo ("tira essa linha tbm que dividia o slide"). O que a aba
+          entrega agora começa direto no catálogo, sem fio atravessado. */}
 
       {/* ── O CATÁLOGO (espelho do catálogo de Integrações): título, contagem,
              busca, chips de categoria e a faixa de cartões ─────────────── */}

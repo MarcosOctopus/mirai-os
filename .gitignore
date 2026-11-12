@@ -88,3 +88,17 @@ _paginas-guia-proj_*.json
 # ── diagrama interno do servidor: nao e publico (05/11/2026) ──
 # Servido por /public sem sessao — expunha IP do host, RAM e topologia.
 public/ecossistema-mirai.html
+
+# ── Segredos: NUNCA vão para o GitHub ────────────────────────────────────────
+# Por que existe: um `git add .` levaria .env.local (26 chaves de API) para o repo
+# público. O repo já estava limpo por sorte, não por regra. Agora é por regra.
+.env
+.env.*
+!.env.example
+.credentials/
+*.pem
+*.key
+*master.key
+*.bak-*
+*.pre-*
+SESSION_STATE.md

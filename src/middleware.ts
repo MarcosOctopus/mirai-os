@@ -51,6 +51,16 @@ const PUBLIC_PATHS = [
   // conferido DENTRO da rota — nunca a sessão. Sem isto o callback toma 401 e a
   // conexão nunca se completa (medido 19/10/2026: volta respondia 401).
   '/api/oauth/canva',
+  // CONVITE DE PASTA COMPARTILHADA (11/11/2026): quem recebeu o link não tem
+  // conta. A credencial é o TOKEN na própria URL, e quem decide o que ele vê é
+  // a ARCA (concessão por pasta) — a página só desenha o que ela devolver.
+  // Sem esta linha o middleware mandaria o convidado para /login e o link
+  // nunca funcionaria.
+  '/convite',
+  // O PEDIDO DE NOVO LINK da tela de convite (11/11/2026): quem está ali não tem
+  // conta — o pedido chega à rota, que fala com a Arca usando o token do Core.
+  // Sem esta linha o clique levava 401 e o botão parecia quebrado.
+  '/api/convite',
   '/login',
   '/register',
   '/limite', // tela de teto do plano: precisa aparecer de qualquer jeito
@@ -108,6 +118,12 @@ const OWNER_ONLY_PAGES = ['/system', '/admin'];
 function soDono(pathname: string): boolean {
   // webhook tem guarda propria (nao passa por sessao de usuario)
   if (pathname.startsWith('/api/media-factory/webhook')) return false;
+  // O ACERVO é de QUEM ESTÁ LOGADO (medido 11/11/2026): com `/api/admin` na lista
+  // acima, o cliente levava 403 antes de a rota rodar — o "acervo por pessoa"
+  // existia no código e não existia no produto. A própria rota exige a sessão
+  // (exigirConta) e resolve a org POR ELA; a leitura do dono em org alheia é
+  // auditada em acervo-cross-read.log.
+  if (pathname.startsWith('/api/admin/acervo')) return false;
   if (OWNER_ONLY_API.some((p) => pathname.startsWith(p))) return true;
   return OWNER_ONLY_PAGES.some((p) => pathname === p || pathname.startsWith(p + '/'));
 }

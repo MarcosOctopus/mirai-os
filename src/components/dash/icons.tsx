@@ -499,6 +499,20 @@ export const IconeEstrelaCheia = ({ className }: Props) => (
 );
 
 /* Lixeira — apagar a conversa. */
+export const IconeOlho = ({ className }: Props) => (
+  <Svg className={className}>
+    <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z" />
+    <circle cx="12" cy="12" r="2.8" />
+  </Svg>
+);
+
+export const IconeLapis = ({ className }: Props) => (
+  <Svg className={className}>
+    <path d="M4 20h4.2L19 9.2a1.7 1.7 0 0 0 0-2.4l-1.8-1.8a1.7 1.7 0 0 0-2.4 0L4 15.8V20z" />
+    <path d="M14.2 6.6l3.2 3.2" />
+  </Svg>
+);
+
 export const IconeLixeira = ({ className }: Props) => (
   <Svg className={className}>
     <path d="M4.5 7h15M9.5 7V5.2A1.2 1.2 0 0 1 10.7 4h2.6a1.2 1.2 0 0 1 1.2 1.2V7" />

@@ -62,6 +62,7 @@ import Link from "next/link";
 import Shell from "@/components/dash/Shell";
 import SeletorModo from "@/components/dash/SeletorModo";
 import SkillsEspelho from "@/components/dash/SkillsEspelho";
+import CosmicAgent from "@/components/dash/CosmicAgent";
 import { Vazio } from "@/components/dash/kit";
 import { IconeCadeado, IconeFechar, IconePlug } from "@/components/dash/icons";
 import { VIDRO } from "@/lib/vidro";
@@ -167,7 +168,7 @@ function dataCurta(iso: string | null): string {
 /* As duas seções da Synapse (esta página): Integrações (o catálogo/estado de
    sempre, intacto) e Skills (o catálogo real do ecossistema, explicado). O
    seletor do cabeçalho troca entre as duas sem sair da rota. */
-type SynapseAba = "integracoes" | "skills";
+type SynapseAba = "cosmic" | "integracoes" | "skills";
 
 /* Logo, Figura e CardIntegracao saíram daqui para
    `@/components/dash/integracao-cards` (importados no topo): a grade
@@ -1011,8 +1012,10 @@ export default function IntegracoesPage() {
   const [crmAberto, setCrmAberto] = useState(false);
   const [saaso, setSaaso] = useState<SaasoStatus | null>(null);
 
-  /* Qual das duas seções está à vista. Começa em Integrações — a primeira
-     geração, do jeito que sempre foi. */
+  /* Qual das três seções está à vista. Começa em INTEGRAÇÕES: é o DASHBOARD —
+     dono, 11/11/2026: "copia a página de Integrações e coloca como Dashboard.
+     Depois fazemos as outras". A ordem dos BOTÕES segue a ordem dele (Cosmic
+     Agent em primeiro); o que abre por padrão é o dash. */
   const [aba, setAba] = useState<SynapseAba>("integracoes");
 
   const [linhas, setLinhas] = useState<LinhasDaConta>({ minhas: [], daEmpresa: [] });
@@ -1136,7 +1139,7 @@ export default function IntegracoesPage() {
     if (typeof window === "undefined") return;
     const q = new URLSearchParams(window.location.search);
     const a = q.get("aba");
-    if (a === "skills" || a === "integracoes") setAba(a as SynapseAba);
+    if (a === "cosmic" || a === "skills" || a === "integracoes") setAba(a as SynapseAba);
     const id = q.get("produto");
     if (id) {
       const item = CATALOGO.find((i) => i.id === id);
@@ -1303,17 +1306,32 @@ export default function IntegracoesPage() {
          o Chat/Orb de `/`, extraído e reusado aqui) trocando as duas seções. */
       cabecalhoDireita={
         <SeletorModo
-          rotuloAria="Alternar entre Integrações e Skills"
+          rotuloAria="Alternar entre Dashboard, Cosmic Agent, Integrações e Skills"
           ativo={aba}
-          onTrocar={(id) => setAba(id as SynapseAba)}
+          /* O botão DASHBOARD (dono, 11/11/2026: "coloca um botão a mais no toggle
+             chamado Dashboard que resolve isso") NAVEGA para a cópia congelada, em
+             vez de trocar de estado: o Dashboard é outra página, com arquivos
+             próprios — é o que mantém as duas telas separadas. Os outros três
+             trocam de aba aqui mesmo. */
+          onTrocar={(id) => {
+            if (id === "dashboard") {
+              window.location.href = "/dashboard";
+              return;
+            }
+            setAba(id as SynapseAba);
+          }}
           opcoes={[
+            { id: "dashboard", rotulo: "Dashboard" },
+            { id: "cosmic", rotulo: "Cosmic Agent" },
             { id: "integracoes", rotulo: "Integrações" },
             { id: "skills", rotulo: "Skills" },
           ]}
         />
       }
     >
-      {aba === "integracoes" ? (
+      {aba === "cosmic" ? (
+        <CosmicAgent />
+      ) : aba === "integracoes" ? (
         <>
       {erro && (
         <p className="mb-5 rounded-[16px] border border-[#ff2d55]/30 bg-[#ff2d55]/[0.07] px-5 py-4 text-[13px] text-[#ff2d55]">
@@ -1330,25 +1348,11 @@ export default function IntegracoesPage() {
         </p>
       )}
 
-      {/* topo da referência: hero + balance + top creators, na grade de 3 colunas */}
-      <div className="mt-[55px] grid gap-5 xl:grid-cols-[1.35fr_1fr_0.65fr]">
-        <Banner promocao={PROMOCOES[0] ?? BANNER_PADRAO} />
-        <UsoTokens
-          resumo={resumo}
-          carregando={tokensCarregando}
-          falhou={tokensFalhou}
-          recarregar={() => void carregarTokens()}
-        />
-        <Destaques
-          itens={destaques}
-          conectada={estaConectadaDaConta}
-          pronta={pronta}
-          onAbrir={abrir}
-          onConectarCrm={conectarCrm}
-        />
-      </div>
-
-      <div className="mt-[30px] border-t border-dash-line2" />
+      {/* 11/11/2026 (dono, em três rodadas): a página de Integrações fica igual à de
+          Skills — SÓ o catálogo. Saíram o hero ("Suas integrações, no comando"), a
+          LINHA divisória, o cartão de USO DE TOKENS e o DESTAQUE (print em cima dos
+          dois: "tem que tirar de integrações tb"). Os componentes `Banner`,
+          `UsoTokens` e `Destaques` ficam no arquivo, sem uso: voltam em uma linha. */}
 
       {/* o "Live Auctions" da referência: título, busca, filtro, chips e a faixa de cards */}
       <section id="catalogo" className="mt-5 scroll-mt-6">

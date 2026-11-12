@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   // ONDE O BUILD ESCREVE (dono, 14/10/2026).
@@ -14,6 +15,19 @@ const nextConfig: NextConfig = {
   // poucos segundos do reinício. Sem a variável, o comportamento é o de SEMPRE
   // (`.next`) — a receita antiga continua valendo.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+
+  // RAIZ DA VARREDURA DE ARQUIVOS DO BUILD (dono, 10/11/2026).
+  //
+  // Por que existe: com lockfile em mais de um lugar, o Next INFERE que a raiz do
+  // projeto é o diretório acima e varre a árvore inteira para o "file tracing".
+  // Medido nesta máquina: o build passou 31 min a 200% de CPU, escrevendo 450 KB e
+  // lendo 38 MB — não era compilação, era CAMINHAR DIRETÓRIO (readdir não conta como
+  // leitura, e por isso não aparecia em I/O). Sem esta linha, o Next avisa a cada
+  // build: "set outputFileTracingRoot in your Next.js config, or consider removing
+  // one of the lockfiles" — o aviso estava certo e foi ignorado por 9 builds.
+  //
+  // Aqui a raiz fica CRAVADA na pasta do app: o tracing só olha o que o app usa.
+  outputFileTracingRoot: path.resolve(process.env.MIRAI_APP_DIR || "/opt/data/mirai-app"),
 
   // OTIMIZAÇÕES DE BUILD — só valem quando NEXT_BUILD_LEVE=1 (dono, 22/10/2026).
   //
@@ -66,6 +80,16 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "40mb",
     },
     middlewareClientMaxBodySize: "40mb",
+
+    // BUILD EM THREAD PRÓPRIA = DESLIGADO (dono, 10/11/2026).
+    //
+    // Por que existe: com `webpackBuildWorker` ligado (padrão), o webpack roda numa
+    // worker thread e o build TRAVA sem produzir saída — medido nesta máquina em 3
+    // tentativas: 31 min a 200% de CPU escrevendo 450 KB e zero arquivo em .next-novo;
+    // o trace parou em 385.627 bytes e não cresceu mais (0 byte em 20 s). O modo
+    // anterior (sem a alavanca) travava diferente: 0% de CPU em futex_wait. Os dois
+    // modos travavam — a fonte comum é esta opção.
+    webpackBuildWorker: false,
   },
   async headers() {
     return [

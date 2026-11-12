@@ -503,6 +503,25 @@ button, textarea { font: inherit; }
 @keyframes data-rain { from { transform: translateY(0); } to { transform: translateY(-50%); } }
 @keyframes scan-beam { from { transform: translateY(0); opacity: .18; } 50% { opacity: .48; } to { transform: translateY(125vh); opacity: .18; } }
 
+/* ── COSMIC AGENT: os EFEITOS do slide (dono, 11/11/2026: "ate os efeitos") ──
+   As peças da faixa entram escalonadas e ficam VIVAS: uma luz fina atravessa o
+   card devagar, como as peças do site de referência. Tudo contido — a casa não
+   estoura luz (regra de estética do dono). */
+@keyframes cosmic-slide-in {
+  from { opacity: 0; transform: translateY(14px) scale(.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes cosmic-sheen {
+  0%, 60%   { transform: translateX(-140%) rotate(8deg); opacity: 0; }
+  68%       { opacity: .45; }
+  86%, 100% { transform: translateX(140%) rotate(8deg); opacity: 0; }
+}
+.cosmic-reveal { animation: cosmic-slide-in .55s cubic-bezier(.16,.84,.44,1) both; }
+.cosmic-sheen  { animation: cosmic-sheen 7.5s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .cosmic-reveal, .cosmic-sheen { animation: none !important; }
+}
+
 /* Reactive status halo — muda a cor ambiente com o estado da orb */
 .mirai-status-halo {
   position: fixed;

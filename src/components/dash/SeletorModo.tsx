@@ -10,6 +10,9 @@
 // Synapse (`/dashboard/connect`) usa esta mesma peça para trocar
 // Integrações ⇄ Skills — um só seletor, um só visual.
 //
+// TAMANHO (dono, 10/11/2026): "consegue deixar os dois toggles menores tanto da
+// Arca quanto do Chat orb" — corpo reduzido um degrau nos DOIS estados.
+//
 // `grande` é o único eixo que muda: na tela de início, em conversa vazia, o
 // seletor ganha corpo (p-1.5 / px-6 py-2.5 text-[14px]); fora disso ele fica
 // discreto (p-1 / px-4 py-1.5 text-[12px]) — exatamente como era antes.
@@ -34,7 +37,7 @@ export default function SeletorModo({
       role="tablist"
       aria-label={rotuloAria}
       className={`flex items-center gap-1 rounded-full border border-dash-hair/10 bg-dash-card transition-all ${
-        grande ? "p-1.5" : "p-1"
+        grande ? "p-1" : "p-[3px]"
       }`}
     >
       {opcoes.map((o) => (
@@ -45,7 +48,7 @@ export default function SeletorModo({
           aria-selected={ativo === o.id}
           onClick={() => onTrocar(o.id)}
           className={`rounded-full font-semibold transition-all ${
-            grande ? "px-6 py-2.5 text-[14px]" : "px-4 py-1.5 text-[12px]"
+            grande ? "px-4 py-1 text-[12px] leading-[18px]" : "px-3 py-0.5 text-[11px] leading-[16px]"
           } ${ativo === o.id ? "bg-dash-brand text-white" : "text-dash-muted hover:text-dash-fg"}`}
         >
           {o.rotulo}
