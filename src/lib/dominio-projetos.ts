@@ -31,6 +31,11 @@ export const HOSTS_DO_APP = new Set([
   // middleware trata "mirai-os" como SLUG DE PROJETO, reescreve para
   // /d/mirai-os e devolve 404. Medido 05/11/2026.
   "mirai-os.miraitohope.com",
+  // Stage (82.25.91.140) — a cópia de teste. Mesma armadilha da linha acima:
+  // sem estas linhas o middleware lê "stage" como slug de projeto, reescreve para
+  // /d/stage e devolve 500 ("Cannot open database..."). Medido 12/11/2026.
+  "stage.miraitohope.com",
+  "api-stage.miraitohope.com",
 ]);
 
 /** Host sem porta, minúsculo. Nunca lança. */
