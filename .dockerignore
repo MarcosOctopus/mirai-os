@@ -1,0 +1,14 @@
+node_modules
+.next
+.next-*
+.git
+.gitignore
+data
+.credentials
+.env
+.env.*
+!env.example
+*.log
+_lixeira
+__pycache__
+*.pyc
