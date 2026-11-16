@@ -24,6 +24,9 @@ import type { Escopo } from "./escopos";
 
 const DB_PATH = path.join(process.cwd(), "data", "auth.db");
 
+/** Data-sentinela de agenda MANUAL: o cron nunca chega aqui. */
+const SEM_DATA = "9999-12-31T00:00:00.000Z";
+
 export type TarefaApp = {
   acao: string;
   argumentos?: Record<string, unknown>;
@@ -96,12 +99,19 @@ export function criarAgendaApp(
   intervaloMin: number,
 ): { ok: true; id: string } | { ok: false; motivo: string } {
   if (!tarefas.length) return { ok: false, motivo: "agenda sem tarefas" };
-  if (!(intervaloMin > 0)) return { ok: false, motivo: "intervalo inválido" };
+  if (intervaloMin < 0) return { ok: false, motivo: "intervalo inválido" };
 
   const db = abrir();
   try {
     const agora = new Date();
-    const proxima = new Date(agora.getTime() + intervaloMin * 60_000);
+    /* intervalo 0 = MANUAL: nada automático, roda só no clique ("Rodar agora")
+       ou quando a pessoa agendar uma frequência. A coluna `proxima_em` é NOT NULL
+       desde a criação da tabela, então em vez de migrar tabela viva usamos uma
+       data-sentinela que o cron (que pega `proxima_em <= agora`) nunca alcança. */
+    const proxima =
+      intervaloMin > 0
+        ? new Date(agora.getTime() + intervaloMin * 60_000)
+        : new Date(SEM_DATA);
     const id = `agp_${Math.random().toString(36).slice(2, 12)}`;
     db.prepare(
       `INSERT INTO agendas_app

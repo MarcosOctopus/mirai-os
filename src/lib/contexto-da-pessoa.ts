@@ -455,9 +455,11 @@ export function ferramentasParaOModelo(
     function: {
       name: "agendar",
       description:
-        "Cria um agendamento recorrente para a pessoa (ex.: 'todo dia às 8h me mande o " +
-        "resumo dos emails'). Cria o canal, pede a proposta ao Foreman, aprova e monta a " +
-        "agenda. Devolve o id ou o motivo real da recusa — nunca diga que agendou sem o id.",
+        "Cria um agendamento para a pessoa — SÓ quando ela PEDIR para agendar (ex.: " +
+        "'todo dia às 8h me mande o resumo dos emails'). Cria o canal, pede a proposta ao " +
+        "Foreman, aprova e monta a agenda. Devolve o id ou o motivo real da recusa — nunca " +
+        "diga que agendou sem o id. NUNCA crie agenda por conta própria, nem para " +
+        "'já deixar pronto': sem pedido explícito, não agende.",
       parameters: {
         type: "object",
         properties: {
@@ -465,7 +467,10 @@ export function ferramentasParaOModelo(
           objetivo: { type: "string", description: "o que deve ser feito, em uma frase" },
           intervalo_min: {
             type: "integer",
-            description: "de quantos em quantos minutos roda (1440 = uma vez por dia)",
+            description:
+              "SÓ preencha se a pessoa PEDIU a frequência ('todo dia' = 1440, " +
+              "'de hora em hora' = 60). Sem pedido de frequência, deixe de fora: a " +
+              "agenda nasce MANUAL e roda só quando ela pedir.",
           },
           tarefas: {
             type: "array",
@@ -779,11 +784,18 @@ export async function executarFerramenta(
       const escopo = escopoDaConta(
         contaReal as { id: number; org?: { slug?: string } | null },
       );
-      const cada = intervalo > 0 ? intervalo : 1440; // padrão: uma vez por dia
+      /* PADRÃO = MANUAL (0): roda só quando a pessoa pedir. O dono foi claro
+         (16/nov/2026): frequência só quando ELE agenda e pede. Inventar
+         "todo dia" é decidir a rotina de alguém — não é nosso papel. */
+      const cada = intervalo > 0 ? intervalo : 0;
       const r = criarAgendaApp(contaReal.id, escopo, nomeAg, tarefas, cada);
       if (!r.ok) return `Não consegui agendar (${r.motivo}). Diga o motivo com clareza.`;
+      const quando =
+        cada > 0
+          ? `a cada ${cada} minutos`
+          : "só quando a pessoa pedir (manual, nada automático)";
       return (
-        `Agendamento criado e ATIVO: "${nomeAg}" (id ${r.id}), a cada ${cada} minutos. ` +
+        `Agendamento criado e ATIVO: "${nomeAg}" (id ${r.id}), ${quando}. ` +
         "Ele roda no app — porque ler email é ferramenta do app, a Arca não sabe fazer isso. " +
         `O resultado é entregue numa conversa chamada "${nomeAg}". ` +
         "Diga que está ativo, com que frequência roda e que a entrega aparece nessa conversa. " +

@@ -44,6 +44,8 @@ type Agenda = {
 type Usuario = { nome?: string; email?: string; ehDono?: boolean } | null;
 
 function frequencia(min: number): string {
+  /* min = 0 é agenda MANUAL: nada automático. É o padrão — frequência só
+     existe quando a pessoa agenda pedindo ("todo dia", "de hora em hora"). */
   if (!min) return "Só quando eu pedir";
   if (min === 60) return "A cada hora";
   if (min === 1440) return "Todo dia";
@@ -340,7 +342,11 @@ export default function AgendamentosCliente() {
                     <div className="flex items-end justify-between gap-6 pl-[16px] lg:w-[300px] lg:shrink-0 lg:flex-col lg:items-end lg:gap-2.5 lg:pl-0">
                       <div className="text-left lg:text-right">
                         <p className="text-[12px] text-dash-muted">
-                          {a.ativa ? `Próxima ${quando(a.proxima_em)}` : "Fora do ar"}
+                          {!a.ativa
+                            ? "Fora do ar"
+                            : a.proxima_em
+                              ? `Próxima ${quando(a.proxima_em)}`
+                              : "Só quando você pedir"}
                         </p>
                         <p className="mt-1 text-[11.5px] text-dash-muted">
                           Última {quando(ultimo?.em || a.ultima_em)}

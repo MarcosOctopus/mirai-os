@@ -158,7 +158,9 @@ export async function GET(req: NextRequest) {
           org: a.org,
           intervalo_min: a.intervalo_min,
           ativa: a.ativa === 1,
-          proxima_em: a.proxima_em,
+          /* agenda manual (intervalo 0) guarda uma data-sentinela no banco:
+             para a tela ela não tem "próxima", tem "só quando você pedir". */
+          proxima_em: a.intervalo_min > 0 ? a.proxima_em : null,
           ultima_em: a.ultima_em,
           ultimo_status: a.ultimo_status ?? null,
           tarefas: a.tarefas,
