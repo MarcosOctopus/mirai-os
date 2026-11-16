@@ -138,6 +138,23 @@ export const CATALOGO: Integracao[] = [
     destaque: true,
   },
   {
+    id: "gmail",
+    nome: "Google Email",
+    empresa: "Google",
+    subtitulo: "Ler e enviar email em seu nome (Gmail)",
+    explicacao: "Sua caixa de entrada, lida pela Mirai.",
+    tipo: "api",
+    categoria: "essenciais",
+    logo: "/integracoes/google.svg",
+    cor: "#ea4335",
+    // OAuth de INTEGRAÇÃO (gmail.readonly + gmail.send), não o login do app:
+    // /api/auth/google só prova identidade e não dá acesso à caixa.
+    oauthPath: "/api/oauth/google/iniciar",
+    // Mesma chave que /api/oauth/google/volta grava no cofre da pessoa.
+    chaveConfig: "google_email",
+    destaque: true,
+  },
+  {
     id: "youtube",
     nome: "YouTube",
     empresa: "Google",
@@ -414,6 +431,18 @@ export function estaLigada(
 ): boolean {
   const chave = integracao.chaveConfig ?? integracao.id;
   const v = entrada(config, chave);
+  /* MULTI-CONTA DE EMAIL (13/11/2026): o Gmail passou a gravar uma LISTA
+     (`google_emails`) — uma entrada por caixa conectada. O cofre antigo
+     (`google_email`, objeto único) continua valendo para quem conectou antes.
+     Sem este ramo, quem conecta pelo fluxo novo vê o cartão "não conectada"
+     com o token gravado: a tela mentindo contra o banco. */
+  if (!v && chave === "google_email") {
+    const lista = (config ?? {}).google_emails;
+    return (
+      Array.isArray(lista) &&
+      lista.some((x) => x && typeof (x as Record<string, unknown>).blob === "string" && (x as Record<string, unknown>).blob)
+    );
+  }
   if (!v) return false;
   // YouTube só conta como ligado quando o canal foi lido (mesma regra do painel).
   if (chave === "youtube") return Boolean(v.channel) || Boolean(v.access_token);
@@ -427,6 +456,17 @@ export function quandoLigou(
 ): string | null {
   const chave = integracao.chaveConfig ?? integracao.id;
   const v = entrada(config, chave);
+  if (!v && chave === "google_email") {
+    // Mesma razão do `estaLigada`: a data da primeira caixa conectada.
+    const lista = (config ?? {}).google_emails;
+    if (Array.isArray(lista)) {
+      for (const item of lista) {
+        const c = item as Record<string, unknown>;
+        if (typeof c?.connected_at === "string" && c.connected_at) return c.connected_at;
+      }
+    }
+    return null;
+  }
   const quando = v?.connected_at;
   return typeof quando === "string" ? quando : null;
 }

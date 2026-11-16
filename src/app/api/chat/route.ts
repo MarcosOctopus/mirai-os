@@ -3,6 +3,8 @@ import { existsSync, readFileSync } from "fs";
 import { registrarUsoTokens } from "@/lib/telemetria-tokens";
 import type { ContextoDaPessoa } from "@/lib/contexto-da-pessoa";
 import { prepararTurno, envolverComHistorico } from "@/lib/conversas";
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import { REGRAS_CRAFT, REGRAS_VISUAL } from "@/lib/arquiteto-craft";
 
 // ─── Carregar chaves dos providers ──────────────────────────────
@@ -67,6 +69,28 @@ const CHAT_MODEL    = process.env.MIRAI_CHAT_MODEL    || loadEnv("MIRAI_CHAT_MOD
 const CHAT_BASE    = CHAT_BASE_URL || "https://api.kpalabz.com/v1";
 const CHAT_KEY     = CHAT_API_KEY  || CHAT_PROV_KEY;
 const CHAT_MODEL_USADO = CHAT_MODEL || "claude-opus-5-5";
+
+/* ── SELETOR DE MODELO (Supernova) ──────────────────────────────────────────
+   O modelo escolhido na tela chega no corpo do pedido. Como a chamada ao
+   provedor acontece dentro de funções aninhadas, o valor viaja por
+   AsyncLocalStorage — e NÃO por variável de módulo, que misturaria o modelo de
+   um usuário com o de outro sob concorrência (vazamento silencioso).
+   Supernova é o nosso white label: por dentro varia o esforço do DeepSeek. */
+const MODELOS_SUPERNOVA: Record<string, string> = {
+  "supernova-flash": "deepseek/deepseek-chat",
+  "supernova-high": "deepseek/deepseek-reasoner",
+};
+
+function modeloDoPedido(escolha?: string): string {
+  const e = (escolha || "").trim();
+  if (!e) return CHAT_MODEL_USADO;
+  return MODELOS_SUPERNOVA[e] || e; // id cru = modelo de outra API (BYOK)
+}
+
+const modeloDaRequisicao = new AsyncLocalStorage<string>();
+function modeloAtual(): string {
+  return modeloDaRequisicao.getStore() || CHAT_MODEL_USADO;
+}
 const CHAT_MODEL_PRINCIPAL = "claude-opus-5-5";   // principal do chat
 const CHAT_MODEL_RESERVA   = "claude-sonnet-5";   // reserva (mesmo provedor, modelo diferente)
 const GEMINI_BASE     = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -323,6 +347,28 @@ Você alcança a internet AGORA, com as ferramentas buscar_na_web e ler_pagina.
 ## REGRAS
 - Se não souber algo, BUSQUE primeiro (buscar_na_web). Só depois de buscar — e se
   a busca não resolver — seja honesta e diga que não encontrou. Nunca invente.
+- EMAIL: quando a pessoa pedir para ler, resumir, listar ou verificar os emails
+  dela, CHAME a ferramenta ler_emails ANTES de responder qualquer coisa. O
+  resultado da ferramenta é a ÚNICA verdade sobre a caixa. É PROIBIDO dizer que
+  não há integração de email, ou que a caixa está vazia, sem ter chamado
+  ler_emails nesta mesma resposta. Se a ferramenta devolver "sem conexão", aí
+  sim oriente a conectar pelo Synapse.
+- EMAIL — COMO APRESENTAR: use SOMENTE os remetentes, assuntos e datas que a
+  ferramenta devolveu. É PROIBIDO criar, completar ou "exemplificar" emails que
+  não vieram dela — se a ferramenta devolveu 3, você fala de 3, com os nomes
+  exatos. Nada de numeração crua tipo "6." ou lista de máquina: escreva em
+  prosa curta e natural, um parágrafo por email, dizendo quem mandou, o que é e
+  se precisa de ação. Feche com uma linha de síntese. Se um email for código de
+  verificação, diga o código e o prazo. Se for marketing, diga que é marketing.
+- EMAIL — FORMATO EXATO (siga este molde, sem numeração e sem marcadores):
+  "Você tem três mensagens. A primeira é do Notion, sobre dicas de uso da
+  ferramenta — é conteúdo de marketing, não pede nada de você. A segunda é da
+  Binance, um aviso sobre transações com certas plataformas de criptoativos;
+  vale ler com atenção porque é comunicado de compliance. A terceira é da
+  Kiwify, com o código de verificação 872968, que expira em quinze minutos.
+  No conjunto, só a Kiwify pede ação imediata."
+  Escreva assim: parágrafos corridos, frases inteiras, sem "1.", sem "-", sem
+  negrito. Se houver muitas mensagens, agrupe por assunto em vez de listar.
 - Responda de forma NATURAL, sem parecer robótica
 - NUNCA use emojis, markdown, asteriscos ou formatação especial
 - Apenas texto limpo e direto
@@ -585,6 +631,17 @@ type ApoioConta = {
   conta?: import("@/lib/orgs").Conta | null;
   saasoToken?: string;
   /**
+   * BYOK (13/11/2026): a chave PRÓPRIA desta conta, já decifrada e resolvida no
+   * POST. Vive aqui porque o caminho do chat é aninhado (callVerboo → laço de
+   * ferramentas) e passar um parâmetro novo por toda a cadeia mexeria em
+   * assinaturas que outras chamadas usam. Ausente = usa a chave global, que é
+   * exatamente o comportamento de antes.
+   *
+   * NUNCA serializar: isto é segredo. Só o cabeçalho `Authorization` do
+   * `fetch` ao provedor lê este campo.
+   */
+  byok?: { provider: string; base: string; chave: string; modelo: string } | null;
+  /**
    * A MEMÓRIA DA ARCA, já consultada para a pergunta deste turno.
    *
    * Por que vive aqui: `queryArca` existia desde sempre e NUNCA era chamada —
@@ -710,7 +767,11 @@ async function conversarComFerramentas(opts: {
   // Conta vinculada age pelo gateway DELA (plano + medição por conta). Sem
   // vínculo — ou se o gateway recusar — vale exatamente o que já existia:
   // a chave do próprio app, no mesmo corpo de antes.
-  const gw = gatewayDaConta(apoio?.ctxPessoa?.identidade?.contaId ?? 0);
+  //
+  // BYOK (13/11/2026): com chave própria cadastrada o gateway NÃO entra. O
+  // gateway é a infraestrutura de faturamento do app — quem traz a própria
+  // chave paga no provedor dele, então faturar aqui seria cobrar duas vezes.
+  const gw = apoio.byok ? null : gatewayDaConta(apoio?.ctxPessoa?.identidade?.contaId ?? 0);
   const corpoDe = (comFerramentas: boolean) => ({
     model: modelo,
     messages: msgs,
@@ -721,18 +782,37 @@ async function conversarComFerramentas(opts: {
     enable_thinking: false,
   });
 
-  const chamarDireto = (comFerramentas: boolean) =>
-    fetch(`${CHAT_BASE}/chat/completions`, {
+  const chamarDireto = (comFerramentas: boolean) => {
+    const corpo = {
+      model: modeloAtual(),
+      messages: msgs,
+      ...(comFerramentas ? { tools: ferramentas, tool_choice: "auto" } : {}),
+      max_tokens: 4096,
+      temperature: 0.4,
+    };
+    /* BYOK: a chave e o ENDEREÇO são os da pessoa. O modelo também — o id
+       cru ("openai/gpt-4o-mini") não existe no provedor global, e mandar o
+       modelo do app para a conta dela devolveria 404 sem explicação. */
+    if (apoio.byok) {
+      return fetch(`${apoio.byok.base}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apoio.byok.chave}`,
+          // A OpenRouter pede estes dois para atribuir o uso ao app certo;
+          // ignorados pelos provedores que não os conhecem.
+          "HTTP-Referer": "https://app.miraitohope.com",
+          "X-Title": "MIRAI OS",
+        },
+        body: JSON.stringify({ ...corpo, model: apoio.byok.modelo }),
+      });
+    }
+    return fetch(`${CHAT_BASE}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${CHAT_KEY}` },
-      body: JSON.stringify({
-        model: CHAT_MODEL_USADO,
-        messages: msgs,
-        ...(comFerramentas ? { tools: ferramentas, tool_choice: "auto" } : {}),
-        max_tokens: 4096,
-        temperature: 0.4,
-      }),
+      body: JSON.stringify(corpo),
     });
+  };
 
   // Conta vinculada tenta o gateway DELA; se ele recusar ou cair, o mesmo
   // corpo (com as ferramentas) vai pelo provedor direto — a pessoa não perde
@@ -866,7 +946,39 @@ async function conversarComFerramentas(opts: {
 // ─── POST /api/chat ──────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    let { messages, prompt, useClaude, mode, conversaId, modoPesquisa } = await req.json();
+    let { messages, prompt, useClaude, mode, conversaId, modoPesquisa, modelo: modeloEscolhido, autonomia, contaEmail, escopoEmail } = await req.json();
+    /* O ESCOPO DO TURNO não vem de um seletor (definição final do dono,
+       13/11/2026): a organização é um escopo que se ATIVA pela invocação no
+       pedido ou pelo contexto, e o PESSOAL é o padrão. Quem decide é
+       `resolverEscopoDaOperacao`, mais abaixo, com o texto da pessoa na mão.
+       `escopoEmail` é outra coisa: é o escopo DA CAIXA escolhida no seletor de
+       email (multi-conta), e vale só para a leitura de email. */
+    /* A CAIXA DE EMAIL ESCOLHIDA NA TELA (13/11/2026): quando a pessoa tem mais
+       de uma conta Google conectada, o seletor manda o endereço aqui. Vive em
+       AsyncLocalStorage porque o executor de ferramentas é chamado lá no laço,
+       sem acesso ao corpo do pedido — e é lá que `ler_emails` precisa saber a
+       escolha. Vazio = comportamento de antes (a ferramenta pergunta qual).
+       A escolha NÃO autoriza nada: quem confere se aquela caixa é DESTA pessoa
+       é o cofre dela (`gmail.ts`), que só lê as contas do próprio id. */
+    {
+      const gg = globalThis as {
+        __miraiContaEmail?: AsyncLocalStorage<string>;
+        __miraiEscopoEmail?: AsyncLocalStorage<string>;
+      };
+      if (!gg.__miraiContaEmail) gg.__miraiContaEmail = new AsyncLocalStorage<string>();
+      if (!gg.__miraiEscopoEmail) gg.__miraiEscopoEmail = new AsyncLocalStorage<string>();
+      gg.__miraiContaEmail.enterWith(typeof contaEmail === "string" ? contaEmail.trim() : "");
+      // Escopo da CAIXA (não do turno). Vazio = o escopo resolvido do turno.
+      gg.__miraiEscopoEmail.enterWith(typeof escopoEmail === "string" ? escopoEmail.trim() : "");
+    }
+    /* O modelo escolhido na tela vale para ESTE pedido, e só para ele. */
+    modeloDaRequisicao.enterWith(modeloDoPedido(typeof modeloEscolhido === "string" ? modeloEscolhido : undefined));
+    /* Autonomia por pedido: "sozinho" executa; qualquer outra coisa pede
+       aprovação. Vive no globalThis para o executor de ferramentas ler sem
+       precisar de mais um parâmetro em toda a cadeia. */
+    const g = globalThis as { __miraiAutonomia?: AsyncLocalStorage<string> };
+    if (!g.__miraiAutonomia) g.__miraiAutonomia = new AsyncLocalStorage<string>();
+    g.__miraiAutonomia.enterWith(autonomia === "sozinho" ? "sozinho" : "aprovar");
     if (!messages || !Array.isArray(messages)) {
       messages = prompt ? [{ role: "user", content: prompt }] : [];
     }
@@ -888,6 +1000,22 @@ export async function POST(req: NextRequest) {
     try {
       const { contaDaRequisicao, credencialSaasoDaConta } = await import("@/lib/orgs");
       conta = await contaDaRequisicao(req);
+      /* O id da conta resolvido AQUI é o mesmo que a rota /api/gmail usa.
+         O executor de ferramentas recebe outro objeto (`apoio.conta`), e era
+         por isso que a leitura dizia "sem conexão" com o token no cofre. */
+      {
+        const gg = globalThis as {
+          __miraiUserId?: AsyncLocalStorage<number>;
+          __miraiConta?: AsyncLocalStorage<unknown>;
+        };
+        if (!gg.__miraiUserId) gg.__miraiUserId = new AsyncLocalStorage<number>();
+        if (!gg.__miraiConta) gg.__miraiConta = new AsyncLocalStorage<unknown>();
+        if (typeof conta?.id === "number") gg.__miraiUserId.enterWith(conta.id);
+        /* A conta COMPLETA (com org.slug) é a única fonte de verdade para as
+           ferramentas. O executor recebe um objeto reduzido — era por isso que
+           `conta.org.slug` vinha vazio e o agendamento recusava. */
+        if (conta) gg.__miraiConta.enterWith(conta);
+      }
       if (conta) {
         const cred = credencialSaasoDaConta(conta);
         saasoToken = cred?.token || (conta.ehDono ? (process.env.SAASO_MCP_TOKEN || "").trim() || undefined : undefined);
@@ -907,7 +1035,71 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       console.error("Contexto da pessoa:", e instanceof Error ? e.message : e);
     }
-    const apoio: ApoioConta = { ctxPessoa, conta, saasoToken };
+    // ── O ESCOPO DESTE TURNO (definição final do dono, 13/11/2026) ───────────
+    // A organização NÃO é um modo, uma aba nem um seletor: ela se ATIVA quando o
+    // pedido a invoca ("na Time do Futuro…", "pela organização…") ou quando o
+    // contexto aponta claramente para o coletivo. Sem isso, o turno roda no
+    // espaço PESSOAL — que é o padrão do produto, não um fallback.
+    //
+    // O resultado é gravado no store do pedido porque as ferramentas (email,
+    // agendamento) rodam lá no laço e precisam saber ONDE ler/gravar. E é o
+    // mesmo escopo que a chave própria (BYOK) vai procurar.
+    let escopoDoTurno = "";
+    if (conta) {
+      try {
+        const { resolverEscopoDaOperacao } = await import("@/lib/escopos");
+        const r = resolverEscopoDaOperacao(conta, textoUsuarioNovo);
+        // AMBIGUIDADE: a pessoa tem mais de uma organização e o pedido não
+        // disse qual. Perguntar é a única saída honesta — escolher uma org
+        // sozinho mandaria o dado (ou a leitura) para o lugar errado. O turno
+        // não roda: devolvemos a pergunta e esperamos a resposta.
+        if (r.ambiguo && (r.candidatos?.length || 0) > 1) {
+          const nomes = (r.candidatos || []).map((c) => c.nome).join(" ou ");
+          return streamDeTexto(
+            `Você tem mais de um espaço de organização (${nomes}). De qual deles você está falando?`,
+            { provedor: "app", modelo: "app" },
+          );
+        }
+        escopoDoTurno = r.escopo.id;
+        const gg = globalThis as { __miraiEscopo?: AsyncLocalStorage<string> };
+        if (!gg.__miraiEscopo) gg.__miraiEscopo = new AsyncLocalStorage<string>();
+        gg.__miraiEscopo.enterWith(r.escopo.id);
+        if (r.motivo !== "pessoal") {
+          console.log(`[escopo] turno no escopo ${r.escopo.id} (${r.motivo})`);
+        }
+      } catch (e) {
+        // Falha aqui não derruba o chat: sem resolução, o padrão é o pessoal.
+        console.error("Escopo do turno:", e instanceof Error ? e.message : e);
+        escopoDoTurno = `pessoal-${conta.id}`;
+      }
+    }
+
+    // ── BYOK: a chave PRÓPRIA desta conta (se ela cadastrou uma) ──────────────
+    // Resolvida AQUI, uma vez, e desce pronta no `apoio`. Falha aqui não derruba
+    // o chat: sem chave própria, o turno segue pela chave global (comportamento
+    // de sempre). Nada de chave em log — nem o prefixo.
+    let byok: ApoioConta["byok"] = null;
+    if (conta?.id) {
+      try {
+        const { chavePropriaDaConta } = await import("@/lib/byok");
+        const { resolverEscopo } = await import("@/lib/escopos");
+        // A chave própria é procurada no escopo RESOLVIDO do turno (o mesmo que
+        // as ferramentas usam): se o pedido ativou a organização, vale a chave
+        // da organização; senão, a da pessoa.
+        const esc = resolverEscopo(conta, escopoDoTurno || null);
+        byok = chavePropriaDaConta(esc);
+        if (byok) {
+          console.log(
+            `[byok] turno pela chave própria da conta ${conta.id} (${byok.provider}) no escopo ${esc.id}`,
+          );
+        }
+      } catch (e) {
+        console.error("BYOK: leitura do cofre falhou:", e instanceof Error ? e.message : e);
+        byok = null;
+      }
+    }
+
+    const apoio: ApoioConta = { ctxPessoa, conta, saasoToken, byok };
 
     // ── A MEMÓRIA DA ARCA (o que já foi feito não se perde) ──────────────────
     // O dono (14/10/2026): *"n tem salvado os contextos e sempre está perdido a
@@ -981,7 +1173,15 @@ export async function POST(req: NextRequest) {
     const ehDono = conta?.ehDono === true;
 
     let resposta: Response;
-    if (useClaude || wantsClaude(lastMsg)) {
+    if (byok) {
+      /* BYOK: quem tem chave própria responde por ela, sempre — inclusive
+         quando o pedido "pediria" Claude. Não é teimosia: é o contrato do
+         recurso ("use a minha chave") e evita o pior dos mundos, que é a tela
+         prometer a chave da pessoa e o turno sair pela nossa. O caminho é o
+         `callVerboo` porque ele já é OpenAI-compatível: mesmo laço de
+         ferramentas, mesmo system prompt, mesmo filtro de saída. */
+      resposta = await callVerboo(messages, lastMsg, chatMode, byok.modelo, apoio, ehDono, escalada.modo);
+    } else if (useClaude || wantsClaude(lastMsg)) {
       // Tenta aiapiflow Claude primeiro
       if (AIAPIFLOW_KEY) {
         resposta = await callAiapiflow(messages, lastMsg, chatMode, apoio, ehDono);
@@ -1062,7 +1262,8 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
   // Mesma regra do laço: conta vinculada responde pelo gateway dela, com
   // stream (o gateway devolve SSE igual ao provedor, então o resto do chat não
   // muda). Se ele recusar ou cair, o caminho de sempre assume logo abaixo.
-  const gw = gatewayDaConta(apoio?.ctxPessoa?.identidade?.contaId ?? 0);
+  // BYOK: chave própria = sem gateway (faturamento é do provedor da pessoa).
+  const gw = apoio.byok ? null : gatewayDaConta(apoio?.ctxPessoa?.identidade?.contaId ?? 0);
   // O CIRCUITO É COMPARTILHADO COM O LAÇO DE FERRAMENTAS (correção 23/10/2026).
   //
   // Antes, este bloco — que é o caminho do pedido SIMPLES, sem ferramentas —
@@ -1104,11 +1305,23 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
 
   let resp: Response;
   try {
-    resp = await fetch(`${CHAT_BASE}/chat/completions`, {
+    /* BYOK: a mesma chamada de sempre, com o ENDEREÇO, a CHAVE e o MODELO da
+       pessoa. O resto do corpo (system prompt, histórico, stream) é idêntico —
+       o que muda é de quem é a conta que paga. */
+    const url = apoio.byok ? `${apoio.byok.base}/chat/completions` : `${CHAT_BASE}/chat/completions`;
+    const cabecalhos: Record<string, string> = apoio.byok
+      ? {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apoio.byok.chave}`,
+          "HTTP-Referer": "https://app.miraitohope.com",
+          "X-Title": "MIRAI OS",
+        }
+      : { "Content-Type": "application/json", Authorization: `Bearer ${CHAT_KEY}` };
+    resp = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${CHAT_KEY}` },
+      headers: cabecalhos,
       body: JSON.stringify({
-        model: CHAT_MODEL_USADO,
+        model: apoio.byok ? apoio.byok.modelo : modeloAtual(),
         messages: msgs,
         max_tokens: 4096,
         stream: true,
@@ -1125,6 +1338,20 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
   if (!resp.ok) {
     const err = await resp.text().catch(() => "");
     console.error(`Provedor do chat ${modelo} error:`, resp.status, err.slice(0, 300));
+    /* BYOK: SEM fallback para a chave global. Se a chave DA PESSOA falhou
+       (sem crédito, permissão, modelo inexistente), cair na chave do app
+       esconderia o problema dela e passaria a conta para nós — o oposto do
+       que ela pediu ao cadastrar a própria chave. O erro é dito, com o caminho
+       de consertar. */
+    if (apoio.byok) {
+      return Response.json(
+        {
+          error: `O provedor ${apoio.byok.provider} recusou o pedido (${resp.status}). Confira a chave e o modelo em Chaves de API.`,
+          details: err.slice(0, 300),
+        },
+        { status: 502 },
+      );
+    }
     if (modelo === CHAT_MODEL_PRINCIPAL) {
       console.log("Principal caiu — indo para a reserva...");
       return await callVerboo(messages, lastMsg, chatMode, CHAT_MODEL_RESERVA, apoio, ehDono);

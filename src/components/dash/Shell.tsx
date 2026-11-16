@@ -18,6 +18,7 @@ import {
 } from "@/lib/conversas-cliente";
 import {
   IconeBusca,
+  IconeCadeado,
   IconeChat,
   IconeEstrela,
   IconeEstrelaCheia,
@@ -74,6 +75,10 @@ const PRIMARIO: Item[] = [
   // Agendamentos logo abaixo da Arca (dono, 12/11/2026): o que o time faz
   // sozinho — mesma família visual e mesmo corte por papel dos vizinhos.
   { label: "Agendamentos", href: "/dashboard/agendamentos", icone: <IconeRelogio /> },
+  // Chaves de API (dono, 13/11/2026): a chave PRÓPRIA da pessoa (BYOK). Fica
+  // logo abaixo de Agendamentos porque é o mesmo tipo de coisa — configuração
+  // da conta, não produto. Sem esta entrada a tela existiria e ninguém acharia.
+  { label: "Chaves de API", href: "/dashboard/chaves", icone: <IconeCadeado /> },
   // A entrada "Skills" saiu do menu (dono, 08/10/2026): "Essa página do menu
   // esquerdo chamada skill tem que sumir. Só existir da Synapse junto com essa do
   // botão de explorar todas as skills." A vitrine vive na aba Skills da Synapse

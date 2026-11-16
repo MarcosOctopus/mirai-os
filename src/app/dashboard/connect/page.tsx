@@ -822,6 +822,226 @@ function BlocoChavesGithub({ pronta }: { pronta: boolean }) {
   );
 }
 
+/* ── CONTAS DE EMAIL (multi-conta, 13/11/2026) ─────────────────────────────
+ * O cofre já guardava uma LISTA de caixas (`google_emails`), mas a tela nunca
+ * mostrava mais de uma — e não havia como desconectar uma específica. Aqui
+ * estão as três coisas que faltavam: ver TODAS, desconectar cada uma e
+ * conectar mais uma (reusando o MESMO OAuth que já existia).
+ *
+ * A leitura é de `/api/gmail/contas`, que resolve o cofre pela SESSÃO. Esta
+ * tela nunca recebe token: o que chega é endereço, rótulo e data.
+ */
+function BlocoContasEmail({ conectada }: { conectada: boolean }) {
+  const [contas, setContas] = useState<{ email: string; rotulo: string; conectado_em: string }[]>([]);
+  /* ESCOPO (13/11/2026): caixa de email pertence a um espaço. O PESSOAL é o
+     padrão (o produto inteiro funciona sem organização); quem tem organização
+     ganha o segundo espaço como ESCOLHA. Nunca "org se existir": quem decide
+     é a pessoa, e o id real do escopo vem do servidor. */
+  /* Sem seletor de organização (definição final do dono, 13/11/2026): o que a
+     tela faz é mostrar TODAS as caixas que a conta alcança, cada uma com o nome
+     do espaço de onde veio. Conectar uma nova cai no espaço PESSOAL, que é o
+     padrão; o espaço da organização se ativa pelo PEDIDO no chat. */
+  const [outrosEspacos, setOutrosEspacos] = useState<
+    { escopo: { id: string; nome: string }; contas: { email: string; rotulo: string; conectado_em: string }[] }[]
+  >([]);
+  const [escopoAtivo, setEscopoAtivo] = useState<string>("");
+  /** Onde a PRÓXIMA caixa será conectada ("" = espaço pessoal, o padrão). */
+  const [alvo, setAlvo] = useState<string>("");
+  const [carregando, setCarregando] = useState(true);
+  const [ocupada, setOcupada] = useState("");
+  const [erro, setErro] = useState("");
+
+  const carregar = useCallback(async () => {
+    setCarregando(true);
+    try {
+      const r = await fetch("/api/gmail/contas", { cache: "no-store" });
+      const d = (await r.json().catch(() => ({}))) as {
+        contas?: { email: string; rotulo: string; conectado_em: string }[];
+        outrosEspacos?: {
+          escopo: { id: string; nome: string };
+          contas: { email: string; rotulo: string; conectado_em: string }[];
+        }[];
+        escopo?: { id: string };
+        erro?: string;
+      };
+      if (!r.ok) {
+        setErro(d?.erro || "não consegui ler as caixas desta conta");
+        return;
+      }
+      setContas(Array.isArray(d.contas) ? d.contas : []);
+      setOutrosEspacos(Array.isArray(d.outrosEspacos) ? d.outrosEspacos : []);
+      setEscopoAtivo(d.escopo?.id || "");
+      setErro("");
+    } catch {
+      setErro("a conexão caiu antes da resposta chegar");
+    } finally {
+      setCarregando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void carregar();
+  }, [carregar, conectada]);
+
+  /* A conexão acontece em OUTRA aba (o Google autoriza fora do app). Quando a
+     pessoa volta, o foco na janela recarrega a lista — sem isso ela veria a
+     caixa nova só no próximo login e concluiria que falhou. */
+  useEffect(() => {
+    const aoVoltar = () => {
+      if (document.visibilityState === "visible") void carregar();
+    };
+    window.addEventListener("focus", aoVoltar);
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => {
+      window.removeEventListener("focus", aoVoltar);
+      document.removeEventListener("visibilitychange", aoVoltar);
+    };
+  }, [carregar]);
+
+  /** `escopoId` é o espaço DAQUELA caixa (a linha carrega o dela). */
+  async function desconectar(email: string, escopoId: string) {
+    setOcupada(email);
+    setErro("");
+    try {
+      const r = await fetch(
+        `/api/gmail/contas?email=${encodeURIComponent(email)}&escopo=${encodeURIComponent(escopoId || escopoAtivo || "pessoal")}`,
+        { method: "DELETE" },
+      );
+      const d = (await r.json().catch(() => ({}))) as { erro?: string; contas?: typeof contas };
+      if (!r.ok) {
+        setErro(d?.erro || "não consegui desconectar esta caixa");
+        return;
+      }
+      setContas(Array.isArray(d.contas) ? d.contas : []);
+    } catch {
+      setErro("a conexão caiu antes de a caixa ser desconectada");
+    } finally {
+      setOcupada("");
+    }
+  }
+
+  return (
+    <div className="mt-6 border-t border-dash-hair/[0.12] pt-5">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <p className="text-[12.5px] font-medium text-dash-fg">Caixas conectadas</p>
+        <span className="rounded-full bg-dash-hair/[0.12] px-2.5 py-[3px] text-[10.5px] text-dash-fg/70">
+          {carregando ? "lendo…" : `${contas.length} ${contas.length === 1 ? "conta" : "contas"}`}
+        </span>
+        <button
+          type="button"
+          onClick={() =>
+            window.open(
+              // O escopo vai no BILHETE do OAuth: a caixa nasce no espaço
+              // escolhido AQUI, nesta conexão. Sem escolha, o pessoal.
+              `/api/oauth/google/iniciar${alvo ? `?escopo=${encodeURIComponent(alvo)}` : ""}`,
+              "_blank",
+              "noopener",
+            )
+          }
+          className="ml-auto rounded-[10px] border border-dash-hair/[0.20] px-3 py-2 text-[11.5px] text-dash-fg/85 transition hover:border-dash-brand/40 hover:text-dash-fg"
+        >
+          + conectar outra conta
+        </button>
+      </div>
+
+      {/* Escolha da OPERAÇÃO, não um modo: aparece só quando existe outro
+          espaço, e vale apenas para a PRÓXIMA conexão. */}
+      {outrosEspacos.length ? (
+        <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[11px] text-dash-fg/55">
+          <span>conectar em</span>
+          {[{ id: "", nome: "Meu espaço" }, ...outrosEspacos.map((b) => ({ id: b.escopo.id, nome: b.escopo.nome }))].map((e) => {
+            const ativo = (alvo || "") === e.id;
+            return (
+              <button
+                key={e.id || "pessoal"}
+                type="button"
+                onClick={() => setAlvo(e.id)}
+                className={`rounded-full border px-2.5 py-[3px] transition-colors ${
+                  ativo
+                    ? "border-dash-fg/[0.25] bg-dash-fg/[0.10] text-dash-fg"
+                    : "border-dash-hair/[0.10] hover:text-dash-fg"
+                }`}
+              >
+                {e.nome}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {erro ? <p className="mt-3 text-[11.5px] text-dash-bad">{erro}</p> : null}
+
+      {!carregando && !contas.length ? (
+        <p className="mt-3 text-[11.5px] leading-[1.55] text-dash-fg/60">
+          Nenhuma caixa conectada ainda. “Integrar” conecta a primeira; depois, “conectar outra conta”
+          acrescenta a segunda sem perder a anterior.
+        </p>
+      ) : null}
+
+      {contas.length ? (
+        <ul className="mt-3 space-y-2">
+          {contas.map((c, i) => (
+            <li
+              key={c.email || i}
+              className="flex items-center gap-3 rounded-[14px] bg-dash-hair/[0.06] px-3.5 py-2.5"
+            >
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-dash-ok" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-[12px] text-dash-fg" title={c.email}>
+                {c.email || c.rotulo}
+              </span>
+              <button
+                type="button"
+                onClick={() => void desconectar(c.email, escopoAtivo || "pessoal")}
+                disabled={ocupada === c.email}
+                className="shrink-0 rounded-full px-2.5 py-1 text-[11px] text-dash-fg/60 transition hover:bg-dash-hair/[0.12] hover:text-dash-bad disabled:opacity-40"
+              >
+                {ocupada === c.email ? "desconectando…" : "desconectar"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {/* Caixas de OUTRO espaço (a organização): aparecem com o nome do espaço,
+          porque o mesmo endereço pode estar nos dois e a pessoa precisa saber
+          de onde ele vem. A org se ativa pelo pedido no chat — não por botão. */}
+      {outrosEspacos.map((bloco) => (
+        <div key={bloco.escopo.id} className="mt-4">
+          <p className="text-[11px] uppercase tracking-[0.12em] text-dash-fg/50">
+            em {bloco.escopo.nome}
+          </p>
+          <ul className="mt-2 space-y-2">
+            {bloco.contas.map((c) => (
+              <li
+                key={`${bloco.escopo.id}:${c.email}`}
+                className="flex items-center gap-3 rounded-[14px] bg-dash-hair/[0.04] px-3.5 py-2.5"
+              >
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-dash-ok" aria-hidden />
+                <span className="min-w-0 flex-1 truncate text-[12px] text-dash-fg" title={c.email}>
+                  {c.email || c.rotulo}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void desconectar(c.email, bloco.escopo.id)}
+                  disabled={ocupada === c.email}
+                  className="shrink-0 rounded-full px-2.5 py-1 text-[11px] text-dash-fg/60 transition hover:bg-dash-hair/[0.12] hover:text-dash-bad disabled:opacity-40"
+                >
+                  {ocupada === c.email ? "desconectando…" : "desconectar"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+
+      <p className="mt-3 text-[10.5px] leading-[1.5] text-dash-fg/50">
+        A Mirai lê só as caixas desta conta, com o token que você autorizou. Com mais de uma, o chat
+        mostra um seletor de qual caixa ler.
+      </p>
+    </div>
+  );
+}
+
 function ModalProduto({
   item,
   conectada,
@@ -978,6 +1198,10 @@ function ModalProduto({
           <BlocoChavesGithub pronta={pronta} />
         )}
 
+        {/* MULTI-CONTA DE EMAIL (13/11/2026): todas as caixas Google desta
+            conta, com desconectar por caixa e o botão de conectar outra. */}
+        {item.id === "gmail" && <BlocoContasEmail conectada={conectada} />}
+
         {!pronta ? (
           <p className="mt-3 text-right text-[11px] text-dash-fg/50">
             {motivo || "Esta integração ainda não está pronta para conectar neste servidor."}
@@ -1124,9 +1348,34 @@ export default function IntegracoesPage() {
      — a MESMA função que a grade `/dashboard/integracoes` chama. Aqui só se
      entrega o contexto desta tela: o CRM ao vivo, as linhas da conta e o cofre.
      Se a regra mudar, muda lá uma vez, e nenhuma tela discorda das outras. */
+  /* Integrações ligadas em OUTRO espaço (a organização). O servidor decide e
+     devolve só os ids — o cofre nunca vem para o navegador. Sem isto, uma caixa
+     conectada na organização aparecia como "não conectada" no cartão. */
+  const [ligadasEmOutrosEspacos, setLigadasEmOutrosEspacos] = useState<string[]>([]);
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const r = await fetch("/api/integracoes/cofres", { cache: "no-store" });
+        if (!r.ok) return;
+        const d = (await r.json()) as { espacos?: { ligadas?: string[] }[] };
+        if (!vivo) return;
+        const ids = new Set<string>();
+        for (const e of d.espacos || []) for (const id of e.ligadas || []) ids.add(id);
+        setLigadasEmOutrosEspacos([...ids]);
+      } catch {
+        /* silêncio: é enfeite de cartão, não pode derrubar a tela */
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
   const estaConectadaDaConta = useCallback(
-    (i: Integracao): boolean => estaConectadaNaConta(i, { saasoAoVivo, linhas, config }),
-    [saasoAoVivo, linhas, config],
+    (i: Integracao): boolean =>
+      estaConectadaNaConta(i, { saasoAoVivo, linhas, config, ligadasEmOutrosEspacos }),
+    [saasoAoVivo, linhas, config, ligadasEmOutrosEspacos],
   );
 
   /* Chegando de outra tela com parâmetro na URL:
@@ -1172,7 +1421,21 @@ export default function IntegracoesPage() {
             : "A conexão com o Canva não foi concluída. Tente de novo.",
       );
     }
-    if (a || id || gh || cv) window.history.replaceState(null, "", window.location.pathname);
+    /* Voltando do consentimento do GOOGLE EMAIL (13/11/2026): o callback
+       devolve `?google=conectado|falhou|recusado`. Antes daqui essa marca era
+       ignorada — a pessoa conectava a SEGUNDA caixa e não recebia confirmação
+       nenhuma. Dizer o resultado é obrigatório; sem isso, falha vira silêncio. */
+    const go = q.get("google");
+    if (go) {
+      setAviso(
+        go === "conectado"
+          ? "Caixa de email conectada nesta conta. Com mais de uma, o chat pergunta (ou usa a que você escolher) qual ler."
+          : go === "recusado"
+            ? "Você não autorizou o acesso à caixa. Nada foi alterado."
+            : "A conexão com o Google não foi concluída. Tente de novo.",
+      );
+    }
+    if (a || id || gh || cv || go) window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
   /* categoria + busca + filtro: a grade da referência (mesma faixa que rola na

@@ -22,6 +22,10 @@ const PUBLIC_PATHS = [
   // esta linha, o middleware fecharia a rota antes do segredo — a ponte nunca
   // funcionaria. Só ESTA rota é aberta; `/api/integracoes` segue fechada.
   '/api/integracoes/ponte',
+  // AGENDADOR (13/11/2026): o cron do host não tem sessão de usuário. Esta
+  // rota se protege sozinha com `x-agendador-segredo` — abrir no middleware é
+  // necessário só para o pulso passar; sem o segredo ela devolve 401.
+  '/api/agendador/rodar',
   // FILA DA ÚLTIMA MILHA DO DOMÍNIO (dono, 09/10/2026): quem chama é o serviço da
   // BORDA (`mirai-publica-dominio`, systemd, root) — sem sessão de navegador. A
   // porta aqui é o SEGREDO compartilhado (`x-mirai-fila` vs `MIRAI_FILA_SECRET`),

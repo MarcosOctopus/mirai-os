@@ -32,8 +32,13 @@ type Agenda = {
   ativa: boolean;
   proxima_em?: string | null;
   ultima_em?: string;
-  tarefas: { acao: string }[];
+  /* opcional: a agenda do APP não devolve `runs` (a Arca devolve) — ela devolve
+     `ultimo_status` e `tarefas`. Sem isso a tela dizia "ainda não rodou" para
+     uma agenda que rodou há minutos. */
+  tarefas?: { acao: string }[];
   runs?: Run[];
+  ultimo_status?: string | null;
+  origens?: string[];
 };
 
 type Usuario = { nome?: string; email?: string; ehDono?: boolean } | null;
@@ -45,6 +50,17 @@ function frequencia(min: number): string {
   if (min % 1440 === 0) return `A cada ${min / 1440} dias`;
   if (min % 60 === 0) return `A cada ${min / 60} horas`;
   return `A cada ${min} minutos`;
+}
+
+/* O status do app é uma frase operacional ("entregue em conv_x", "sem novidade
+   (nada a acrescentar em conv_x)"). Na tela, o chip só precisa do essencial. */
+function resumoStatus(status?: string | null): string {
+  const s = (status || "").trim();
+  if (!s) return "sem status";
+  if (s.startsWith("entregue")) return "entregue";
+  if (s.startsWith("sem novidade")) return "sem novidade";
+  if (s.startsWith("falhou")) return "falhou";
+  return s.length > 40 ? `${s.slice(0, 40)}…` : s;
 }
 
 function quando(iso?: string | null): string {
@@ -124,6 +140,9 @@ export default function AgendamentosCliente() {
         return;
       }
       setAgendas((d?.agendas || []) as Agenda[]);
+      /* A Arca pode falhar sem derrubar a lista (as agendas do app são nossas).
+         O aviso é discreto: informa, não bloqueia. */
+      setAviso(typeof d?.aviso_arca === "string" ? d.aviso_arca : "");
     } catch {
       setErro("a conexão caiu antes da resposta chegar");
     } finally {
@@ -163,11 +182,17 @@ export default function AgendamentosCliente() {
         return;
       }
       const run = d?.run as Run | undefined;
-      setAviso(
-        `Rodou agora: ${run?.executadas ?? 0} executada(s), ${run?.recusadas ?? 0} recusada(s), ${duracao(
-          run?.duracao_ms,
-        ) ?? "—"}.`,
-      );
+      /* Agenda do app responde com a frase dela ("entregue em …", "sem novidade")
+         — é mais informativo que a contagem de tarefas, que é sempre 1. */
+      if (d?.rodou_no_app) {
+        setAviso(`Rodou agora: ${resumoStatus(d?.status as string)}, ${duracao(run?.duracao_ms) ?? "—"}.`);
+      } else {
+        setAviso(
+          `Rodou agora: ${run?.executadas ?? 0} executada(s), ${run?.recusadas ?? 0} recusada(s), ${duracao(
+            run?.duracao_ms,
+          ) ?? "—"}.`,
+        );
+      }
       await carregar();
     } catch {
       setErro("a conexão caiu antes de a execução começar");
@@ -213,7 +238,12 @@ export default function AgendamentosCliente() {
             role="status"
             className="mt-4 flex items-start gap-2 text-[12px] leading-[1.55] text-dash-muted"
           >
-            <span className="mt-[6px] h-1 w-1 shrink-0 rounded-full bg-dash-ok" aria-hidden />
+            {/* Âmbar, não verde: é advertência (a Arca não respondeu), não sucesso. */}
+            <span
+              className="mt-[6px] h-1 w-1 shrink-0 rounded-full"
+              style={{ background: "rgba(240,180,90,0.75)" }}
+              aria-hidden
+            />
             {aviso}
           </p>
         ) : null}
@@ -276,8 +306,10 @@ export default function AgendamentosCliente() {
                       </div>
 
                       <p className="mt-1.5 pl-[16px] text-[12px] text-dash-muted">
-                        {frequencia(a.intervalo_min)} · {a.tarefas?.length || 0}{" "}
-                        {a.tarefas?.length === 1 ? "tarefa" : "tarefas"}
+                        {frequencia(a.intervalo_min)}
+                        {a.tarefas?.length
+                          ? ` · ${a.tarefas.length} ${a.tarefas.length === 1 ? "tarefa" : "tarefas"}`
+                          : ""}
                       </p>
 
                       <div className="mt-2.5 flex flex-wrap items-center gap-1.5 pl-[16px]">
@@ -295,6 +327,10 @@ export default function AgendamentosCliente() {
                             {ultimo.tokens ? <Dado>{ultimo.tokens} tokens</Dado> : null}
                             {ultimo.parou_em_aprovacao ? <Dado tom="alerta">parou em aprovação</Dado> : null}
                           </>
+                        ) : a.ultimo_status ? (
+                          <Dado tom={a.ultimo_status.startsWith("falhou") ? "alerta" : "neutro"}>
+                            {resumoStatus(a.ultimo_status)}
+                          </Dado>
                         ) : (
                           <Dado>ainda não rodou</Dado>
                         )}

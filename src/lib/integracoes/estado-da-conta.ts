@@ -78,6 +78,17 @@ export function estaConectadaNaConta(
     linhas: LinhasDaConta;
     /** o cofre desta conta (user.platform_config). */
     config: Record<string, unknown> | null | undefined;
+    /**
+     * Ids de integração ligados em OUTRO espaço que a pessoa alcança (a
+     * organização). Vem pronto do servidor (`GET /api/integracoes/cofres`), que
+     * lê o cofre de cada espaço e devolve só os IDS — nunca credencial.
+     *
+     * Existe porque o cofre pessoal não é o único lugar onde uma conexão pode
+     * morar: sem isto, uma caixa de email conectada no espaço da organização
+     * aparecia como "não conectada" no cartão, que é a mesma mentira ao
+     * contrário que esta fonte única nasceu para evitar.
+     */
+    ligadasEmOutrosEspacos?: string[];
   },
 ): boolean {
   if (ehCrm(i)) {
@@ -88,5 +99,7 @@ export function estaConectadaNaConta(
   // Demais itens: a linha desta conta (ex.: Telegram/WhatsApp)...
   if (linhaDaContaEm(i, ctx.linhas)) return true;
   // ...e, no fim, o cofre desta conta, onde OAuth e chaves de API gravam.
-  return estaLigada(i, ctx.config);
+  if (estaLigada(i, ctx.config)) return true;
+  // ...e os outros espaços da pessoa (a organização), por id.
+  return (ctx.ligadasEmOutrosEspacos || []).includes(i.id);
 }

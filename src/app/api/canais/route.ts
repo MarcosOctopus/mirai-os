@@ -117,8 +117,66 @@ export async function GET(req: NextRequest) {
   // C3 — as propostas de time DESTA org (o Foreman). Mesma régua de org e de token:
   // quem entra vê as propostas do espaço dele, e a Arca confirma pelo token.
   if (req.nextUrl.searchParams.get("agenda")) {
-    const { status, dados } = await arca("/canais/agenda", token);
-    return NextResponse.json({ org, ...(dados as object) }, { status });
+    /* A Arca pode falhar (org sem agenda, token, rede). Isso NÃO pode derrubar
+       a lista inteira: as agendas do app são nossas e continuam válidas. Se a
+       Arca falhar, devolvemos 200 com o aviso em `aviso_arca` — nunca um erro
+       que apague o que já sabemos. */
+    let d: { agendas?: unknown[]; total?: number } = {};
+    let avisoArca = "";
+    try {
+      const { status, dados } = await arca("/canais/agenda", token);
+      if (status >= 400) {
+        avisoArca =
+          (dados as { detail?: string; erro?: string })?.detail ||
+          (dados as { erro?: string })?.erro ||
+          `a Arca respondeu ${status}`;
+      } else {
+        d = dados as { agendas?: unknown[]; total?: number };
+      }
+    } catch (erro) {
+      avisoArca = `não alcancei a Arca (${(erro as Error)?.message || "erro"})`;
+    }
+    /* DUAS ORIGENS: as agendas da Arca (acervo, notas, grafo) e as do APP
+       (email). Vivem em bancos diferentes — a Arca recusa tarefa que não é
+       dela. Sem juntar aqui, o agendamento de email não apareceria na tela. */
+    let doApp: Record<string, unknown>[] = [];
+    try {
+      const { listarAgendasApp } = await import("@/lib/agendador-app");
+      const { contaDaRequisicao } = await import("@/lib/orgs");
+      const { escoposDaConta } = await import("@/lib/escopos");
+      const conta = await contaDaRequisicao(req);
+      if (conta) {
+        /* ESCOPOS (13/11/2026): a pessoa vê as agendas do espaço DELA e, se
+           tiver organização, também as da organização — são dois escopos do
+           mesmo nível, e o pessoal não deixa de existir por haver empresa.
+           Antes, ter organização escondia as agendas pessoais: o "org se
+           existir" fazia a tela mostrar só um dos dois. */
+        const escopos = escoposDaConta(conta).map((e) => e.id);
+        doApp = escopos.flatMap((escopo) => listarAgendasApp(conta.id, escopo)).map((a) => ({
+          id: a.id,
+          nome: a.nome,
+          org: a.org,
+          intervalo_min: a.intervalo_min,
+          ativa: a.ativa === 1,
+          proxima_em: a.proxima_em,
+          ultima_em: a.ultima_em,
+          ultimo_status: a.ultimo_status ?? null,
+          tarefas: a.tarefas,
+          origens: ["app"],
+        }));
+      }
+    } catch {
+      /* a Arca é a fonte principal; o app é complemento — falha aqui não derruba a tela */
+    }
+    const todas = [...(d.agendas || []), ...doApp];
+    return NextResponse.json({
+      org,
+      ...d,
+      agendas: todas,
+      total: todas.length,
+      do_app: doApp.length,
+      ...(avisoArca ? { aviso_arca: avisoArca } : {}),
+    });
   }
 
   if (req.nextUrl.searchParams.get("foreman")) {
@@ -178,6 +236,20 @@ export async function POST(req: NextRequest) {
   }
 
   if (corpo.foreman === "rodar-agenda" && corpo.agenda) {
+    /* A agenda do APP (id `agp_…`) tem runner próprio. O id dela não existe na
+       Arca — antes o clique era repassado para lá e voltava "agenda inexistente
+       nesta org", que a tela exibia como "Não consegui carregar os agendamentos".
+       Agora: se o id é nosso, roda aqui; se não, segue para a Arca como sempre. */
+    const { executarAgendaAgora } = await import("@/lib/agendador-app");
+    const noApp = await executarAgendaAgora(conta.id, corpo.agenda);
+    if (noApp) {
+      return NextResponse.json({
+        org,
+        rodou_no_app: true,
+        status: noApp.status,
+        run: { executadas: 1, recusadas: 0, duracao_ms: noApp.duracao_ms, bytes: 0 },
+      });
+    }
     const { status, dados } = await arca(
       `/canais/agenda/${encodeURIComponent(corpo.agenda)}/rodar`, token, "POST", {},
     );

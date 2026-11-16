@@ -102,3 +102,8 @@ public/ecossistema-mirai.html
 *.bak-*
 *.pre-*
 SESSION_STATE.md
+
+# segredos do runtime: nunca versionar
+.arca-token
+.mirai_key
+.credentials/

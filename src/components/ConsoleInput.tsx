@@ -61,6 +61,27 @@ export default function ConsoleInput({
     ? "💬"
     : "🏗️";
 
+  /* Modelo escolhido. Supernova é o nosso white label, fixo no DeepSeek que
+     usamos aqui. Outros modelos só aparecem quando a pessoa coloca a própria
+     chave — por isso não há opção vazia na tela. */
+  const [modelo, setModelo] = useState<string>(() => {
+    try {
+      return localStorage.getItem("mirai:modelo") || "supernova-flash";
+    } catch {
+      return "supernova-flash";
+    }
+  });
+
+  /* Autonomia: padrão é PEDIR aprovação. Agir sozinho é escolha explícita —
+     o contrário seria a IA decidindo por conta própria na primeira vez. */
+  const [sozinho, setSozinho] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("mirai:autonomia") === "sozinho";
+    } catch {
+      return false;
+    }
+  });
+
   return (
     <div
       className="fixed bottom-0 left-0 right-0 z-50 input-glow"
@@ -70,6 +91,59 @@ export default function ConsoleInput({
         backdropFilter: "blur(12px)",
       }}
     >
+      {/* Seletor de modelo — luz contida, sem "estourado" */}
+      <div className="mx-auto flex max-w-4xl items-center gap-2 px-4 pt-2">
+        {[
+          { id: "supernova-flash", nome: "Supernova Flash", dica: "resposta rápida" },
+          { id: "supernova-high", nome: "Supernova High", dica: "raciocínio profundo" },
+        ].map((m) => {
+          const ativo = modelo === m.id;
+          return (
+            <button
+              key={m.id}
+              onClick={() => {
+                setModelo(m.id);
+                try {
+                  localStorage.setItem("mirai:modelo", m.id);
+                } catch {}
+                window.dispatchEvent(new CustomEvent("mirai:modelo", { detail: m.id }));
+              }}
+              title={m.dica}
+              className={`flex h-7 items-center rounded-full px-3 text-[11px] transition-all duration-200 ${
+                ativo ? "text-white" : "text-white/40 hover:text-white/70"
+              }`}
+              style={{
+                background: ativo ? "rgba(10,239,255,0.10)" : "transparent",
+                border: `1px solid ${ativo ? "rgba(10,239,255,0.35)" : "rgba(255,255,255,0.06)"}`,
+              }}
+            >
+              {m.nome}
+            </button>
+          );
+        })}
+
+        {/* Autonomia: cada pessoa usa de um jeito. Marcado = age sozinha;
+            desmarcado = propõe e espera aprovação. */}
+        <label
+          className="ml-auto flex cursor-pointer select-none items-center gap-2 text-[11px] text-white/45 transition-colors hover:text-white/70"
+          title="Marcado: a Mirai executa sem perguntar. Desmarcado: ela propõe e espera você aprovar."
+        >
+          <input
+            type="checkbox"
+            checked={sozinho}
+            onChange={(e) => {
+              const v = e.target.checked;
+              setSozinho(v);
+              try {
+                localStorage.setItem("mirai:autonomia", v ? "sozinho" : "aprovar");
+              } catch {}
+              window.dispatchEvent(new CustomEvent("mirai:autonomia", { detail: v ? "sozinho" : "aprovar" }));
+            }}
+            className="h-3.5 w-3.5 cursor-pointer accent-cyan-400"
+          />
+          agir sozinho
+        </label>
+      </div>
       <div className="mx-auto flex max-w-4xl items-end gap-2 px-4 py-3">
         {/* Mode Toggle */}
         <button

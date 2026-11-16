@@ -33,6 +33,7 @@
 
 import type { Conta } from "./orgs";
 import { credencialSaasoDaConta } from "./orgs";
+import { resolverEscopo } from "./escopos";
 import { integracoesDaPessoa, integracoesDaOrganizacao } from "./integracoes";
 import { leituraDeCredencial } from "./segredo-guardado";
 import { TIPO_SERVIDOR } from "./servidor-cliente";
@@ -446,6 +447,85 @@ export function ferramentasParaOModelo(
     function: { name: string; description: string; parameters: Record<string, unknown> };
   }[] = [];
 
+  /* AGENDAMENTO — o que a pessoa agenda vive na Arca. A ferramenta NÃO cria
+     agenda direto: cria o canal, pede a proposta ao Foreman e só então agenda.
+     Propor não cria nada; aprovar cria. Se a Arca recusar, o motivo volta. */
+  defs.push({
+    type: "function",
+    function: {
+      name: "agendar",
+      description:
+        "Cria um agendamento recorrente para a pessoa (ex.: 'todo dia às 8h me mande o " +
+        "resumo dos emails'). Cria o canal, pede a proposta ao Foreman, aprova e monta a " +
+        "agenda. Devolve o id ou o motivo real da recusa — nunca diga que agendou sem o id.",
+      parameters: {
+        type: "object",
+        properties: {
+          nome: { type: "string", description: "nome curto do agendamento" },
+          objetivo: { type: "string", description: "o que deve ser feito, em uma frase" },
+          intervalo_min: {
+            type: "integer",
+            description: "de quantos em quantos minutos roda (1440 = uma vez por dia)",
+          },
+          tarefas: {
+            type: "array",
+            description: "as ações que a agenda executa",
+            items: {
+              type: "object",
+              properties: {
+                acao: { type: "string", description: "nome da ação (ex.: ler_emails)" },
+                argumentos: { type: "object", description: "argumentos da ação" },
+              },
+              required: ["acao"],
+            },
+          },
+        },
+        required: ["nome", "objetivo", "tarefas"],
+      },
+    },
+  });
+  defs.push({
+    type: "function",
+    function: {
+      name: "listar_agendas",
+      description: "Lista os agendamentos que existem hoje para esta conta, com id e intervalo.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  });
+
+  /* EMAIL — disponível em TODOS os modos, porque é pedido direto da pessoa
+     ("leia meus emails"), não pesquisa. A ferramenta não decide se há conexão:
+     ela chama e, se não houver, devolve o motivo — a Mirai diz a verdade em vez
+     de inventar uma caixa vazia. */
+  defs.push({
+    type: "function",
+    function: {
+      name: "ler_emails",
+      description:
+        "Lê as últimas mensagens da caixa de email da pessoa (Gmail conectado no Synapse) " +
+        "e devolve remetente, assunto, data e um trecho de cada uma. Use SEMPRE que ela " +
+        "pedir para ler, resumir, listar ou verificar emails. Se não houver conexão, a " +
+        "ferramenta devolve o motivo — diga o motivo, nunca invente mensagens.",
+      parameters: {
+        type: "object",
+        properties: {
+          quantidade: {
+            type: "integer",
+            description: "quantas mensagens ler (padrão 3, máximo 20)",
+          },
+          conta: {
+            type: "string",
+            description:
+              "qual caixa ler, quando a pessoa tem mais de uma (ex.: o email pessoal, o da " +
+              "empresa, o do cliente). Use o endereço ou o rótulo que ela falou. Se ela não " +
+              "disse e há mais de uma, NÃO escolha: pergunte qual.",
+          },
+        },
+        required: [],
+      },
+    },
+  });
+
   if (modo === "observador" || modo === "profundo") {
     defs.push({
       type: "function",
@@ -580,6 +660,178 @@ export async function executarFerramenta(
   if (doArquiteto !== null) return doArquiteto;
 
   // ── as de BASE vêm primeiro: não têm dono entre os conectores ────────────
+  if (nome === "ler_emails") {
+    const { ultimosEmails } = await import("./gmail");
+    const n = Number(args?.quantidade) > 0 ? Math.min(Number(args.quantidade), 20) : 3;
+    /* QUAL CAIXA LER — a ordem importa (13/11/2026):
+         1. o que o MODELO mandou no argumento `conta` (quando a pessoa
+            respondeu "lê o da empresa" no meio da conversa);
+         2. a escolha feita no SELETOR da tela (`contaEmail` do pedido), que
+            chega por AsyncLocalStorage. Sem isso o seletor seria decorativo:
+            a pessoa escolheria a caixa e a Mirai continuaria perguntando qual;
+         3. nada — e aí `gmail.ts` devolve `varias-contas` e a Mirai pergunta.
+       A escolha da tela nunca é aceita às cegas: `gmail.ts` só lê contas do
+       cofre DESTA pessoa, então um endereço de outra conta simplesmente não
+       resolve (`tokenDe` devolve `sem-conexao`). */
+    const daTela =
+      (globalThis as { __miraiContaEmail?: { getStore?: () => string | undefined } })
+        .__miraiContaEmail?.getStore?.() || "";
+    const alvo =
+      (typeof args?.conta === "string" && args.conta.trim() ? args.conta.trim() : undefined) ||
+      (daTela.trim() ? daTela.trim() : undefined);
+    /* ESCOPO (modelo corrigido pelo dono, 13/11/2026): a caixa pertence a um
+       espaço EXPLÍCITO — o pessoal de quem está lendo (padrão) ou o da
+       organização, quando é isso que a tela mandou. Nada de "org se existir":
+       a conta completa vem do store do pedido, e `resolverEscopo` só aceita
+       escopos que esta conta realmente enxerga. */
+    const contaReal =
+      (globalThis as { __miraiConta?: { getStore?: () => Conta | undefined } }).__miraiConta?.getStore?.() ??
+      conta;
+    /* A caixa escolhida no seletor traz o escopo DELA (`__miraiEscopoEmail`);
+       sem escolha, vale o escopo resolvido do turno (`__miraiEscopo`). Os dois
+       passam por `resolverEscopo`, que só aceita o que esta conta enxerga. */
+    const doSeletor =
+      (globalThis as { __miraiEscopoEmail?: { getStore?: () => string | undefined } })
+        .__miraiEscopoEmail?.getStore?.() || "";
+    const doTurno =
+      (globalThis as { __miraiEscopo?: { getStore?: () => string | undefined } })
+        .__miraiEscopo?.getStore?.() || "";
+    const escopo = resolverEscopo(contaReal, doSeletor || doTurno || null);
+    const r = await ultimosEmails(escopo, n, alvo);
+    if (!r.ok) {
+      if (r.motivo === "sem-conexao") {
+        return (
+          "A conta desta pessoa ainda NÃO conectou o Google. Diga isso com clareza e " +
+          "indique o caminho: Dashboard → Synapse → card \"Google Email\" → Conectar. " +
+          "Não invente emails e não diga que a caixa está vazia."
+        );
+      }
+      if (r.motivo === "varias-contas") {
+        const lista = (r.contas || []).map((c) => `- ${c.rotulo}${c.email && c.email !== c.rotulo ? ` (${c.email})` : ""}`).join("\n");
+        return (
+          "Esta pessoa tem MAIS DE UMA caixa conectada. NÃO escolha por ela e NÃO leia " +
+          "nenhuma ainda: pergunte qual ela quer, mostrando exatamente estas opções:\n" +
+          `${lista}\n` +
+          "Depois que ela responder, chame ler_emails de novo passando o campo conta."
+        );
+      }
+      return `Não consegui ler a caixa agora (${r.motivo}). Diga o motivo — não invente mensagens.`;
+    }
+    if (!r.mensagens.length) return "A caixa está vazia: nenhuma mensagem na entrada.";
+    return r.mensagens
+      .map(
+        (m, i) =>
+          `${i + 1}. De: ${m.de}\n   Assunto: ${m.assunto}\n   Data: ${m.data}\n   Trecho: ${m.resumo}`,
+      )
+      .join("\n\n");
+  }
+  if (nome === "listar_agendas" || nome === "agendar") {
+    /* MULTI-TENANT: a organização vem da CONTA da sessão, nunca do token.
+       Quem NÃO tem organização não fica sem agenda: ganha um escopo pessoal
+       (`pessoal-<id>`), isolado por pessoa. Recusar seria dizer que só empresa
+       pode agendar — e a maioria dos usuários é pessoa física. */
+    const contaReal =
+      (globalThis as { __miraiConta?: { getStore?: () => Conta | undefined } }).__miraiConta?.getStore?.() ??
+      conta;
+    /* ESCOPO EXPLÍCITO (13/11/2026): a agenda nasce no espaço que a pessoa
+       escolheu — o pessoal dela por padrão, o da organização quando foi isso
+       que ela pediu. Antes, ter organização mandava a agenda para a empresa
+       sem a pessoa decidir; e quem não tinha organização caía num "senão" que
+       parecia plano B. O pessoal é o padrão do produto, não um consolo. */
+    const escopoPedido =
+      (globalThis as { __miraiEscopo?: { getStore?: () => string | undefined } })
+        .__miraiEscopo?.getStore?.() || "";
+    const escopoAtivo = resolverEscopo(contaReal, escopoPedido || null);
+    const org = escopoAtivo.id;
+    const { listarAgendas, criarCanal, propor, aprovar, criarAgenda } = await import("./agenda-arca");
+
+    if (nome === "listar_agendas") {
+      const r = await listarAgendas(org);
+      if (!r.ok) return `Não consegui consultar os agendamentos (${r.motivo}). Diga o motivo.`;
+      if (!r.agendas.length) return "Não há nenhum agendamento criado ainda nesta conta.";
+      return r.agendas
+        .map(
+          (a) =>
+            `- ${a.nome || a.id} (id ${a.id}) a cada ${a.intervalo_min ?? 0} min${a.ativa === false ? " — desativado" : ""}`,
+        )
+        .join("\n");
+    }
+
+    const nomeAg = String(args?.nome || "").trim();
+    const objetivo = String(args?.objetivo || "").trim();
+    const tarefas = Array.isArray(args?.tarefas)
+      ? (args.tarefas as { acao: string; argumentos?: Record<string, unknown> }[])
+      : [];
+    const intervalo = Number(args?.intervalo_min) > 0 ? Number(args.intervalo_min) : 0;
+    if (!nomeAg || !objetivo || !tarefas.length) {
+      return "Faltou dado para agendar: preciso de nome, objetivo e ao menos uma tarefa.";
+    }
+
+    /* ROTEAMENTO — a agenda roda onde a ferramenta mora.
+       `ler_emails` é ferramenta DO APP: a Arca recusa (vocabulário dela é
+       email-enviar, nota, buscar, grafo...). Então essa agenda nasce aqui.
+       Tarefas da Arca seguem o caminho da Arca, mais abaixo. */
+    const ACOES_DO_APP = new Set(["ler_emails"]);
+    const todasDoApp = tarefas.every((t) => ACOES_DO_APP.has(t.acao));
+
+    if (todasDoApp) {
+      const { criarAgendaApp, escopoDaConta } = await import("./agendador-app");
+      const escopo = escopoDaConta(
+        contaReal as { id: number; org?: { slug?: string } | null },
+      );
+      const cada = intervalo > 0 ? intervalo : 1440; // padrão: uma vez por dia
+      const r = criarAgendaApp(contaReal.id, escopo, nomeAg, tarefas, cada);
+      if (!r.ok) return `Não consegui agendar (${r.motivo}). Diga o motivo com clareza.`;
+      return (
+        `Agendamento criado e ATIVO: "${nomeAg}" (id ${r.id}), a cada ${cada} minutos. ` +
+        "Ele roda no app — porque ler email é ferramenta do app, a Arca não sabe fazer isso. " +
+        `O resultado é entregue numa conversa chamada "${nomeAg}". ` +
+        "Diga que está ativo, com que frequência roda e que a entrega aparece nessa conversa. " +
+        "Não diga que precisa aprovar: já está criado."
+      );
+    }
+
+    const canal = await criarCanal(org, nomeAg, objetivo);
+    if (!canal.ok) return `Não consegui criar o canal do agendamento (${canal.motivo}). Diga o motivo.`;
+
+    const prop = await propor(org, objetivo);
+    if (!prop.ok) {
+      return (
+        `O canal foi criado (${canal.id}), mas o Foreman não devolveu proposta (${prop.motivo}). ` +
+        "Diga isso com clareza: o agendamento NÃO está ativo."
+      );
+    }
+
+    /* AUTONOMIA: se a pessoa escolheu "aprovar" (padrão), a Mirai PARA aqui e
+       devolve a proposta. Aprovar sozinha seria decidir no lugar dela — e a
+       regra do dono é que aprovar é o ato que cria a concessão. */
+    const autonomia = (globalThis as { __miraiAutonomia?: { getStore?: () => string | undefined } })
+      .__miraiAutonomia?.getStore?.() || "aprovar";
+    if (autonomia !== "sozinho") {
+      return (
+        `Proposta criada e aguardando aprovação: ${prop.propostaId} (canal ${canal.id}). ` +
+        "NÃO diga que agendou. Diga que a proposta está pronta e peça para a pessoa aprovar " +
+        "na tela de agendamentos. Se ela quiser que você execute sem perguntar, ela marca " +
+        "\"agir sozinho\" no chat."
+      );
+    }
+
+    const aprov = await aprovar(org, prop.propostaId);
+    if (!aprov.ok) {
+      return (
+        `A proposta ${prop.propostaId} existe mas não foi aprovada (${aprov.motivo}). ` +
+        "Sem aprovação não há agenda — diga que ficou pendente de aprovação."
+      );
+    }
+
+    const ag = await criarAgenda(org, prop.propostaId, tarefas, nomeAg, intervalo);
+    if (!ag.ok) return `A proposta foi aprovada, mas a agenda não foi criada (${ag.motivo}). Diga o motivo.`;
+
+    return (
+      `Agendamento criado para a organização ${org}: "${nomeAg}" (id ${ag.id}), a cada ` +
+      `${intervalo || "—"} minutos, com ${tarefas.length} tarefa(s). Confirme usando este id.`
+    );
+  }
   if (nome === FERRAMENTA_BUSCAR) {
     const { buscarNaWeb, buscaEmTexto } = await import("./busca-web");
     const limite = Number(args?.limite) > 0 ? Math.min(Number(args.limite), 10) : 5;

@@ -121,6 +121,34 @@ function MiraiAppCore() {
   const voiceRef = useRef<VoiceApi>(voice);
   const messagesRef = useRef<Msg[]>([]);
   const chatModeRef = useRef<ChatMode>("conversa");
+  /* Modelo escolhido na tela. Ref (e não state) porque a chamada lê o valor no
+     momento do envio, sem depender de re-render. */
+  const modeloRef = useRef<string>("supernova-flash");
+  /* Autonomia: "aprovar" (padrão) ou "sozinho". Vai no corpo do pedido. */
+  const autonomiaRef = useRef<string>("aprovar");
+  /* O seletor vive no ConsoleInput; aqui só escutamos a troca. */
+  useEffect(() => {
+    try {
+      const salvo = localStorage.getItem("mirai:modelo");
+      if (salvo) modeloRef.current = salvo;
+      const aut = localStorage.getItem("mirai:autonomia");
+      if (aut === "sozinho" || aut === "aprovar") autonomiaRef.current = aut;
+    } catch {}
+    const aoTrocar = (e: Event) => {
+      const v = (e as CustomEvent<string>).detail;
+      if (typeof v === "string" && v) modeloRef.current = v;
+    };
+    const aoTrocarAut = (e: Event) => {
+      const v = (e as CustomEvent<string>).detail;
+      if (v === "sozinho" || v === "aprovar") autonomiaRef.current = v;
+    };
+    window.addEventListener("mirai:modelo", aoTrocar);
+    window.addEventListener("mirai:autonomia", aoTrocarAut);
+    return () => {
+      window.removeEventListener("mirai:modelo", aoTrocar);
+      window.removeEventListener("mirai:autonomia", aoTrocarAut);
+    };
+  }, []);
   const handleSendRef = useRef<(text: string) => Promise<void>>(async () => {});
   const autoListenRef = useRef(true);
   const timeoutsRef = useRef<Array<() => void>>([]);
@@ -278,7 +306,12 @@ function MiraiAppCore() {
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: requestMessages, mode: currentMode }),
+        body: JSON.stringify({
+          messages: requestMessages,
+          mode: currentMode,
+          modelo: modeloRef.current,
+          autonomia: autonomiaRef.current,
+        }),
       });
 
       if (!resp.ok) {

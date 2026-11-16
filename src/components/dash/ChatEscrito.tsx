@@ -117,6 +117,56 @@ function TextoComArquivos({ texto }: { texto: string }) {
   );
 }
 
+/* ── DE QUAL CAIXA LER (13/11/2026) ────────────────────────────────────────
+ * Chip arredondado, mesma família do seletor de modelo. Só aparece com MAIS DE
+ * UMA caixa: com uma só, um seletor de uma opção é ruído.
+ *
+ * Vive num componente porque a tela tem DOIS compositores (o de "nova conversa"
+ * e o da conversa aberta) e o seletor tem de existir nos dois — antes ele só
+ * existia no segundo, e quem ainda não tinha aberto conversa não conseguia
+ * escolher a caixa.
+ *
+ * Com mais de um espaço (pessoal + organização), o rótulo mostra DE ONDE é a
+ * caixa; senão dois endereços parecidos ficam indistinguíveis.
+ */
+function SeletorDeCaixa({
+  contas,
+  valor,
+  onEscolher,
+}: {
+  contas: { email: string; rotulo: string; escopoId: string; escopoNome: string }[];
+  valor: string;
+  onEscolher: (chave: string) => void;
+}) {
+  if (contas.length < 2) return null;
+  const variosEspacos = new Set(contas.map((c) => c.escopoId)).size > 1;
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+      <span className="text-[10px] uppercase tracking-[0.14em] text-dash-dim">ler de</span>
+      {contas.map((c) => {
+        const chave = `${c.escopoId}|${c.email}`;
+        const ativa = valor === chave;
+        return (
+          <button
+            key={chave}
+            type="button"
+            title={variosEspacos ? `${c.email} · ${c.escopoNome}` : c.email}
+            onClick={() => onEscolher(chave)}
+            className={`max-w-[210px] truncate rounded-full px-3 py-[5px] text-[11px] transition-all duration-200 ${
+              ativa ? "bg-dash-brand/[0.15] text-dash-fg" : "text-dash-muted hover:text-dash-fg"
+            }`}
+            style={{
+              border: `1px solid ${ativa ? "rgba(255,117,31,0.40)" : "rgba(255,255,255,0.06)"}`,
+            }}
+          >
+            {variosEspacos ? `${c.email} · ${c.escopoNome}` : c.email}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ChatEscrito({
   cheio = false,
   onInicioChange,
@@ -131,6 +181,22 @@ export default function ChatEscrito({
 
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [texto, setTexto] = useState("");
+  /* Modelo e autonomia: escolha da pessoa, salva no navegador. Supernova é o
+     nosso white label, fixo no DeepSeek que usamos aqui. */
+  const [modelo, setModelo] = useState<string>(() => {
+    try {
+      return localStorage.getItem("mirai:modelo") || "supernova-flash";
+    } catch {
+      return "supernova-flash";
+    }
+  });
+  const [sozinho, setSozinho] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("mirai:autonomia") === "sozinho";
+    } catch {
+      return false;
+    }
+  });
   // O CHAT É SÓ CONVERSA (dono, 10/10/2026): o modo "arquiteto" saiu DESTA tela —
   // o Arquiteto tem a própria tela, alcançada pelo menu. Antes havia duas abas
   // (conversa/arquiteto) aqui, e o dono foi claro: "não tem modo arquiteto" no chat.
@@ -183,6 +249,74 @@ export default function ChatEscrito({
   const reconhecimento = useRef<any>(null);
   const falaBase = useRef(""); // o que já estava escrito quando o ditado começou
   const falaFinal = useRef(""); // trechos que o reconhecedor já fechou
+
+  /* ── DE QUAL CAIXA LER (multi-conta, 13/11/2026) ────────────────────
+   * O cofre já guardava várias contas Google; o chat não sabia qual abrir e
+   * sempre perguntava. Aqui a pessoa escolhe de antemão e a escolha viaja no
+   * corpo do pedido (`contaEmail`) — a ferramenta de leitura respeita.
+   * Só aparece com MAIS DE UMA caixa: com uma só, um seletor de uma opção é
+   * ruído. A escolha fica no navegador (localStorage) porque é preferência
+   * de quem usa, não estado de servidor. */
+  /* Cada caixa carrega o ESCOPO de onde ela vem (pessoal ou organização):
+     a escolha do seletor é, na prática, "ler de qual espaço e de qual
+     endereço". Uma chave única `escopo|email` evita ambiguidade quando o mesmo
+     endereço estiver nos dois espaços. */
+  const [contasEmail, setContasEmail] = useState<
+    { email: string; rotulo: string; escopoId: string; escopoNome: string }[]
+  >([]);
+  const [contaEmail, setContaEmail] = useState<string>("");
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/gmail/contas", { cache: "no-store" });
+        if (!r.ok) return;
+        const d = (await r.json()) as {
+          contas?: { email: string; rotulo: string }[];
+          outrosEspacos?: {
+            escopo: { id: string; nome: string };
+            contas: { email: string; rotulo: string }[];
+          }[];
+          escopo?: { id: string; nome: string };
+        };
+        const lista: { email: string; rotulo: string; escopoId: string; escopoNome: string }[] = [];
+        // As caixas do espaço PESSOAL (o padrão) entram primeiro.
+        const pessoalId = d.escopo?.id || "pessoal";
+        const pessoalNome = d.escopo?.nome || "Meu espaço";
+        for (const c of d.contas || []) {
+          lista.push({ email: c.email, rotulo: c.rotulo, escopoId: pessoalId, escopoNome: pessoalNome });
+        }
+        // As dos outros espaços (a organização) aparecem com o nome de onde vêm:
+        // a pessoa escolhe a CAIXA, não um "modo organização".
+        for (const bloco of d.outrosEspacos || []) {
+          for (const c of bloco.contas || []) {
+            lista.push({
+              email: c.email,
+              rotulo: c.rotulo,
+              escopoId: bloco.escopo.id,
+              escopoNome: bloco.escopo.nome,
+            });
+          }
+        }
+        if (!vivo) return;
+        setContasEmail(lista);
+        // Recupera a escolha anterior SÓ se aquela caixa ainda existir — um
+        // endereço desconectado (ou um escopo perdido) não pode seguir escolhido.
+        let guardada = "";
+        try {
+          guardada = localStorage.getItem("mirai:contaEmail") || "";
+        } catch {}
+        const chave = (c: { escopoId: string; email: string }) => `${c.escopoId}|${c.email}`;
+        if (guardada && lista.some((c) => chave(c) === guardada)) setContaEmail(guardada);
+        else if (lista.length) setContaEmail(chave(lista[0]));
+      } catch {
+        /* sem seletor: a ferramenta pergunta qual caixa, como antes */
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   /* ── consumo do espaço (contrato do perfil) ────────────────────── */
   const atualizarUso = useCallback(() => {
@@ -466,7 +600,14 @@ export default function ChatEscrito({
             anexos: m.anexos?.map((a) => ({ id: a.id })),
           })),
           mode: modo,
+          modelo,
+          autonomia: sozinho ? "sozinho" : "aprovar",
           modoPesquisa,
+          // A caixa escolhida no seletor (vazio = a ferramenta pergunta qual).
+          // Vai junto o ESCOPO da CAIXA — não é um "modo organização": é de
+          // onde aquela conta de email foi conectada.
+          contaEmail: contaEmail ? contaEmail.split("|")[1] : undefined,
+          escopoEmail: contaEmail ? contaEmail.split("|")[0] : undefined,
           conversaId: idConversa || undefined,
         }),
       });
@@ -678,6 +819,19 @@ export default function ChatEscrito({
 
               {faixaAnexos}
 
+              {/* O seletor de caixa também aqui: quem chega pela home e ainda
+                  não abriu conversa precisa poder escolher de onde ler. */}
+              <SeletorDeCaixa
+                contas={contasEmail}
+                valor={contaEmail}
+                onEscolher={(chave) => {
+                  setContaEmail(chave);
+                  try {
+                    localStorage.setItem("mirai:contaEmail", chave);
+                  } catch {}
+                }}
+              />
+
               {/* a caixa: "+" à esquerda, campo que cresce, microfone e enviar à direita */}
               <div className="rounded-[26px] border border-dash-hair/10 bg-dash-card p-2 shadow-2xl transition focus-within:border-dash-brand/60">
                 <div className="flex items-end gap-1 sm:gap-1.5">
@@ -882,6 +1036,67 @@ export default function ChatEscrito({
 
             <div className="border-t border-dash-hair/[0.07] px-4 py-3">
               {faixaAnexos}
+
+              <SeletorDeCaixa
+                contas={contasEmail}
+                valor={contaEmail}
+                onEscolher={(chave) => {
+                  setContaEmail(chave);
+                  try {
+                    localStorage.setItem("mirai:contaEmail", chave);
+                  } catch {}
+                }}
+              />
+
+              {/* Seletor de modelo + autonomia — luz contida */}
+              <div className="mb-2 flex items-center gap-2">
+                {[
+                  { id: "supernova-flash", nome: "Supernova Flash", dica: "resposta rápida" },
+                  { id: "supernova-high", nome: "Supernova High", dica: "raciocínio profundo" },
+                ].map((m) => {
+                  const ativo = modelo === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      title={m.dica}
+                      onClick={() => {
+                        setModelo(m.id);
+                        try {
+                          localStorage.setItem("mirai:modelo", m.id);
+                        } catch {}
+                      }}
+                      className={`flex h-7 items-center rounded-full px-3 text-[11px] transition-all duration-200 ${
+                        ativo ? "text-dash-ink" : "text-dash-muted hover:text-dash-ink/70"
+                      }`}
+                      style={{
+                        background: ativo ? "rgba(10,239,255,0.10)" : "transparent",
+                        border: `1px solid ${ativo ? "rgba(10,239,255,0.35)" : "rgba(255,255,255,0.06)"}`,
+                      }}
+                    >
+                      {m.nome}
+                    </button>
+                  );
+                })}
+                <label
+                  className="ml-auto flex cursor-pointer select-none items-center gap-2 text-[11px] text-dash-muted transition-colors hover:text-dash-ink/70"
+                  title="Marcado: a Mirai executa sem perguntar. Desmarcado: ela propõe e espera você aprovar."
+                >
+                  <input
+                    type="checkbox"
+                    checked={sozinho}
+                    onChange={(e) => {
+                      const v = e.target.checked;
+                      setSozinho(v);
+                      try {
+                        localStorage.setItem("mirai:autonomia", v ? "sozinho" : "aprovar");
+                      } catch {}
+                    }}
+                    className="h-3.5 w-3.5 cursor-pointer accent-cyan-400"
+                  />
+                  agir sozinho
+                </label>
+              </div>
 
               <div className="flex items-end gap-2">
                 <button
