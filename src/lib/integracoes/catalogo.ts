@@ -101,13 +101,23 @@ export const CATALOGO: Integracao[] = [
     id: "arca",
     nome: "Arca",
     empresa: "Mirai",
-    subtitulo: "Memória persistente do ecossistema: contexto e histórico da conta",
-    explicacao: "Memória e contexto da sua conta.",
-    tipo: "mcp",
+    subtitulo: "Seu acervo, suas notas e seus arquivos — na organização desta conta",
+    explicacao: "A memória da sua organização.",
+    /* tipo "api", NUNCA "mcp": card de MCP é só um link para o site do
+       fornecedor. Aqui a conexão é de CONTA: um clique cunha o token da
+       organização do e-mail da SESSÃO (POST /api/integracoes/arca/conectar) e
+       guarda no cofre desta pessoa.
+       (dono, 17/11/2026: "sem segundo login e sem erro na cara do cliente".) */
+    tipo: "api",
     categoria: "mirai",
-    logo: "/logo-mirai-marca.png",
+    logo: "/integracoes/arca.svg",
+    /* laranja da marca escurecido — a logo de traço branca lê a 3:1 sobre ele */
     cor: "#f16e1d",
-    site: "https://arca.miraitohope.com",
+    /* O caminho que CONECTA (é POST, chamado pelo painel da própria tela — não
+       abre aba). `chaveConfig` é a mesma chave onde o token é gravado no cofre,
+       e é o que faz o cartão ler "conectada". */
+    oauthPath: "/api/integracoes/arca/conectar",
+    chaveConfig: "arca",
     destaque: true,
   },
   {
@@ -127,13 +137,18 @@ export const CATALOGO: Integracao[] = [
     id: "drive",
     nome: "Google Drive",
     empresa: "Google",
-    subtitulo: "Arquivos e imagens do Drive para os fluxos de produção",
-    explicacao: "Arquivos e pastas do Google.",
+    subtitulo: "Ler o seu Drive e organizar tudo no acervo da Arca",
+    explicacao: "Arquivos e pastas do Google, catalogados pela Mirai.",
     tipo: "api",
     categoria: "essenciais",
     logo: "/integracoes/drive.svg",
     cor: "#4285f4",
-    oauthPath: "/api/auth/drive",
+    // 18/11/2026: era `/api/auth/drive` (escopo `drive.file`, só enxerga o que o próprio app criou,
+    // e era o cliente que devolvia `redirect_uri_mismatch`). Agora é o fluxo PRÓPRIO do acervo:
+    // leitura de verdade (`drive.readonly`) e refresh token cifrado no cofre DESTA pessoa.
+    oauthPath: "/api/oauth/gdrive/iniciar",
+    // Mesma chave que /api/oauth/gdrive/volta grava: é ela que faz a conexão aparecer nos DOIS
+    // lugares (Synapse e Arca → Fontes) sem nenhuma sincronização extra.
     chaveConfig: "google_drive",
     destaque: true,
   },

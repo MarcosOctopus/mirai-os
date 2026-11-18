@@ -96,6 +96,15 @@ export function estaConectadaNaConta(
     // do CRM, não conecta: nunca se finge conexão.
     return ctx.saasoAoVivo;
   }
+  /* ARCA (17/11/2026, especificação do dono): SEMPRE HABILITADA. Não existe
+     passo de "conectar" — o cartão já nasce ligado e o token da organização da
+     pessoa é emitido pelo servidor a partir do e-mail da sessão
+     (`/api/integracoes/arca`, idempotente). Por isso a regra não olha o cofre:
+     ele pode estar vazio no primeiro carregamento da tela e a Arca continua
+     sendo um recurso disponível desta conta — dizer "não conectada" ali seria a
+     mentira ao contrário. A exceção é o ambiente SEM a credencial de serviço,
+     onde o cartão é declarado "indisponível" pela prontidão do servidor. */
+  if (i.id === "arca") return true;
   // Demais itens: a linha desta conta (ex.: Telegram/WhatsApp)...
   if (linhaDaContaEm(i, ctx.linhas)) return true;
   // ...e, no fim, o cofre desta conta, onde OAuth e chaves de API gravam.

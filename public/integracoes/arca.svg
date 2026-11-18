@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Arca">
+  <!-- A ARCA: baú fechado — a memória guardada da organização.
+       Desenho de TRAÇO (padrão da casa), branco para ler sobre a cor da marca. -->
+  <path d="M3.6 9.4c0-1.1.5-2.1 1.4-2.8l1.2-1A4 4 0 0 1 8.7 5h6.6c.9 0 1.8.2 2.5.6l1.2 1c.9.7 1.4 1.7 1.4 2.8" />
+  <path d="M3.6 9.4h16.8v5.9a4 4 0 0 1-4 4H7.6a4 4 0 0 1-4-4z" />
+  <path d="M9.6 12.4h4.8" />
+</svg>

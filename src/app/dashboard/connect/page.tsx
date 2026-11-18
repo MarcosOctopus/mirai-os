@@ -63,6 +63,8 @@ import Shell from "@/components/dash/Shell";
 import SeletorModo from "@/components/dash/SeletorModo";
 import SkillsEspelho from "@/components/dash/SkillsEspelho";
 import CosmicAgent from "@/components/dash/CosmicAgent";
+// DRIVE (18/11/2026): a MESMA peça que a aba Fontes da Arca monta — ligar aqui já aparece lá.
+import DrivesConectados from "@/components/dash/DrivesConectados";
 import { Vazio } from "@/components/dash/kit";
 import { IconeCadeado, IconeFechar, IconePlug } from "@/components/dash/icons";
 import { VIDRO } from "@/lib/vidro";
@@ -81,6 +83,7 @@ import {
   type LinhasDaConta,
 } from "@/lib/integracoes/estado-da-conta";
 import { A, ARTES_CARD, CardIntegracao, Figura, Logo } from "@/components/dash/integracao-cards";
+import BlocoArca from "@/components/dash/bloco-arca";
 
 /* Quantos cartões o catálogo de integrações mostra DE CARA — mesmo número e
    mesmo padrão do lado Skills (espelho). O resto sai no botão "Ver todas as
@@ -1051,6 +1054,7 @@ function ModalProduto({
   onIntegrar,
   onConectar,
   onColarCredencial,
+  onArcaMudou,
   ehDono,
 }: {
   item: Integracao;
@@ -1062,6 +1066,8 @@ function ModalProduto({
   onConectar: () => void;
   /** o caminho SECUNDÁRIO do CRM: colar uma credencial `crm_…` já existente. */
   onColarCredencial: () => void;
+  /** a Arca emite/revoga token: a tela recarrega o estado da conta depois. */
+  onArcaMudou?: () => void;
   /** só o dono vê o bloco das chaves do GitHub. */
   ehDono?: boolean;
 }) {
@@ -1072,12 +1078,26 @@ function ModalProduto({
      conectado — sem botão decorativo. */
   const podeConectarCrm = crm && !conectada && pronta;
 
+  /* ESC de verdade (17/11/2026): o `onKeyDown` do overlay só dispara com o foco
+     DENTRO dele — depois de copiar o token o foco pode cair no <body>, e o
+     popup ficaria sem saída pelo teclado (o botão "fechar" da Arca não existe
+     mais). O ouvinte é do documento e morre junto com o modal. */
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", aoTeclar);
+    return () => document.removeEventListener("keydown", aoTeclar);
+  }, [onClose]);
+
   /* O CRM mudou de porta (14/10/2026, dono): a entrada agora é a CONTA MIRAI,
      não o campo de credencial. O texto acompanha o que o botão faz. */
   const comoIntegra = crm
       ? conectada
       ? "Este CRM já está conectado nesta conta. Integrar abre o próprio CRM."
       : "Conectar abre a entrada com a sua conta Mirai. Se o CRM estiver no seu plano, a conexão se completa sozinha — a credencial é cunhada e entregue sem você digitar nada. Se não estiver, a tela diz como pedir a liberação."
+    : item.id === "arca"
+      ? "A Arca já está habilitada nesta conta: o token da sua organização foi emitido pela sessão Mirai, sem segundo login. Use a URL do MCP e o token abaixo em qualquer agente — e revogue aqui quando quiser encerrar o acesso."
     : item.tipo === "mcp"
       ? "Integrar abre o site da integração em uma nova aba."
       : item.oauthPath
@@ -1150,30 +1170,38 @@ function ModalProduto({
 
         <p className="mt-4 text-[11.5px] leading-[1.5] text-dash-fg/60">{comoIntegra}</p>
 
-        <div className="mt-7 flex items-center justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="rounded-[10px] border border-dash-hair/[0.20] px-5 py-2.5 text-[12px] font-semibold text-dash-fg/80 transition hover:text-dash-fg"
-          >
-            fechar
-          </button>
-          {podeConectarCrm ? (
+        {/* RODAPÉ — só existe quando há AÇÃO de verdade. O popup da ARCA não tem
+            rodapé (dono, 17/11/2026): o único botão dele era "fechar" e saiu. O
+            painel da Arca continua fechável por TRÊS caminhos que já existiam:
+            o X no canto superior direito, o clique no fundo (backdrop) e o ESC.
+            A Arca também não tem botão "conectar": ela já nasce habilitada e as
+            ações ficam no painel dela (copiar / revogar / gerar). */}
+        {item.id === "arca" ? null : (
+          <div className="mt-7 flex items-center justify-end gap-3">
             <button
-              onClick={onConectar}
-              className="rounded-[10px] bg-dash-brand px-6 py-2.5 text-[12px] font-semibold text-dash-fg transition hover:bg-[#ff2d55]"
+              onClick={onClose}
+              className="rounded-[10px] border border-dash-hair/[0.20] px-5 py-2.5 text-[12px] font-semibold text-dash-fg/80 transition hover:text-dash-fg"
             >
-              conectar com a conta Mirai
+              fechar
             </button>
-          ) : (
-            <button
-              onClick={() => onIntegrar(item)}
-              disabled={!pronta}
-              className="rounded-[10px] bg-dash-brand px-6 py-2.5 text-[12px] font-semibold text-dash-fg transition hover:bg-[#ff2d55] disabled:opacity-40"
-            >
-              Integrar
-            </button>
-          )}
-        </div>
+            {podeConectarCrm ? (
+              <button
+                onClick={onConectar}
+                className="rounded-[10px] bg-dash-brand px-6 py-2.5 text-[12px] font-semibold text-dash-fg transition hover:bg-[#ff2d55]"
+              >
+                conectar com a conta Mirai
+              </button>
+            ) : (
+              <button
+                onClick={() => onIntegrar(item)}
+                disabled={!pronta}
+                className="rounded-[10px] bg-dash-brand px-6 py-2.5 text-[12px] font-semibold text-dash-fg transition hover:bg-[#ff2d55] disabled:opacity-40"
+              >
+                Integrar
+              </button>
+            )}
+          </div>
+        )}
 
         {/* O caminho SECUNDÁRIO do CRM: quem já tem uma credencial `crm_…` em
             mãos (token legado, CRM em outra instalação) não perde a porta —
@@ -1201,6 +1229,16 @@ function ModalProduto({
         {/* MULTI-CONTA DE EMAIL (13/11/2026): todas as caixas Google desta
             conta, com desconectar por caixa e o botão de conectar outra. */}
         {item.id === "gmail" && <BlocoContasEmail conectada={conectada} />}
+
+        {/* DRIVE (18/11/2026): a MESMA peça da aba Fontes da Arca (DrivesConectados). Ligar aqui
+            aparece lá, e vice-versa — porque os dois leem o mesmo cofre (`google_drive`) e usam a
+            mesma porta (`/api/oauth/gdrive/iniciar`). Não existe estado paralelo. */}
+        {item.id === "drive" && <DrivesConectados origem="synapse" />}
+
+        {/* ARCA (17/11/2026, especificação do dono): SEMPRE HABILITADA. O painel
+            mostra a URL do MCP, o token da organização DESTA pessoa (emitido
+            pelo servidor a partir do e-mail da sessão) e a revogação. */}
+        {item.id === "arca" && <BlocoArca onMudou={onArcaMudou} />}
 
         {!pronta ? (
           <p className="mt-3 text-right text-[11px] text-dash-fg/50">
@@ -1489,6 +1527,13 @@ export default function IntegracoesPage() {
         setAviso(p.motivo || "Esta integração ainda não está pronta para conectar neste servidor.");
         return;
       }
+      /* A ARCA não abre aba nenhuma: ela já está habilitada e tudo acontece no
+         painel do próprio popup (URL + token + revogar). O `oauthPath` dela é a
+         rota de provisionamento (POST), que NÃO pode ser aberta como página. */
+      if (item.id === "arca") {
+        setProduto(item);
+        return;
+      }
       if (item.conectaEm) {
         /* A conexão NÃO é nesta tela (o GitHub se conecta dentro de um
            projeto): leva ao lugar onde ela acontece, em vez de abrir uma
@@ -1757,6 +1802,10 @@ export default function IntegracoesPage() {
           onIntegrar={integrar}
           onConectar={conectarCrm}
           onColarCredencial={colarCredencialCrm}
+          onArcaMudou={() => {
+            void carregarConta();
+            void carregarIntegracoes();
+          }}
           ehDono={user?.ehDono === true}
         />
       )}

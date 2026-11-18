@@ -35,6 +35,7 @@ import { CATALOGO } from "@/lib/integracoes/catalogo";
 import { configurado as githubConfigurado } from "@/lib/github-oauth";
 import { provedorDaPonte } from "@/lib/ponte-provedores";
 import { saasoValidarCredencial } from "@/lib/saaso";
+import { servicoConfigurado as servicoArcaConfigurado } from "@/lib/arca-conta";
 import { cifrar } from "@/lib/segredo-guardado";
 import { testarCredencial } from "@/lib/testar-integracao";
 
@@ -53,7 +54,11 @@ function prontidao(): Record<string, { pronta: boolean; motivo?: string }> {
   );
   const mapa: Record<string, { pronta: boolean; motivo?: string }> = {};
   for (const i of CATALOGO) {
-    if (i.oauthPath === "/api/auth/drive" || i.oauthPath === "/api/auth/youtube") {
+    if (
+      i.oauthPath === "/api/auth/drive" ||
+      i.oauthPath === "/api/auth/youtube" ||
+      i.oauthPath === "/api/oauth/gdrive/iniciar"
+    ) {
       mapa[i.id] = google
         ? { pronta: true }
         : { pronta: false, motivo: "a conexão com o Google ainda não está configurada neste servidor" };
@@ -65,6 +70,14 @@ function prontidao(): Record<string, { pronta: boolean; motivo?: string }> {
       mapa[i.id] = githubConfigurado()
         ? { pronta: true }
         : { pronta: false, motivo: "a conexão com o GitHub ainda não está configurada neste servidor" };
+    } else if (i.id === "arca") {
+      /* ARCA (17/11/2026): o botão "Conectar com conta Mirai" só existe quando
+         este ambiente tem a credencial de serviço (`ARCA_SERVICO_CREDENCIAL`).
+         Sem ela o pedido tomaria 401 e a pessoa veria um erro que não é dela —
+         então o cartão diz "indisponível" com o motivo, como manda a casa. */
+      mapa[i.id] = servicoArcaConfigurado()
+        ? { pronta: true }
+        : { pronta: false, motivo: "a conexão com a Arca ainda não está configurada neste servidor" };
     } else {
       mapa[i.id] = { pronta: true };
     }
@@ -152,6 +165,15 @@ export async function GET(req: NextRequest) {
   try {
     const { conferirCanvaDaConta } = await import("@/lib/canva-conta");
     await conferirCanvaDaConta(conta.id);
+  } catch {
+    /* conferir integração não pode derrubar a lista */
+  }
+  // Arca (17/11/2026): o cartão só diz "conectada" depois de o acervo responder
+  // com o token DESTA conta. A própria conferência é cacheada por 10 minutos
+  // (`arca-conta.ts`) para não custar uma ida à rede em toda carga da tela.
+  try {
+    const { conferirArcaDaConta } = await import("@/lib/arca-conta");
+    await conferirArcaDaConta(conta.id);
   } catch {
     /* conferir integração não pode derrubar a lista */
   }

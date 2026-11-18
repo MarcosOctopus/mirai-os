@@ -55,6 +55,16 @@ const PUBLIC_PATHS = [
   // conferido DENTRO da rota — nunca a sessão. Sem isto o callback toma 401 e a
   // conexão nunca se completa (medido 19/10/2026: volta respondia 401).
   '/api/oauth/canva',
+  // DRIVE POR PESSOA (18/11/2026): `/iniciar` EXIGE sessão (a própria rota chama `exigirConta` —
+  // é a conta doando acesso ao próprio Drive), mas `/volta` é o Google que chama, sem cookie de
+  // sessão: quem autoriza é o BILHETE assinado (`gdrive-oauth.ts`) conferido DENTRO da rota.
+  // Sem esta linha o retorno toma 401 e a conexão nunca se completa — defeito já medido no Canva
+  // (19/10/2026). Público só AQUI; a validação é lá dentro.
+  '/api/oauth/gdrive',
+  // SINCRONIZADOR DO DRIVE DE TODOS (18/11/2026): o agendador chama esta rota sem sessão, com a
+  // chave interna `MIRAI_FONTE_SECRET` no header — conferida DENTRO da rota, junto com a
+  // exigência de sessão para quem vem do botão. "Pública" só no middleware; sem chave devolve 401.
+  '/api/acervo/fontes/drive/sincronizar',
   // CONVITE DE PASTA COMPARTILHADA (11/11/2026): quem recebeu o link não tem
   // conta. A credencial é o TOKEN na própria URL, e quem decide o que ele vê é
   // a ARCA (concessão por pasta) — a página só desenha o que ela devolver.

@@ -37,6 +37,15 @@ import { ChevronDown, Eye, EyeOff, Focus, Layers, Search, SlidersHorizontal, Spa
 
 const API = "/api/acervo";
 const ESCALA = 9;
+// FORÇA DAS LINHAS (elos). Com AdditiveBlending o que aparece é `cor × opacidade`,
+// e o fundo do céu é ~(5,7,13) — calibre AQUI, só este par.
+// Histórico: `#26375c` × 0,28 = ~(11,15,26); `#4a78cc` × 0,5 = ~(37,60,102) ficou forte
+// demais. CALIBRADO PELO DONO (17/11/2026): "AS LINHAS ESTÃO CERTAS" com o par abaixo.
+// LIÇÃO: com AdditiveBlending a luz SOMA onde as linhas se cruzam, então a legibilidade
+// depende também da QUANTIDADE de elos — com 9 elos nada aparece em nenhuma opacidade;
+// com 760 elos este par lê como malha. Antes de mexer aqui, confira `meta.elos` do mapa.
+const ELO_COR = "#26375c";
+const ELO_FORCA = 0.28;
 const ALCANCE_Z = 7.0; // profundidade total (era 4.2: de lado virava folha amassada)
 
 type No = {
@@ -1168,15 +1177,16 @@ const matEstrelas = estrelas.current?.material as THREE.ShaderMaterial | undefin
         {mostrarNebulosas &&
           nebulosas.map((nb) => <Nebulosa key={nb.chave} {...nb} />)}
 
-        {/* LINHAS: finas, como o dono prefere (as cores fortes sao das bolinhas) */}
+        {/* LINHAS: finas, como o dono prefere (as cores fortes sao das bolinhas).
+            A força mora em ELO_COR × ELO_FORCA, no topo do arquivo — calibre lá. */}
         <lineSegments>
           <bufferGeometry>
             <bufferAttribute attach="attributes-position" args={[elos, 3]} />
           </bufferGeometry>
           <lineBasicMaterial
-            color="#26375c"
+            color={ELO_COR}
             transparent
-            opacity={0.28}
+            opacity={ELO_FORCA}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
           />

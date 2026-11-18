@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 
 import { exigirConta } from "@/lib/orgs";
 import { basePublica } from "@/lib/base-publica";
+import { ARCA_URL, arcaDaConta, guardarArcaDaConta, pedirTokenNaArca, servicoConfigurado } from "@/lib/arca-conta";
 
 /** Concessão de pasta vinda da Arca (compartilhamento estilo Drive). */
 type ConcessaoArca = {
@@ -83,7 +84,16 @@ function raizDoVault(org: string): string {
   return org === ORG_CORE ? "/opt/data/arca/vault" : `/opt/data/arca/tenants/${org}/vault`;
 }
 
-const API_ARCA = process.env.ARCA_API_URL || "http://127.0.0.1:8080";
+/**
+ * ENDEREÇO DA ARCA.
+ *
+ * Antes: `127.0.0.1:8080` fixo — verdade só onde o app roda colado no host da
+ * Arca. Medido 17/11/2026 no Stage (`mirai-app-stage`): ali não há Arca em
+ * localhost (ECONNREFUSED) e `/opt/data` nem é montado, então a rota ficava sem
+ * camada, sem cofre e sem CLI. O endereço público é o do produto e responde nos
+ * dois ambientes; `ARCA_API_URL` continua mandando quando definido.
+ */
+const API_ARCA = (process.env.ARCA_API_URL || ARCA_URL).replace(/\/+$/, "");
 const ARQUIVO_TOKENS = "/opt/data/mirai-app/data/arca-tokens.json";
 /** Credencial por PESSOA (a chave antiga era por org, e todo mundo virava dono). */
 const ARQUIVO_CREDENCIAIS = "/opt/data/mirai-app/data/arca-credenciais.json";
@@ -126,11 +136,21 @@ function shaDoToken(token: string): string {
  */
 async function tokenDaArca(org: string, pessoa?: { email: string; ehDono: boolean }): Promise<string | null> {
   try {
-    // O acervo do dono tem token próprio (o do Core, superuser). Os demais são
-    // por pessoa, emitidos sob demanda e guardados aqui (0600).
+    // O acervo do Core tem token próprio (superuser) — só existe onde o app roda
+    // colado na Arca. Fora do host (container do Stage) o arquivo NÃO existe: isso
+    // é esperado e não é erro de quem está lendo o próprio acervo (a credencial da
+    // pessoa vem do token dela) — por isso a mensagem é curta, sem stack.
     if (org === ORG_CORE) {
-      const t = (await readFile("/opt/data/arca/api/.arca-token", "utf8")).trim();
-      if (t) return t;
+      try {
+        // 1) variável de ambiente (ambiente que não monta o host da Arca);
+        const doEnv = (process.env.ARCA_CORE_TOKEN || "").trim();
+        if (doEnv) return doEnv;
+        // 2) arquivo local, só onde o app roda colado na Arca.
+        const t = (await readFile("/opt/data/arca/api/.arca-token", "utf8")).trim();
+        if (t) return t;
+      } catch {
+        console.warn("[acervo] sem token local do Core neste ambiente — seguindo pela credencial da pessoa");
+      }
     }
 
     let mapa: Record<string, { token: string; papel: string; usuario?: string; criada_em?: string }> = {};
@@ -194,9 +214,14 @@ async function tokenDaArca(org: string, pessoa?: { email: string; ehDono: boolea
   }
 }
 
-/** Árvore de pastas do vault da org — a estante do segundo cérebro. */
+/** Árvore de pastas do vault da org — a estante do segundo cérebro.
+ *  Devolve `null` quando este ambiente NÃO tem o vault no disco (container,
+ *  host de fora): quem chama precisa saber a diferença entre "acervo vazio" e
+ *  "não tenho como ler o acervo aqui". */
 async function arvoreDoVault(org: string, comNotas: boolean) {
   const raiz = path.resolve(raizDoVault(org));
+  const existe = await stat(raiz).then((s) => s.isDirectory()).catch(() => false);
+  if (!existe) return null;
   type No = {
     nome: string;
     path: string;
@@ -310,11 +335,11 @@ async function pedirCamada(tok: string, metodo: string, rota: string, corpo?: un
 type Versao = { nova: boolean; verificado: boolean };
 let cacheVersao: { em: number; valor: Versao } | null = null;
 
-async function camadaDoAr(org: string): Promise<Versao> {
+async function camadaDoAr(org: string, tokPronto?: string | null): Promise<Versao> {
   const agora = Date.now();
   if (cacheVersao && agora - cacheVersao.em < 30_000) return cacheVersao.valor;
   let valor: Versao = { nova: false, verificado: false };
-  const tok = await tokenDaArca(org);
+  const tok = tokPronto || (await tokenDaArca(org));
   if (tok) {
     const r = await pedirCamada(tok, "GET", "/acervo/versao");
     valor = {
@@ -456,13 +481,25 @@ async function editarTagNoRegistro(org: string, corpo: Record<string, unknown>):
   return { status: 200, dados: { ok: true, tag, meta: atual, ponte: "registro" } };
 }
 
-/** Pastas compartilhadas COM um e-mail (a verdade é da Arca). */
-async function pastasRecebidas(email: string): Promise<Record<string, unknown>[]> {
+/**
+ * Pastas compartilhadas COM um e-mail (a verdade é da Arca).
+ *
+ * Devolve `null` quando NÃO consegui perguntar — diferente de `[]`, que é
+ * "nada compartilhado com você".
+ *
+ * ATENÇÃO (medido 17/11/2026, com número): `/org/recebidos` é rota de DONO de
+ * espaço e a credencial da PESSOA responde **200 com a lista VAZIA sobre a org
+ * dela** — resposta errada com cara de resposta certa (a concessão vive no
+ * espaço de quem compartilhou). Quem enumera concessões de todos os espaços é a
+ * credencial da plataforma (Core); sem ela, a resposta honesta é "não sei".
+ */
+async function pastasRecebidas(email: string): Promise<Record<string, unknown>[] | null> {
   const quem = (email || "").trim().toLowerCase();
   if (!quem.includes("@")) return [];
   const tok = await tokenDaArca(ORG_CORE);
-  if (!tok) return [];
+  if (!tok) return null;
   const r = await pedirCamada(tok, "GET", `/org/recebidos?email=${encodeURIComponent(quem)}`);
+  if (r.status !== 200) return null;
   return ((r.dados as { pastas?: Record<string, unknown>[] }).pastas || []) as Record<string, unknown>[];
 }
 
@@ -497,17 +534,109 @@ function recortarArvore(no: unknown, alvo: string): unknown {
   return passa((no || {}) as Record<string, unknown>);
 }
 
-async function resolverOrg(conta: { ehDono: boolean; email: string; nome: string }, orgPedida: string, acao: string) {
+/**
+ * A CREDENCIAL DA PRÓPRIA PESSOA — criada pelo E-MAIL DA SESSÃO.
+ *
+ * Por que existe (medido 17/11/2026, Stage `mirai-app-stage`): a rota lia o token
+ * do Core de um ARQUIVO do host (`/opt/data/arca/api/.arca-token`). Fora do host
+ * da Arca esse arquivo não existe (ENOENT no log do container), a rota ficava sem
+ * credencial, caía na leitura de disco — que no container também não existe — e
+ * devolvia árvore VAZIA com HTTP 200. A tela só sabia dizer "0 pastas · 0 notas".
+ *
+ * O caminho certo é o do cartão do Synapse (`lib/arca-conta.ts`): a organização
+ * vem do TOKEN desta pessoa na Arca (`POST /org/token-servico`, idempotente) e a
+ * credencial é guardada CIFRADA no cofre da conta. Nada de arquivo local do Core,
+ * nada de acervo de uma organização aparecendo na tela de outra.
+ */
+async function credencialDaPessoa(
+  userId: number,
+  email: string,
+): Promise<{ token: string; org: string | null } | null> {
+  const guardada = arcaDaConta(userId);
+  if (guardada) {
+    const { decifrar } = await import("@/lib/segredo-guardado");
+    const claro = decifrar(guardada.tokenCifrado);
+    if (claro) return { token: claro, org: guardada.org };
+  }
+  if (!servicoConfigurado()) {
+    // Falha de CONFIGURAÇÃO deste ambiente — não é "acervo vazio".
+    console.warn("[acervo] credencial por pessoa indisponível: ARCA_SERVICO_CREDENCIAL ausente neste ambiente");
+    return null;
+  }
+  const r = await pedirTokenNaArca(email);
+  if (!r.ok) {
+    // Código curto (servico-recusado / arca-sem-resposta / ...), nunca o corpo cru.
+    console.warn("[acervo] a Arca não cunhou credencial para esta conta:", r.erro);
+    return null;
+  }
+  const { cifrar } = await import("@/lib/segredo-guardado");
+  guardarArcaDaConta(userId, {
+    tokenCifrado: cifrar(r.token),
+    org: r.org,
+    usuario: r.usuario,
+    criadoEm: r.criadoEm,
+  });
+  return { token: r.token, org: r.org };
+}
+
+async function resolverOrg(
+  conta: { id: number; ehDono: boolean; email: string; nome: string },
+  orgPedida: string,
+  acao: string,
+): Promise<{ org?: string; token?: string; erro?: NextResponse }> {
+  // LEITURA CROSS-ORG: só o dono, só com `?org=` explícito, sempre auditada.
   if (conta.ehDono && orgPedida) {
     if (!SLUG_OK.test(orgPedida)) return { erro: erro(400, "org inválida") };
     if (orgPedida !== ORG_CORE) await auditarCross(conta.email, orgPedida, acao);
     return { org: orgPedida };
   }
-  if (conta.ehDono) return { org: ORG_CORE };
-  const esp = await rodarCli(["espaco", "criar", conta.email, "--nome", conta.nome, "--sem-palacio"]);
-  const devolvida = String(esp.org || "");
-  if (!SLUG_OK.test(devolvida)) return { erro: erro(500, "a Arca devolveu um org inválido") };
-  return { org: devolvida };
+
+  // ACERVO DA PESSOA: a organização é a do TOKEN dela na Arca (nunca um slug
+  // calculado aqui, nunca o Core por padrão — o Core é o acervo da plataforma).
+  const pessoal = await credencialDaPessoa(conta.id, conta.email);
+  if (pessoal) {
+    const org = String(pessoal.org || "").trim().toLowerCase();
+    if (SLUG_OK.test(org)) return { org, token: pessoal.token };
+    return { erro: erro(502, "a Arca devolveu uma organização inválida para o seu e-mail") };
+  }
+
+  // Ambiente SEM credencial de serviço: resta o caminho antigo (CLI local), que
+  // só existe onde o app roda colado na Arca. Falhou, a resposta é HONESTA.
+  if (!servicoConfigurado()) {
+    try {
+      const esp = await rodarCli(["espaco", "criar", conta.email, "--nome", conta.nome, "--sem-palacio"]);
+      const devolvida = String(esp.org || "");
+      if (SLUG_OK.test(devolvida)) return { org: devolvida };
+    } catch {
+      /* cai no erro honesto abaixo */
+    }
+  }
+
+  return {
+    erro: erro(
+      503,
+      servicoConfigurado()
+        ? "não consegui abrir o seu acervo: a Arca não respondeu agora. tente de novo em instantes."
+        : "este ambiente ainda não está ligado à Arca: falta a credencial de serviço (ARCA_SERVICO_CREDENCIAL). avise o responsável pelo ambiente.",
+      { origem: "credencial" },
+    ),
+  };
+}
+
+/**
+ * LEITURA PELA ARCA (HTTP) — a mesma resposta que a CLI dava, sem depender de
+ * `python3` nem de o vault estar montado no disco.
+ *
+ * Medido 17/11/2026 no Stage (`mirai-app-stage`): o container não tem Python
+ * (`spawn python3 ENOENT`) e `/opt/data` nem existe — stats, buscar, listar,
+ * grafo, nota e elos respondiam 500, e a árvore caía num disco inexistente.
+ * A Arca já expõe todas essas leituras em `/vault/*`, resolvidas pelo token
+ * (e já filtrando segredo e pasta concedida). Devolve null quando a Arca não
+ * responde, para o chamador escolher o plano B — nunca "vazio" por engano.
+ */
+async function lerDoVault(tok: string, rota: string): Promise<Record<string, unknown> | null> {
+  const r = await pedirCamada(tok, "GET", rota);
+  return r.status === 200 ? (r.dados as Record<string, unknown>) : null;
 }
 
 async function atenderAcervo(req: NextRequest) {
@@ -530,16 +659,21 @@ async function atenderAcervo(req: NextRequest) {
 
   // ── "COMPARTILHADO COM VOCÊ": o que ESTA conta recebeu (cruza espaços) ──
   if (acao === "recebidos") {
+    const pastas = await pastasRecebidas(String(conta.email || ""));
     return NextResponse.json({
       email: conta.email,
-      pastas: await pastasRecebidas(String(conta.email || "")),
+      pastas: pastas ?? [],
+      // Lista vazia por NÃO ter conseguido perguntar não é "nada compartilhado".
+      ...(pastas === null
+        ? { indisponivel: true, detalhe: "sem acesso à Arca agora — a lista pode estar incompleta" }
+        : {}),
     });
   }
 
   // ── AVISOS (o sininho): pasta compartilhada com esta conta ─────────────
   if (acao === "avisos") {
     const meu = String(conta.email || "").trim().toLowerCase();
-    const pastas = await pastasRecebidas(meu);
+    const pastas = (await pastasRecebidas(meu)) ?? [];
     const { vistos } = await import("@/lib/avisos");
     const visto = vistos(meu);
 
@@ -607,6 +741,7 @@ async function atenderAcervo(req: NextRequest) {
   // ── De quem é o acervo desta leitura? ────────────────────────────────
   const recebido = (u.searchParams.get("recebido") || "").slice(0, 300).trim();
   let org: string;
+  let tokLeitura: string | null = null;
   try {
     if (recebido && !conta.ehDono) {
       // Visão de pasta RECEBIDA: o espaço é o de quem compartilhou (a concessão
@@ -617,18 +752,35 @@ async function atenderAcervo(req: NextRequest) {
       const r = await resolverOrg(conta as never, orgPedida, acao);
       if (r.erro) return r.erro;
       org = r.org as string;
+      tokLeitura = r.token ?? null;
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return erro(500, "não consegui resolver o acervo desta conta", { detalhe: msg.slice(0, 300) });
   }
 
+  /**
+   * A CREDENCIAL DESTA LEITURA. Quando o acervo é o da própria pessoa, é o token
+   * dela (cofre). Nos caminhos de exceção — o dono abrindo outra organização,
+   * uma pasta recebida — vale a credencial de sempre, com o arquivo local como
+   * último recurso (é o único caso em que ele ainda faz sentido).
+   */
+  const tok = tokLeitura || (await tokenDaArca(org, { email: conta.email, ehDono: conta.ehDono }));
+
   // ── Leitura ─────────────────────────────────────────────────────────
   try {
     // A permissão vem da ARCA (concessão por e-mail), nunca do cliente.
     let concedidas: Record<string, unknown>[] = [];
     if (recebido) {
-      concedidas = await pastasRecebidas(String(conta.email || ""));
+      const daArca = await pastasRecebidas(String(conta.email || ""));
+      if (daArca === null) {
+        // Não é "não foi compartilhada": é "não consegui conferir agora".
+        return erro(
+          503,
+          "não consegui conferir agora se esta pasta foi compartilhada com você — tente de novo em instantes.",
+        );
+      }
+      concedidas = daArca;
       if (!concessaoCobre(concedidas, org, recebido)) {
         return erro(403, "esta pasta não foi compartilhada com você");
       }
@@ -646,7 +798,7 @@ async function atenderAcervo(req: NextRequest) {
       // QUEM TEM ACESSO A ESTE ESPAÇO — as fotinhas ao lado da pasta (estilo Drive).
       // A verdade é da ARCA (concessão por pasta, com herança); aqui só vestimos
       // cada e-mail com o nome e a foto que a conta já tem.
-      const tokAcesso = (await tokenDaArca(org, { email: conta.email || "", ehDono: conta.ehDono })) || "";
+      const tokAcesso = tok || "";
       if (!tokAcesso) return erro(503, "a Arca não respondeu — tente de novo em instantes");
       const r = await pedirCamada(tokAcesso, "GET", `/org/compartilhar?org=${encodeURIComponent(org)}`);
       if (r.status !== 200) {
@@ -681,23 +833,61 @@ async function atenderAcervo(req: NextRequest) {
       });
     }
 
-    if (acao === "stats") return NextResponse.json(await rodarCli(["vault", "stats", org]));
-    if (acao === "grafo") return NextResponse.json(await rodarCli(["vault", "grafo", org]));
+    if (acao === "stats") {
+      const viaArca = tok ? await lerDoVault(tok, "/vault/panorama") : null;
+      if (viaArca) return NextResponse.json(viaArca);
+      try {
+        return NextResponse.json(await rodarCli(["vault", "stats", org]));
+      } catch {
+        return erro(503, "não consegui ler os números do acervo agora: a Arca não respondeu.");
+      }
+    }
+    if (acao === "grafo") {
+      const viaArca = tok ? await lerDoVault(tok, "/vault/grafo") : null;
+      if (viaArca) return NextResponse.json(viaArca);
+      try {
+        return NextResponse.json(await rodarCli(["vault", "grafo", org]));
+      } catch {
+        return erro(503, "não consegui ler o grafo do acervo agora: a Arca não respondeu.");
+      }
+    }
     if (acao === "listar") {
-      return NextResponse.json(await rodarCli(["vault", "listar", org, "--limit", String(limite)]));
+      const viaArca = tok ? await lerDoVault(tok, `/vault/listar?limit=${limite}`) : null;
+      if (viaArca) return NextResponse.json(viaArca);
+      try {
+        return NextResponse.json(await rodarCli(["vault", "listar", org, "--limit", String(limite)]));
+      } catch {
+        return erro(503, "não consegui listar o acervo agora: a Arca não respondeu.");
+      }
     }
     if (acao === "buscar") {
       if (!termo) return erro(400, "informe o termo da busca");
-      return NextResponse.json(await rodarCli(["vault", "buscar", org, termo, "--limit", "30"]));
+      const viaArca = tok ? await lerDoVault(tok, `/vault/buscar?q=${encodeURIComponent(termo)}&limit=30`) : null;
+      if (viaArca) return NextResponse.json(viaArca);
+      try {
+        return NextResponse.json(await rodarCli(["vault", "buscar", org, termo, "--limit", "30"]));
+      } catch {
+        return erro(503, "não consegui buscar no acervo agora: a Arca não respondeu.");
+      }
     }
     if (acao === "query") {
       if (!expr) return erro(400, "informe a consulta (ex.: tag=akil and status=active)");
-      return NextResponse.json(await rodarCli(["vault", "query", org, expr, "--limit", "60"]));
+      const viaArca = tok
+        ? await lerDoVault(tok, `/vault/query?expr=${encodeURIComponent(expr)}&limit=60`)
+        : null;
+      if (viaArca) return NextResponse.json(viaArca);
+      try {
+        return NextResponse.json(await rodarCli(["vault", "query", org, expr, "--limit", "60"]));
+      } catch {
+        return erro(503, "não consegui consultar o acervo agora: a Arca não respondeu.");
+      }
     }
     if (acao === "recentes") {
-      // A estante da frente: as notas mexidas por último. Lê o VAULT da org
-      // (não o índice), então não precisa de CLI — e filtra segredo pela
-      // mesma regra da Arca.
+      // A estante da frente: as notas mexidas por último. Pela ARCA quando ela
+      // responde (é a mesma leitura, com o token de quem pediu); o disco fica
+      // como reserva para o host onde o vault está montado.
+      const viaArca = tok ? await lerDoVault(tok, `/vault/recentes?limit=${limite}`) : null;
+      if (viaArca) return NextResponse.json(viaArca);
       const raiz = path.resolve(raizDoVault(org));
       const arquivos = await readdir(raiz, { recursive: true }).catch(() => [] as string[]);
       const md = arquivos
@@ -717,7 +907,6 @@ async function atenderAcervo(req: NextRequest) {
     if (acao === "youniverse") {
       // O MAPA DO CÉREBRO vive na ARCA (cache pré-computado por t-SNE). O app só
       // empresta o token da org — a projeção é trabalho do servidor da Arca.
-      const tok = await tokenDaArca(org, { email: conta.email, ehDono: conta.ehDono });
       if (!tok) return erro(503, "a Arca não respondeu — tente de novo em instantes");
       try {
         const r = await fetch(`${API_ARCA}/vault/youniverse`, {
@@ -737,16 +926,32 @@ async function atenderAcervo(req: NextRequest) {
       // ar: é ela que guarda ORDEM, NOME EXIBIDO e COR de pasta e tag. O disco
       // não sabe nada disso — ler só o disco deixaria a tela sem como reordenar.
       const comNotas = u.searchParams.get("com_notas") !== "false";
-      const tok = await tokenDaArca(org, { email: conta.email, ehDono: conta.ehDono });
+      const q = `com_notas=${comNotas ? "true" : "false"}`;
       if (tok) {
-        const r = await pedirCamada(tok, "GET", `/acervo/arvore?com_notas=${comNotas ? "true" : "false"}`);
+        const r = await pedirCamada(tok, "GET", `/acervo/arvore?${q}`);
         if (r.status === 200 && r.dados && (r.dados as { arvore?: unknown }).arvore) {
           const arv = recebido ? recortarArvore((r.dados as { arvore?: unknown }).arvore, recebido) : (r.dados as { arvore?: unknown }).arvore;
           return NextResponse.json({ org, ...r.dados, arvore: arv, origem: "camada", somente_recebido: Boolean(recebido) });
         }
+        // Camada antiga (sem /acervo/arvore): a árvore crua da Arca serve, só
+        // perde ordem/cor — mas NUNCA volta vazia por falta de disco.
+        const rv = await lerDoVault(tok, `/vault/arvore?${q}`);
+        if (rv && (rv as { arvore?: unknown }).arvore) {
+          const arv = recebido ? recortarArvore((rv as { arvore?: unknown }).arvore, recebido) : (rv as { arvore?: unknown }).arvore;
+          return NextResponse.json({ org, arvore: arv, tags: [], origem: "arca", somente_recebido: Boolean(recebido) });
+        }
       }
       // Degradar bem: sem camada, a estante ainda abre (sem ordem nem cor).
       const arvoreDisco = await arvoreDoVault(org, comNotas);
+      if (!arvoreDisco) {
+        // NÃO existe cofre local neste ambiente (é o caso do container do Stage):
+        // responder 200 com árvore vazia era mentir para a tela.
+        return erro(
+          503,
+          "não consegui abrir o seu acervo agora: a Arca não respondeu. tente de novo em instantes.",
+          { org, origem: "sem-resposta" },
+        );
+      }
       return NextResponse.json({
         org,
         arvore: recebido ? recortarArvore(arvoreDisco, recebido) : arvoreDisco,
@@ -765,7 +970,20 @@ async function atenderAcervo(req: NextRequest) {
         return erro(403, "esta nota não está na pasta compartilhada com você");
       }
       if (ehSegredo(rel)) return erro(403, "arquivo protegido: a Arca não serve credenciais");
+
+      // 1) PELA ARCA: é ela quem guarda o vault e aplica as regras (segredo,
+      //    pasta concedida). Só quem tem o cofre montado cai no disco.
+      if (tok) {
+        const r = await pedirCamada(tok, "GET", `/vault/nota?path=${encodeURIComponent(rel)}`);
+        if (r.status === 200) return NextResponse.json(r.dados);
+        if (r.status === 403) return erro(403, "arquivo protegido: a Arca não serve credenciais");
+        if (r.status === 404) return erro(404, "nota não encontrada no acervo");
+      }
+
       const raiz = path.resolve(raizDoVault(org));
+      if (!(await stat(raiz).then((s) => s.isDirectory()).catch(() => false))) {
+        return erro(503, "não consegui abrir esta nota agora: a Arca não respondeu. tente de novo em instantes.");
+      }
       const alvo = path.resolve(raiz, rel);
       if (alvo !== raiz && !alvo.startsWith(raiz + path.sep)) return erro(400, "fora do acervo");
       const bruto = await readFile(alvo, "utf8").catch(() => null);
@@ -825,7 +1043,15 @@ async function atenderAcervo(req: NextRequest) {
 
     // backlinks | links
     if (!nota) return erro(400, "informe a nota");
-    return NextResponse.json(await rodarCli(["vault", acao, org, nota]));
+    if (tok) {
+      const viaArca = await lerDoVault(tok, `/vault/${acao}?nota=${encodeURIComponent(nota)}`);
+      if (viaArca) return NextResponse.json(viaArca);
+    }
+    try {
+      return NextResponse.json(await rodarCli(["vault", acao, org, nota]));
+    } catch {
+      return erro(503, "não consegui ler os elos desta nota agora: a Arca não respondeu.");
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return erro(500, "falha ao ler o acervo", { detalhe: msg.slice(0, 400) });
@@ -907,7 +1133,7 @@ export async function POST(req: NextRequest) {
       marcarVisto(meu, String(corpo.org || ""), String(corpo.alvo || ""));
       return NextResponse.json({ ok: true });
     }
-    const pastas = (await pastasRecebidas(meu)).map((c) => ({
+    const pastas = ((await pastasRecebidas(meu)) ?? []).map((c) => ({
       org: String(c.org || ""),
       alvo: String(c.alvo || ""),
     }));
@@ -930,19 +1156,21 @@ export async function POST(req: NextRequest) {
   }
 
   let org: string;
+  let tokLeitura: string | null = null;
   try {
     const r = await resolverOrg(conta as never, orgPedida, acao);
     if (r.erro) return r.erro;
     org = r.org as string;
+    tokLeitura = r.token ?? null;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return erro(500, "não consegui resolver o acervo desta conta", { detalhe: msg.slice(0, 300) });
   }
 
-  const tok = await tokenDaArca(org, { email: conta.email, ehDono: conta.ehDono });
+  const tok = tokLeitura || (await tokenDaArca(org, { email: conta.email, ehDono: conta.ehDono }));
   if (!tok) return erro(503, "a Arca não respondeu — tente de novo em instantes");
 
-  const camada = await camadaDoAr(org);
+  const camada = await camadaDoAr(org, tok);
   const responder = (r: Resposta) =>
     NextResponse.json({ ...r.dados, camada: camada.nova ? "viva" : "ponte" }, { status: r.status });
 
@@ -1172,18 +1400,20 @@ export async function PATCH(req: NextRequest) {
 
   const corpo = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   let org: string;
+  let tokLeitura: string | null = null;
   try {
     const r = await resolverOrg(conta as never, String(corpo.org || "").trim().toLowerCase(), "editar-nota");
     if (r.erro) return r.erro;
     org = r.org as string;
+    tokLeitura = r.token ?? null;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return erro(500, "não consegui resolver o acervo desta conta", { detalhe: msg.slice(0, 300) });
   }
 
-  const tok = await tokenDaArca(org, { email: conta.email, ehDono: conta.ehDono });
+  const tok = tokLeitura || (await tokenDaArca(org, { email: conta.email, ehDono: conta.ehDono }));
   if (!tok) return erro(503, "a Arca não respondeu — tente de novo em instantes");
-  const camada = await camadaDoAr(org);
+  const camada = await camadaDoAr(org, tok);
   const responder = (r: Resposta) =>
     NextResponse.json({ ...r.dados, camada: camada.nova ? "viva" : "ponte" }, { status: r.status });
 

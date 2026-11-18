@@ -28,6 +28,7 @@ import Shell from "@/components/dash/Shell";
 // uma copia local com visual proprio — dono, 10/11/2026: "quero o toggle igual
 // do orb mesma cor e mesmo efeito na troca que o chat pro orb tem".
 import SeletorModo from "@/components/dash/SeletorModo";
+import Fontes from "@/components/dash/Fontes";
 import Youniverse from "@/components/dash/Youniverse";
 import { ProvedorAcesso, Fotinhas, PainelCompartilhar, useAcesso } from "./Compartilhar";
 import { Chip } from "@/components/dash/kit";
@@ -241,7 +242,8 @@ export default function ArcaPage() {
   // MODO: "pastas" é a bancada de documentos (já aprovada pelo dono); "youniverse"
   // é a malha universal em tela cheia — o mesmo lugar, outra lente. Fica na URL
   // (?modo=youniverse) para dar para guardar e mandar o link.
-  const [modo, setModo] = useState<"pastas" | "youniverse">("pastas");
+  // "fontes" (18/11/2026): o que está LIGADO trazendo coisa para dentro (fonte viva do Drive).
+  const [modo, setModo] = useState<"pastas" | "youniverse" | "fontes">("pastas");
   // O CEU so monta na PRIMEIRA visita e depois fica montado (as trocas viram
   // cross-fade) — exatamente o que a tela inicial faz com o Orb.
   const [ceuMontado, setCeuMontado] = useState(false);
@@ -253,11 +255,12 @@ export default function ArcaPage() {
   useEffect(() => {
     if (modo === "youniverse") setCeuMontado(true);
   }, [modo]);
-  const trocarModo = useCallback((m: "pastas" | "youniverse") => {
+  const trocarModo = useCallback((m: "pastas" | "youniverse" | "fontes") => {
     if (m === "youniverse") setCeuMontado(true);
     setModo(m);
     const u = new URL(window.location.href);
     if (m === "youniverse") u.searchParams.set("modo", "youniverse");
+    else if (m === "fontes") u.searchParams.set("modo", "fontes");
     else u.searchParams.delete("modo");
     window.history.replaceState(null, "", u.toString());
   }, []);
@@ -279,18 +282,87 @@ export default function ArcaPage() {
       if (da && da.arvore && Array.isArray(da.arvore.subpastas) && Array.isArray(da.arvore.notas)) {
         const arv = da.arvore as NoArvore;
         setArvore(arv);
-        // Primeiro nível aberto: a estrutura aparece sem precisar clicar.
-        setAbertas((antes) =>
-          antes.size ? antes : new Set((arv.subpastas || []).map((s) => s.path)),
-        );
+        // TUDO FECHADO AO ABRIR (dono, 17/11/2026): antes o PRIMEIRO NÍVEL vinha aberto
+        // ("a estrutura aparece sem precisar clicar") e a árvore ocupava a tela já expandida.
+        // O dono pediu o oposto: abrir sempre recolhido, e ele abre o que quer ver.
+        // `abertas` nasce vazio, então não abrir nada aqui é o estado "tudo fechado".
+        // As ações que PRECISAM do pai aberto continuam abrindo o pai na mão (criar pasta,
+        // criar nota, arrastar) — só o automático do primeiro nível saiu.
       } else if (a.ok) {
         setErro("a Arca respondeu num formato inesperado — recarregue em instantes.");
+      } else {
+        // NUNCA engolir a falha: sem isto a tela mostrava "0 pastas · 0 notas"
+        // como se o acervo estivesse vazio (medido 17/11/2026 no Stage).
+        const recado =
+          (da && typeof da === "object" && typeof (da as { error?: unknown }).error === "string"
+            ? String((da as { error?: unknown }).error)
+            : "") || "não consegui abrir a Arca agora — tente de novo em instantes.";
+        setErro(recado);
       }
       if (dp && typeof dp === "object") setPanorama(dp as Panorama);
     } catch {
       setErro("não consegui abrir a Arca agora");
     }
   }, [sufixoRecebido]);
+
+  // ── SUBIR ARQUIVO PARA O ACERVO (18/11/2026) ──────────────────────────────
+  // Por que existe: o dono tentou ARRASTAR um documento para esta tela e nada aconteceu —
+  // não havia porta de upload (só arraste de pasta/nota, por ponteiro). No chat existia
+  // `/api/upload`, mas ali o arquivo vira ANEXO da conversa, não conteúdo do acervo.
+  // Aqui o arquivo vai para a Arca e vira NOTA CATALOGADA (pasta/keywords/cor decididas
+  // pelo classificador dela). Depois a árvore recarrega e a pasta da nota ABRE — sem isso
+  // a pessoa solta o arquivo e acha que nada aconteceu, porque a pasta estava fechada.
+  const [arrastando, setArrastando] = useState(false);
+  const [subindo, setSubindo] = useState(false);
+  const inputArquivoRef = useRef<HTMLInputElement | null>(null);
+
+  const subirArquivos = useCallback(
+    async (arquivos: FileList | File[]) => {
+      const lista = Array.from(arquivos);
+      if (!lista.length) return;
+      setSubindo(true);
+      setErro("");
+      try {
+        const form = new FormData();
+        for (const f of lista) form.append("files", f, f.name);
+        const r = await fetch("/api/acervo/subir", { method: "POST", body: form });
+        const j = (await r.json().catch(() => null)) as {
+          enviados?: { nome: string; nota: string; pasta: string; subpasta: string }[];
+          recusados?: { nome: string; erro: string }[];
+          error?: string;
+        } | null;
+        const env = j?.enviados || [];
+        if (!r.ok && !env.length) {
+          setErro(j?.error || j?.recusados?.[0]?.erro || `não consegui subir (HTTP ${r.status}).`);
+          return;
+        }
+        if (env.length) {
+          setAbertas((antes) => {
+            const n = new Set(antes);
+            for (const e of env) {
+              if (e.pasta) n.add(e.pasta);
+              if (e.pasta && e.subpasta) n.add(`${e.pasta}/${e.subpasta}`);
+            }
+            return n;
+          });
+          setAviso(
+            env.length === 1
+              ? `"${env[0].nome}" entrou no acervo em ${[env[0].pasta, env[0].subpasta].filter(Boolean).join("/") || "—"}.`
+              : `${env.length} arquivos entraram no acervo já catalogados.`,
+          );
+        }
+        if (j?.recusados?.length) {
+          setErro(j.recusados.map((x) => `"${x.nome}": ${x.erro}`).join(" · "));
+        }
+        await carregarArvore();
+      } catch (e) {
+        setErro(`falha ao subir: ${e instanceof Error ? e.message : "?"}`);
+      } finally {
+        setSubindo(false);
+      }
+    },
+    [carregarArvore],
+  );
 
   const abrir = useCallback(async (alvo: string) => {
     if (!alvo) return;
@@ -348,7 +420,8 @@ export default function ArcaPage() {
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
-    if (p.get("modo") === "youniverse") setModo("youniverse");
+    const modoUrl = p.get("modo");
+    if (modoUrl === "youniverse" || modoUrl === "fontes") setModo(modoUrl);
     // DEEP LINK DO CONVITE: o e-mail traz `?recebido=<org>/<pasta>` — quem tem
     // conta cai DIRETO na pasta, sem procurar nada.
     const rec = p.get("recebido");
@@ -370,9 +443,10 @@ export default function ArcaPage() {
   useEffect(() => {
     const ler = () =>
       setModo(
-        new URLSearchParams(window.location.search).get("modo") === "youniverse"
-          ? "youniverse"
-          : "pastas",
+        (() => {
+          const m = new URLSearchParams(window.location.search).get("modo");
+          return m === "youniverse" || m === "fontes" ? m : "pastas";
+        })(),
       );
     ler();
     window.addEventListener("popstate", ler);
@@ -900,10 +974,11 @@ export default function ArcaPage() {
           rotuloAria="Modo de leitura da Arca"
           grande
           ativo={modo}
-          onTrocar={(m) => trocarModo(m as "pastas" | "youniverse")}
+          onTrocar={(m) => trocarModo(m as "pastas" | "youniverse" | "fontes")}
           opcoes={[
             { id: "pastas", rotulo: "Pastas" },
             { id: "youniverse", rotulo: "Youniverse" },
+            { id: "fontes", rotulo: "Fontes" },
           ]}
         />
       </div>
@@ -924,6 +999,19 @@ export default function ArcaPage() {
           }}
         />
       )}
+      </div>
+      <div
+        aria-hidden={modo !== "fontes"}
+        className={`absolute inset-0 z-20 overflow-y-auto bg-dash-bg/80 backdrop-blur-[2px] transition-opacity duration-300 ease-out ${modo === "fontes" ? "opacity-100" : "pointer-events-none opacity-0"}`}
+      >
+        {/* FONTES (18/11/2026): clicar no que entrou abre a nota — e volta para "Pastas",
+            onde a nota é lida de verdade. Sem isso a pessoa clica e nada acontece. */}
+        <Fontes
+          onAbrirNota={(caminho) => {
+            trocarModo("pastas");
+            void abrir(caminho);
+          }}
+        />
       </div>
       <div
         aria-hidden={modo !== "pastas"}
@@ -1003,7 +1091,10 @@ export default function ArcaPage() {
                   </>
                 ) : (
                   <>
-                    segundo cérebro · {arvore?.subpastas.length ?? 0} pastas · {fmt(arvore?.total_notas)} notas
+                    segundo cérebro ·{" "}
+                    {arvore
+                      ? `${arvore.subpastas.length} pastas · ${fmt(arvore.total_notas)} notas`
+                      : "sem números agora"}
                   </>
                 )}
               </p>
@@ -1104,11 +1195,64 @@ export default function ArcaPage() {
         <div className="flex min-h-0 flex-1">
           {/* COLUNA 1 — ESTRUTURA (a divisão é por pasta) */}
           <aside
+            data-arca-dropzone="sim"
+            onDragOver={(e) => {
+              // ARRASTAR ARQUIVO PARA CÁ (18/11/2026): o dono tentou e não acontecia nada —
+              // a tela não tinha porta de upload nenhuma (só arraste de pasta/nota, que usa
+              // ponteiro, não `dataTransfer`). Soltar arquivo aqui sobe para a Arca e o
+              // arquivo entra como NOTA CATALOGADA.
+              if (e.dataTransfer?.types?.includes("Files")) {
+                e.preventDefault();
+                setArrastando(true);
+              }
+            }}
+            onDragLeave={() => setArrastando(false)}
+            onDrop={(e) => {
+              const fs = e.dataTransfer?.files;
+              if (fs && fs.length) {
+                e.preventDefault();
+                setArrastando(false);
+                void subirArquivos(fs);
+              }
+            }}
             className={
               "w-full shrink-0 overflow-y-auto border-r border-white/[0.07] px-3 py-4 sm:w-[310px] " +
+              (arrastando ? "bg-dash-brandHi/[0.06] ring-1 ring-inset ring-dash-brandHi/40 " : "") +
               (nota ? "hidden sm:block" : "block")
             }
           >
+            {arrastando && (
+              <p
+                data-arca-arrastando="sim"
+                className="mb-2 rounded border border-dashed border-dash-brandHi/50 px-2 py-1.5 text-[11.5px] text-dash-brandHi"
+              >
+                solte aqui — o arquivo entra no acervo já catalogado
+              </p>
+            )}
+            <div className="mb-2 flex items-center gap-2">
+              <input
+                ref={inputArquivoRef}
+                type="file"
+                multiple
+                className="hidden"
+                data-arca-input-arquivo="sim"
+                onChange={(e) => {
+                  const fs = e.target.files;
+                  if (fs && fs.length) void subirArquivos(fs);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                data-arca-subir="sim"
+                disabled={subindo}
+                onClick={() => inputArquivoRef.current?.click()}
+                className="rounded border border-white/[0.14] px-2 py-1 text-[11.5px] text-dash-fg/85 transition hover:border-dash-brandHi/50 hover:text-dash-fg disabled:opacity-50"
+              >
+                {subindo ? "subindo…" : "subir arquivo"}
+              </button>
+              <span className="text-[10.5px] text-dash-muted/70">ou arraste para cá</span>
+            </div>
                         {novaPasta !== null && (
               <form
                 className="mt-2 flex items-center gap-2 rounded border border-dash-brandHi/30 bg-white/[0.02] px-2 py-1.5"

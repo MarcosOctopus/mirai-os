@@ -130,6 +130,10 @@ export function cofreSemSegredos(config: Record<string, unknown>): Record<string
     [CHAVE_GITHUB]: ["token_cifrado", "refresh_cifrado"],
     // Canva (19/10/2026): conexão POR PESSOA, guarda access + refresh cifrados.
     canva: ["token_cifrado", "refresh_cifrado"],
+    // Arca (17/11/2026): o token da organização da pessoa, cifrado. A tela só
+    // precisa saber QUE existe (o painel mostra org + digital); o token em si,
+    // quando a pessoa quer copiar, sai pela rota própria da Arca.
+    arca: ["token_cifrado"],
   };
   for (const [chave, campos] of Object.entries(SEGREDOS)) {
     const v = copia[chave];

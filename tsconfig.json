@@ -31,6 +31,7 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-byok/types/**/*.ts",
     ".next-g10/types/**/*.ts",
     ".next-g11/types/**/*.ts",
     ".next-g12/types/**/*.ts",
@@ -62,7 +63,7 @@
     ".next-turbo/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-byok/types/**/*.ts"
+    ".next-stage/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

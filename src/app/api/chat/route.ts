@@ -506,79 +506,115 @@ function termosDaPergunta(msg: string): string[] {
 }
 
 /** Uma consulta crua à Arca. Devolve as listas ou vazio (nunca lança). */
-async function consultarArca(q: string): Promise<{ docs: unknown[]; mems: unknown[] }> {
+async function consultarArca(q: string): Promise<{ docs: unknown[]; mems: unknown[]; decs: unknown[] }> {
   // Sem credencial de Arca neste ambiente, a memória simplesmente não existe —
   // e isso NÃO é o mesmo que "a Arca está vazia". Devolver vazio aqui (em vez
-  // de tentar) evita 4-6 requisições inúteis por turno.
-  if (!arcaConfigurada()) return { docs: [], mems: [] };
+  // de tentar) evita requisições inúteis por turno.
+  if (!arcaConfigurada()) return { docs: [], mems: [], decs: [] };
 
   const res = await fetch(`${ARCA_URL}/context?q=${encodeURIComponent(q)}`, {
     headers: headersDaArca(),
-    signal: AbortSignal.timeout(4000),
+    // A Arca responde o multi-termo em ~17 ms (medido 17/11/2026); 2,5 s é teto
+    // de sobra e corta o pior caso que existia antes (7 chamadas × 4 s).
+    signal: AbortSignal.timeout(2500),
   });
-  if (!res.ok) return { docs: [], mems: [] };
-  const data = (await res.json()) as { documents?: unknown[]; memories?: unknown[] };
-  return { docs: data.documents || [], mems: data.memories || [] };
+  if (!res.ok) return { docs: [], mems: [], decs: [] };
+  const data = (await res.json()) as {
+    documents?: unknown[];
+    memories?: unknown[];
+    decisions?: unknown[];
+  };
+  return {
+    docs: data.documents || [],
+    mems: data.memories || [],
+    decs: data.decisions || [],
+  };
 }
 
 /**
  * A memória da Arca para ESTE turno.
  *
- * Duas correções de 14/10/2026, as duas medidas:
- *   1. a função existia e NUNCA era chamada — o chat não olhava a Arca;
- *   2. quando chamada com a frase crua, a Arca devolvia vazio (ela casa por
- *      termo, não por frase). Agora a pergunta vira alguns candidatos, o
- *      primeiro que responde manda, e nada é repetido.
+ * Correções de 14/10/2026 (medidas): a função existia e NUNCA era chamada, e a
+ * frase crua devolvia vazio (a Arca casava por termo, não por frase).
  *
- * Teto de tentativas e de tempo: a memória não pode atrasar a resposta.
+ * Correção de 17/11/2026 (medida): eram até 7 requisições SERIAIS, com 4 s de
+ * timeout cada — pior caso ~28 s por turno, e o teto de 3+3 itens escondia o que
+ * a Arca tinha. Agora é UMA consulta multi-termo (a Arca separa por `,`), teto de
+ * 5 documentos + 4 memórias + 3 decisões, e o tempo total caiu para o tempo de
+ * uma consulta. A Arca passou a achar também por `resumo`/`conteudo` (o que não
+ * cabia em título/tags ficava invisível: "edição" era 5 de 15 documentos).
  */
 async function queryArca(msg: string): Promise<string> {
   try {
-    const tentativas = [msg.slice(0, 150).trim(), ...termosDaPergunta(msg).slice(0, 6)];
-    const vistos = new Set<string>();
-    const docs: { rotulo: string }[] = [];
-    const mems: { texto: string }[] = [];
+    const cru = msg.slice(0, 150).trim();
+    const palavras = [...new Set(termosDaPergunta(msg))].slice(0, 5);
+    const consulta = palavras.length ? palavras.join(",") : cru;
 
-    for (const t of tentativas) {
-      if (!t || (docs.length >= 3 && mems.length >= 3)) break;
-      let r: { docs: unknown[]; mems: unknown[] };
+    let r: { docs: unknown[]; mems: unknown[]; decs: unknown[] } = { docs: [], mems: [], decs: [] };
+    try {
+      r = await consultarArca(consulta);
+    } catch {
+      /* queda/timeout não derruba o turno */
+    }
+    if (!r.docs.length && !r.mems.length && !r.decs.length && cru && consulta !== cru) {
       try {
-        r = await consultarArca(t);
+        r = await consultarArca(cru);
       } catch {
-        continue; // timeout/queda de uma tentativa não aborta as outras
-      }
-      for (const d of r.docs) {
-        const o = d as { id?: unknown; titulo?: unknown; title?: unknown; tipo?: unknown; resumo?: unknown; summary?: unknown };
-        const chave = String(o?.id ?? o?.titulo ?? o?.title ?? "");
-        if (!chave || vistos.has(`d:${chave}`)) continue;
-        vistos.add(`d:${chave}`);
-        docs.push({
-          rotulo: `📄 ${o.titulo || o.title || "Doc"} (${o.tipo || "doc"}): ${String(o.resumo || o.summary || "").slice(0, 300)}`,
-        });
-        if (docs.length >= 3) break;
-      }
-      for (const m of r.mems) {
-        const o = m as { id?: unknown; content?: unknown };
-        const texto = String(o?.content || "").slice(0, 300);
-        const chave = String(o?.id ?? texto);
-        if (!texto || vistos.has(`m:${chave}`)) continue;
-        vistos.add(`m:${chave}`);
-        mems.push({ texto: `🧠 ${texto}` });
-        if (mems.length >= 3) break;
+        /* idem */
       }
     }
 
-    if (!docs.length && !mems.length) return "";
+    const vistos = new Set<string>();
+    const docs: { rotulo: string }[] = [];
+    const mems: { texto: string }[] = [];
+    const decs: { texto: string }[] = [];
+
+    for (const d of r.docs) {
+      const o = d as {
+        id?: unknown; titulo?: unknown; title?: unknown; tipo?: unknown;
+        resumo?: unknown; summary?: unknown;
+      };
+      const chave = String(o?.id ?? o?.titulo ?? o?.title ?? "");
+      if (!chave || vistos.has(`d:${chave}`)) continue;
+      vistos.add(`d:${chave}`);
+      docs.push({
+        rotulo: `📄 ${o.titulo || o.title || "Doc"} (${o.tipo || "doc"}): ${String(o.resumo || o.summary || "").slice(0, 300)}`,
+      });
+      if (docs.length >= 5) break;
+    }
+    for (const m of r.mems) {
+      const o = m as { id?: unknown; content?: unknown };
+      const texto = String(o?.content || "").slice(0, 300);
+      const chave = String(o?.id ?? texto);
+      if (!texto || vistos.has(`m:${chave}`)) continue;
+      vistos.add(`m:${chave}`);
+      mems.push({ texto: `🧠 ${texto}` });
+      if (mems.length >= 4) break;
+    }
+    for (const dd of r.decs) {
+      const o = dd as { id?: unknown; decision?: unknown; context?: unknown; reason?: unknown };
+      const texto = String(o?.decision || o?.context || o?.reason || "").slice(0, 240);
+      const chave = String(o?.id ?? texto);
+      if (!texto || vistos.has(`c:${chave}`)) continue;
+      vistos.add(`c:${chave}`);
+      decs.push({ texto: `⚖️ decisão: ${texto}` });
+      if (decs.length >= 3) break;
+    }
+
+    if (!docs.length && !mems.length && !decs.length) return "";
     return (
       "\n\n## Contexto da Arca (memória do que já foi feito)" +
       "\nUse isto como o que VOCÊ JÁ SABE. Não diga que não sabe nem peça o que já está aqui." +
-      docs.slice(0, 4).map((d) => `\n${d.rotulo}`).join("") +
-      mems.slice(0, 4).map((m) => `\n${m.texto}`).join("")
+      "\nSe o que está aqui não responde a pergunta, diga exatamente o que falta — e não afirme que não existe." +
+      docs.slice(0, 6).map((d) => `\n${d.rotulo}`).join("") +
+      mems.slice(0, 5).map((m) => `\n${m.texto}`).join("") +
+      decs.slice(0, 3).map((c) => `\n${c.texto}`).join("")
     );
   } catch {
     return "";
   }
 }
+
 function wantsClaude(txt: string): boolean {
   const kw = ["claude","opus","complexo","complicado","difícil","profundo",
     "análise detalhada","modelo forte","modelo melhor","manda o claude",
