@@ -3,60 +3,44 @@
 import { useCallback, useEffect, useState } from "react";
 
 import DrivesConectados from "@/components/dash/DrivesConectados";
+import FonteDriveCard from "@/components/dash/FonteDriveCard";
 
 /**
- * FONTES — o que está ligado TRAZENDO coisa para a Arca.
+ * FONTES — a parte de fontes da Arca, na forma que o dono aprovou (18/11/2026), construída em cima
+ * da prévia dele: título + uma linha do que a tela faz + "Atualizar status" à direita, e cada fonte
+ * como UM CARTÃO com a marca OFICIAL à esquerda (branca por filtro) e a ação em laranja com letra
+ * branca.
  *
- * POR QUE EXISTE (18/11/2026): o dono ligou a fonte viva do Google Drive ("fica rodando buscando
- * novidades") e pediu a tela. Fonte sem tela é ligação cega: ninguém vê o que entrou, o que ficou
- * DE FORA (com motivo) nem consegue pedir uma rodada na hora.
+ * O QUE NÃO APARECE AQUI (decisão do dono, 18/11/2026): *"drive do ecossistema nem tem que aparecer
+ * aí porque não vai ter aparição em outros usuários"*. A coleta do ecossistema é trabalho interno —
+ * a fonte continua rodando pelo agendador, mas esta tela é de GENTE: mostra o Drive que a pessoa
+ * ligou e o que ela pode ligar. Bloco de coletor interno em superfície de usuário é ruído.
  *
- * DESENHO — o dono olhou a primeira versão e disse "melhora essa página aí pelo amor de deus"
- * (18/11/2026). O que estava ruim e o que mudou:
- *   1. ZEROS repetidos ("0 vistos · 0 fora · 0 desistiram") enchiam a tela de caixinha vazia.
- *      Agora NÚMERO ZERO NÃO SE MOSTRA: se não há número, é uma linha só — "nenhum arquivo ainda".
- *   2. Botões desciam em diagonal. Agora cada fonte é UMA linha de leitura: ponto de estado + nome
- *      + a ação sempre no mesmo lugar (à direita, na mesma linha).
- *   3. O MESMO Drive aparecia duas vezes (a fonte do ecossistema e a conexão da pessoa). Aqui em
- *      cima fica só o que é trabalho de coleta; o Drive de gente vive no bloco de baixo, que é a
- *      MESMA peça da Synapse.
- *   4. Dois parágrafos explicativos no pé viraram um. Fonte que ainda não está ligada desce para o
- *      fim, discreta, para não competir com o que já funciona.
- * Vocabulário visual da Synapse (`dash-hair`, `dash-ok`, `dash-fg/…`), como o dono pediu.
+ * O que o dono reprovou e não volta: zeros repetidos, botão descendo em diagonal, o MESMO Drive em
+ * dois blocos com nomes iguais, e parágrafo explicativo duplicado no pé.
  */
 
 type Fonte = {
   id: string;
   nome: string;
-  estado: string;
-  cadencia: string;
-  escopo: string;
-  ultimaRodada: string;
-  ultimoResumo: string;
-  rodando: boolean;
   configurada?: boolean;
   guia?: string;
-  numeros: { rastreados: number; noAcervo: number; fora: number; desistiram: number };
-  recentes: { nome: string; nota: string; quando: number }[];
-  motivosFora: { motivo: string; quantos: number }[];
 };
 
-function quando(ms: number): string {
-  if (!ms) return "";
-  const min = Math.round((Date.now() - ms) / 60000);
-  if (min < 1) return "agora";
-  if (min < 60) return `há ${min} min`;
-  const h = Math.round(min / 60);
-  if (h < 24) return `há ${h} h`;
-  return `há ${Math.round(h / 24)} d`;
-}
+/** Marca OFICIAL de cada fonte (arquivos em public/integracoes/), pintada de branco por filtro. */
+const LOGO: Record<string, string> = {
+  sharepoint: "/integracoes/sharepoint.svg",
+};
 
-export default function Fontes({ onAbrirNota }: { onAbrirNota?: (caminho: string) => void }) {
+export default function Fontes({
+  onAbrirNota: _onAbrirNota,
+}: {
+  /** Mantido na assinatura: a página da Arca passa isto; esta aba não abre nota hoje. */
+  onAbrirNota?: (caminho: string) => void;
+}) {
   const [fontes, setFontes] = useState<Fonte[]>([]);
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(true);
-  const [disparando, setDisparando] = useState("");
-  const [recado, setRecado] = useState("");
 
   const carregar = useCallback(async () => {
     try {
@@ -79,209 +63,62 @@ export default function Fontes({ onAbrirNota }: { onAbrirNota?: (caminho: string
     void carregar();
   }, [carregar]);
 
-  // Enquanto houver rodada em curso, a tela acompanha — senão a pessoa aperta de novo e acha
-  // que travou. Para sozinha quando a rodada termina.
-  const algumaRodando = fontes.some((f) => f.rodando);
-  useEffect(() => {
-    if (!algumaRodando && !disparando) return;
-    const t = setInterval(() => void carregar(), 8000);
-    return () => clearInterval(t);
-  }, [algumaRodando, disparando, carregar]);
-
-  const sincronizar = useCallback(
-    async (id: string) => {
-      setDisparando(id);
-      setRecado("");
-      setErro("");
-      try {
-        const r = await fetch("/api/acervo/fontes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ acao: "sincronizar", fonte: id }),
-        });
-        const d = await r.json().catch(() => null);
-        if (!r.ok) {
-          setErro((d?.error as string) || `não consegui disparar (HTTP ${r.status})`);
-          return;
-        }
-        setRecado(
-          d?.jaRodando
-            ? "já existe uma rodada em curso — a atual continua."
-            : (d?.mensagem as string) || "rodada disparada.",
-        );
-        await carregar();
-      } catch (e) {
-        setErro(`falha ao disparar: ${e instanceof Error ? e.message : "?"}`);
-      } finally {
-        setDisparando("");
-      }
-    },
-    [carregar],
-  );
-
   if (carregando) {
     return <p className="px-5 py-6 text-[12.5px] text-dash-fg/55">lendo as fontes…</p>;
   }
 
-  const ligadas = fontes.filter((f) => f.configurada !== false);
   const paradas = fontes.filter((f) => f.configurada === false);
 
   return (
     <div className="mx-auto w-full max-w-[820px] px-5 pb-10 pt-5">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <p className="text-[10.5px] uppercase tracking-[0.18em] text-dash-fg/45">fontes</p>
-        <span className="rounded-full bg-dash-hair/[0.12] px-2.5 py-[3px] text-[10.5px] text-dash-fg/60">
-          {ligadas.length} ligada{ligadas.length === 1 ? "" : "s"}
-        </span>
+      <div className="flex flex-wrap items-start gap-2.5">
+        <div>
+          <h2 className="text-[15px] font-medium text-dash-fg">Fontes conectadas</h2>
+          <p className="mt-1 text-[11.5px] text-dash-fg/50">
+            Gerencie o que a Mirai lê e cataloga na Arca.
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => void carregar()}
-          className="ml-auto rounded-[10px] border border-dash-hair/[0.18] px-3 py-2 text-[11.5px] text-dash-fg/85 transition hover:border-dash-brand/40 hover:text-dash-fg"
+          className="ml-auto flex items-center gap-1.5 rounded-[10px] border border-dash-hair/[0.20] px-3 py-2 text-[11.5px] text-dash-fg/85 transition hover:border-dash-brand/40 hover:text-dash-fg"
         >
-          recarregar
+          <span aria-hidden>&#8635;</span> Atualizar status
         </button>
       </div>
 
       {erro ? <p className="mt-3 text-[11.5px] text-dash-bad">{erro}</p> : null}
-      {recado ? <p className="mt-2 text-[11.5px] text-dash-fg/70">{recado}</p> : null}
 
-      {/* ── O que já está ligado ─────────────────────────────────────────────── */}
-      {ligadas.map((fonte) => {
-        const rodando = fonte.rodando || disparando === fonte.id;
-        const n = fonte.numeros;
-        const temNumero = n.noAcervo > 0 || n.rastreados > 0 || n.fora > 0 || n.desistiram > 0;
-        return (
-          <section
-            key={fonte.id}
-            data-fonte={fonte.id}
-            className="mt-6 border-t border-dash-hair/[0.12] pt-5"
-          >
-            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
-              <span
-                className={
-                  "h-1.5 w-1.5 shrink-0 rounded-full " +
-                  (rodando ? "animate-pulse bg-dash-brandHi" : n.noAcervo > 0 ? "bg-dash-ok" : "bg-dash-hair")
-                }
-                aria-hidden
-              />
-              <p className="text-[12.5px] font-medium text-dash-fg">{fonte.nome}</p>
-              {rodando ? (
-                <span className="rounded-full bg-dash-brandHi/[0.14] px-2 py-[2px] text-[10px] text-dash-brandHi">
-                  sincronizando
-                </span>
-              ) : null}
-              <button
-                type="button"
-                data-fontes-sincronizar={fonte.id}
-                onClick={() => void sincronizar(fonte.id)}
-                disabled={rodando}
-                className="ml-auto rounded-[10px] border border-dash-hair/[0.18] px-3 py-2 text-[11.5px] text-dash-fg/85 transition hover:border-dash-brand/40 hover:text-dash-fg disabled:opacity-40"
-              >
-                {rodando ? "sincronizando…" : "sincronizar agora"}
-              </button>
-            </div>
+      {/* O Drive da PESSOA — a MESMA peça montada na Synapse: ligar num lado aparece no outro. */}
+      <DrivesConectados origem="fontes" />
 
-            <p className="mt-1.5 text-[11px] text-dash-fg/45">
-              {fonte.cadencia} · {fonte.escopo}
-              {fonte.ultimaRodada ? ` · última rodada ${fonte.ultimaRodada}` : " · ainda não rodou"}
-            </p>
-
-            {temNumero ? (
-              <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                {n.noAcervo > 0 ? (
-                  <span className="flex items-baseline gap-1.5">
-                    <span className="text-[16px] leading-none text-dash-fg tabular-nums">{n.noAcervo}</span>
-                    <span className="text-[10.5px] text-dash-fg/45">no acervo</span>
-                  </span>
-                ) : null}
-                {n.rastreados > 0 ? (
-                  <span className="flex items-baseline gap-1.5">
-                    <span className="text-[13px] leading-none text-dash-fg/75 tabular-nums">
-                      {n.rastreados}
-                    </span>
-                    <span className="text-[10.5px] text-dash-fg/45">arquivos vistos</span>
-                  </span>
-                ) : null}
-                {n.fora > 0 ? (
-                  <span className="flex items-baseline gap-1.5">
-                    <span className="text-[13px] leading-none text-dash-fg/75 tabular-nums">{n.fora}</span>
-                    <span className="text-[10.5px] text-dash-fg/45">ficaram de fora</span>
-                  </span>
-                ) : null}
-                {n.desistiram > 0 ? (
-                  <span className="flex items-baseline gap-1.5">
-                    <span className="text-[13px] leading-none text-dash-fg/75 tabular-nums">
-                      {n.desistiram}
-                    </span>
-                    <span className="text-[10.5px] text-dash-fg/45">desistiram</span>
-                  </span>
-                ) : null}
-              </div>
-            ) : (
-              <p className="mt-3 text-[11.5px] text-dash-fg/45">
-                nenhum arquivo ainda — “sincronizar agora” faz a primeira leitura.
-              </p>
-            )}
-
-            {!!fonte.recentes.length && (
-              <ul className="mt-3 space-y-1">
-                {fonte.recentes.slice(0, 4).map((x) => (
-                  <li
-                    key={x.nota || x.nome}
-                    className="flex items-center gap-3 rounded-[14px] bg-dash-hair/[0.06] px-3.5 py-2.5"
-                  >
-                    <span className="h-1 w-1 shrink-0 rounded-full bg-dash-ok/70" aria-hidden />
-                    <button
-                      type="button"
-                      onClick={() => onAbrirNota?.(x.nota)}
-                      title={x.nota}
-                      className="min-w-0 flex-1 truncate text-left text-[12px] text-dash-fg/85 transition hover:text-dash-brandHi"
-                    >
-                      {x.nome || x.nota}
-                    </button>
-                    <span className="shrink-0 text-[10.5px] text-dash-fg/35 tabular-nums">
-                      {quando(x.quando)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {!!fonte.motivosFora.length && (
-              <p className="mt-2.5 text-[11px] leading-[1.5] text-dash-fg/40">
-                fora:{" "}
-                {fonte.motivosFora.map((m, i) => (
-                  <span key={m.motivo}>
-                    {i ? " · " : ""}
-                    {m.quantos}× {m.motivo}
-                  </span>
-                ))}
-              </p>
-            )}
-          </section>
-        );
-      })}
-
-      {/* ── Drive de cada pessoa — a MESMA peça da Synapse ───────────────────── */}
-      <DrivesConectados />
-
-      {/* ── O que ainda não está ligado: discreto, no fim ────────────────────── */}
+      {/* O que ainda não está ligado — discreto, no fim. */}
       {paradas.map((fonte) => (
-        <section key={fonte.id} data-fonte={fonte.id} className="mt-6 border-t border-dash-hair/[0.12] pt-5">
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-dash-hair" aria-hidden />
-            <p className="text-[12.5px] text-dash-fg/70">{fonte.nome}</p>
-            <span className="text-[11px] text-dash-fg/40">não ligada</span>
+        <FonteDriveCard
+          key={fonte.id}
+          logo={LOGO[fonte.id] || "/integracoes/sharepoint.svg"}
+          alt={fonte.nome}
+          nome={fonte.nome}
+          chip="Configuração pendente"
+          tom="neutro"
+          linha1="Somente leitura · o acesso é dado por um administrador do tenant"
+          nota={`Passo a passo na Arca em ${fonte.guia || "03_PROJETOS/arca/"}`}
+        >
+          <div className="mt-2 flex items-center gap-2">
+            <img
+              src="/integracoes/onedrive.svg"
+              alt="OneDrive"
+              className="h-4 w-4 shrink-0 self-start object-contain"
+              style={{ filter: "brightness(0) invert(1)" }}
+            />
+            <span className="text-[10.5px] text-dash-fg/50">
+              OneDrive usa o mesmo aplicativo — ligando um, o outro vem junto.
+            </span>
           </div>
-          <p className="mt-1.5 text-[11.5px] leading-[1.55] text-dash-fg/45">
-            Falta o aplicativo no Microsoft Azure e a autorização do administrador do tenant. O passo
-            a passo está na Arca em{" "}
-            <span className="text-dash-fg/70">{fonte.guia || "03_PROJETOS/arca/"}</span>.
-          </p>
-        </section>
+        </FonteDriveCard>
       ))}
 
-      <p className="mt-8 text-[10.5px] leading-[1.5] text-dash-fg/35">
+      <p className="mt-6 text-[10.5px] leading-[1.5] text-dash-fg/35">
         A Mirai lê só estas fontes, com o token que cada pessoa autorizou. O que entra vira nota
         catalogada pela Arca.
       </p>

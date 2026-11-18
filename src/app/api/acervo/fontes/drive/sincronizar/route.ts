@@ -157,7 +157,15 @@ export async function POST(req: NextRequest) {
   let orcamento = MAX_ARQUIVOS;
 
   for (const conexao of conexoes) {
-    const resumo = { email: conexao.email, novos: 0, atualizados: 0, fora: 0, pulados: 0, erro: "" };
+    const resumo = {
+      email: conexao.email,
+      novos: 0,
+      atualizados: 0,
+      fora: 0,
+      pulados: 0,
+      sem_rastro: 0,
+      erro: "",
+    };
     const listaAtualizada: Record<string, unknown>[] = [];
     for (const entrada of conexao.entradas) {
       const emailConexao = String(entrada.email || "");
@@ -240,7 +248,7 @@ export async function POST(req: NextRequest) {
             if (!nota.ok) throw new Error(nd.detail || `nota ${nota.status}`);
             const caminho = nd.acervo?.nota || "";
             if (caminho) {
-              await fetch(`${ARCA}/acervo/catalogar`, {
+              const rc = await fetch(`${ARCA}/acervo/catalogar`, {
                 method: "POST",
                 headers: {
                   "X-Arca-Token": cred.token,
@@ -258,6 +266,14 @@ export async function POST(req: NextRequest) {
                 }),
                 cache: "no-store",
               });
+              if (!rc.ok) {
+                // NÃO ENGOLIR (correção de 18/11/2026): a nota existe, o rastro não. Isso não
+                // invalida o arquivo — ele ENTRA em `feitos` (senão a próxima rodada duplicaria a
+                // nota) — mas o caso vai contado e com o motivo, para não virar silêncio.
+                const cd = (await rc.json().catch(() => ({}))) as { detail?: string };
+                resumo.sem_rastro += 1;
+                resumo.erro = `rastro falhou (${rc.status}): ${String(cd?.detail || "").slice(0, 70)}`;
+              }
             }
             feitos[item.id] = item.modifiedTime || "";
             if (anterior) resumo.atualizados += 1;
