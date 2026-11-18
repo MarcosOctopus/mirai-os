@@ -107,3 +107,7 @@ SESSION_STATE.md
 .arca-token
 .mirai_key
 .credentials/
+
+# Cofre de credenciais do ecossistema: fica no DISCO, nunca no git (medido 18/11/2026)
+data/arca-credenciais.json
+data/*credenciais*.json
