@@ -44,6 +44,7 @@ import {
   IconeUsuarios,
 } from "./icons";
 import { usarTema } from "@/lib/tema";
+import { estadoNoMapa, normalizar, usarVisibilidade } from "@/lib/visibilidade-cliente";
 import { Sininho } from "./Sininho";
 import SeletorEscopo from "./SeletorEscopo";
 
@@ -314,7 +315,21 @@ export default function Shell({
   const router = useRouter();
   const { lista, aberta } = useConversas();
   const inicial = (usuario?.nome || usuario?.email || "?").trim().charAt(0).toUpperCase();
-  const visiveis = (lista: Item[]) => lista.filter((i) => !i.soDono || usuario?.ehDono);
+  const visib = usarVisibilidade();
+  // OCULTO some para quem não é dono; EM BREVE vira selo (e não abre). O dono
+  // continua vendo e entrando em tudo — ele está justamente testando o que
+  // ainda não está pronto.
+  const visiveis = (lista: Item[]) =>
+    lista
+      .map((i) => {
+        if (!i.href || usuario?.ehDono) return i;
+        return estadoNoMapa(visib, i.href) === "em_breve" ? { ...i, emBreve: true } : i;
+      })
+      .filter((i) => {
+        if (i.soDono && !usuario?.ehDono) return false;
+        if (i.href && !usuario?.ehDono && estadoNoMapa(visib, i.href) === "oculto") return false;
+        return true;
+      });
 
   // Histórico: a MESMA lista do chat (módulo compartilhado). Carrega uma vez.
   useEffect(() => {
@@ -672,7 +687,22 @@ export default function Shell({
             </div>
           </header>
 
-          <div className={cheio ? "min-h-0 flex-1" : "mt-8"}>{children}</div>
+          <div className={cheio ? "min-h-0 flex-1" : "mt-8"}>
+            {!usuario?.ehDono && ["em_breve", "oculto"].includes(estadoNoMapa(visib, caminho)) ? (
+              /* Marcar no admin não pode ser só cosmético: quem não é dono bate
+                 num aviso curto em vez de entrar numa tela inacabada. */
+              <div className="rounded-[20px] border border-dashed border-dash-hair/[0.12] bg-dash-card/60 px-6 py-8">
+                <span className="inline-flex rounded-full bg-dash-raise px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-dash-muted">
+                  em breve
+                </span>
+                <p className="mt-4 max-w-[560px] text-[15px] leading-[1.6] text-dash-fg/85">
+                  Esta parte ainda está sendo construída. Ela aparece aqui quando estiver pronta.
+                </p>
+              </div>
+            ) : (
+              children
+            )}
+          </div>
         </div>
       </main>
     </div>
@@ -697,7 +727,12 @@ function MenuDaConta({
   const caixa = useRef<HTMLDivElement | null>(null);
   const { tema, alternar: alternarTema } = usarTema();
   // Mesmo corte por dono do resto do menu (a trava real segue no servidor).
-  const itens = SECUNDARIO.filter((i) => !i.soDono || usuario?.ehDono);
+  const visib = usarVisibilidade();
+  const itens = SECUNDARIO.filter((i) => {
+    if (i.soDono && !usuario?.ehDono) return false;
+    if (i.href && !usuario?.ehDono && estadoNoMapa(visib, i.href) === "oculto") return false;
+    return true;
+  });
 
   useEffect(() => {
     if (!aberto) return;
