@@ -315,6 +315,14 @@ export default function ArcaPage() {
   // a pessoa solta o arquivo e acha que nada aconteceu, porque a pasta estava fechada.
   const [arrastando, setArrastando] = useState(false);
   const [subindo, setSubindo] = useState(false);
+  // LIMITE E BARRA (dono, 19/11/2026): "coloca um limite de MB pra upar e tbm uma
+  // barrinha ou % do que tá subindo igual do Google Drive". O limite é o MESMO do
+  // servidor (30 MB por arquivo) — checar aqui evita esperar o envio para ouvir não.
+  const [progresso, setProgresso] = useState<
+    { pct: number; feitos: number; total: number; nome: string } | null
+  >(null);
+  const LIMITE_MB = 30;
+  const LOTE_MAX_MB = 300;
   const inputArquivoRef = useRef<HTMLInputElement | null>(null);
   // PASTA INTEIRA (dono, 19/11/2026): "os clientes podem upar pastas completas?"
   // — até aqui só dava arquivo por arquivo. O input com `webkitdirectory` abre o
@@ -326,50 +334,102 @@ export default function ArcaPage() {
     async (arquivos: FileList | File[]) => {
       const lista = Array.from(arquivos);
       if (!lista.length) return;
-      // Envio é sequencial (um por vez): pasta gigante travaria a tela.
-      if (lista.length > 300) {
-        setErro(`${lista.length} arquivos de uma vez é demais — mande a pasta em blocos de até 300.`);
+
+      // ── limites (antes de sair do navegador) ──────────────────────────────
+      const grandes = lista.filter((f) => f.size > LIMITE_MB * 1024 * 1024);
+      const aceitos = lista.filter((f) => f.size <= LIMITE_MB * 1024 * 1024);
+      if (!aceitos.length) {
+        setErro(`Nenhum arquivo passou do limite de ${LIMITE_MB} MB por arquivo.`);
         return;
       }
+      const totalBytes = aceitos.reduce((n, f) => n + f.size, 0);
+      if (totalBytes > LOTE_MAX_MB * 1024 * 1024) {
+        setErro(
+          `Esse lote tem ${(totalBytes / 1024 / 1024).toFixed(0)} MB — mande em blocos de até ${LOTE_MAX_MB} MB.`,
+        );
+        return;
+      }
+
       setSubindo(true);
-      setErro("");
+      setErro(grandes.length ? `fora do limite de ${LIMITE_MB} MB: ${grandes.map((f) => f.name).join(", ")}` : "");
+      setProgresso({ pct: 0, feitos: 0, total: aceitos.length, nome: "" });
+
+      const enviados: { nome: string; nota: string; pasta: string; subpasta: string }[] = [];
+      const recusados: { nome: string; erro: string }[] = [];
+
       try {
-        const form = new FormData();
-        for (const f of lista) form.append("files", f, f.name);
-        const r = await fetch("/api/acervo/subir", { method: "POST", body: form });
-        const j = (await r.json().catch(() => null)) as {
-          enviados?: { nome: string; nota: string; pasta: string; subpasta: string }[];
-          recusados?: { nome: string; erro: string }[];
-          error?: string;
-        } | null;
-        const env = j?.enviados || [];
-        if (!r.ok && !env.length) {
-          setErro(j?.error || j?.recusados?.[0]?.erro || `não consegui subir (HTTP ${r.status}).`);
-          return;
+        let feitoBytes = 0;
+
+        for (const f of aceitos) {
+          // % = bytes já enviados / bytes do lote. O evento de progresso do XHR
+          // é do arquivo atual; somamos o que já fechou.
+          const jaEnviado = feitoBytes;
+          const resultado = await new Promise<{ status: number; texto: string }>((ok, falha) => {
+            const fd = new FormData();
+            fd.append("files", f, f.name);
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", "/api/acervo/subir");
+            xhr.upload.onprogress = (ev) => {
+              if (!ev.lengthComputable) return;
+              const pct = Math.min(99, Math.round(((jaEnviado + ev.loaded) / totalBytes) * 100));
+              setProgresso((p) => (p ? { ...p, pct, nome: f.name } : p));
+            };
+            xhr.onload = () => ok({ status: xhr.status, texto: xhr.responseText });
+            xhr.onerror = () => falha(new Error("rede"));
+            xhr.send(fd);
+          });
+
+          feitoBytes += f.size;
+          let j: {
+            enviados?: { nome: string; nota: string; pasta: string; subpasta: string }[];
+            recusados?: { nome: string; erro: string }[];
+            error?: string;
+          } | null = null;
+          try {
+            j = JSON.parse(resultado.texto);
+          } catch {
+            j = null;
+          }
+          for (const e of j?.enviados || []) enviados.push(e);
+          for (const x of j?.recusados || []) recusados.push(x);
+          if (!j?.enviados?.length && !j?.recusados?.length) {
+            recusados.push({ nome: f.name, erro: j?.error || `a Arca respondeu ${resultado.status}.` });
+          }
+          setProgresso({
+            pct: Math.round((feitoBytes / totalBytes) * 100),
+            feitos: enviados.length + recusados.length,
+            total: aceitos.length,
+            nome: f.name,
+          });
         }
-        if (env.length) {
+
+        if (enviados.length) {
           setAbertas((antes) => {
             const n = new Set(antes);
-            for (const e of env) {
+            for (const e of enviados) {
               if (e.pasta) n.add(e.pasta);
               if (e.pasta && e.subpasta) n.add(`${e.pasta}/${e.subpasta}`);
             }
             return n;
           });
           setAviso(
-            env.length === 1
-              ? `"${env[0].nome}" entrou no acervo em ${[env[0].pasta, env[0].subpasta].filter(Boolean).join("/") || "—"}.`
-              : `${env.length} arquivos entraram no acervo já catalogados.`,
+            enviados.length === 1
+              ? `"${enviados[0].nome}" entrou no acervo em ${
+                  [enviados[0].pasta, enviados[0].subpasta].filter(Boolean).join("/") || "—"
+                }.`
+              : `${enviados.length} arquivos entraram no acervo já catalogados.`,
           );
         }
-        if (j?.recusados?.length) {
-          setErro(j.recusados.map((x) => `"${x.nome}": ${x.erro}`).join(" · "));
+        if (recusados.length) {
+          setErro(recusados.map((x) => `"${x.nome}": ${x.erro}`).join(" · "));
         }
         await carregarArvore();
       } catch (e) {
         setErro(`falha ao subir: ${e instanceof Error ? e.message : "?"}`);
       } finally {
         setSubindo(false);
+        // deixa a barra cheia por um instante e some — "sumiu rápido" é bom.
+        setTimeout(() => setProgresso(null), 1200);
       }
     },
     [carregarArvore],
@@ -1292,6 +1352,26 @@ export default function ArcaPage() {
               </button>
               <span className="text-[10.5px] text-dash-muted/70">ou arraste para cá</span>
             </div>
+            <p className="mb-2 text-[10.5px] text-dash-muted/60">
+              até {LIMITE_MB} MB por arquivo · até {LOTE_MAX_MB} MB por vez
+            </p>
+            {progresso && (
+              <div className="mb-2" data-arca-progresso="sim">
+                <div className="h-[3px] w-full overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-dash-brandHi transition-[width] duration-200"
+                    style={{ width: `${progresso.pct}%` }}
+                  />
+                </div>
+                <p className="mt-1 flex items-center justify-between text-[10.5px] text-dash-muted/80">
+                  <span className="truncate pr-2">
+                    {subindo ? "subindo" : "concluído"} {progresso.feitos}/{progresso.total} ·{" "}
+                    <span className="text-dash-fg/70">{progresso.nome}</span>
+                  </span>
+                  <span className="shrink-0 text-dash-brandHi">{progresso.pct}%</span>
+                </p>
+              </div>
+            )}
                         {novaPasta !== null && (
               <form
                 className="mt-2 flex items-center gap-2 rounded border border-dash-brandHi/30 bg-white/[0.02] px-2 py-1.5"
