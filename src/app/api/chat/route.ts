@@ -35,6 +35,7 @@ const CHAT_PROV_KEY   = loadEnv("AIBEE_API_KEY");
 
 import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
 import { arcaConfigurada, headersDaArca } from "@/lib/arca-cliente";
+import { pedirTokenNaArca, tokenArcaDaConta } from "@/lib/arca-conta";
 import { regraDoModo, modoDaMensagem, type ModoId } from "@/lib/modos-do-chat";
 
 /**
@@ -505,15 +506,61 @@ function termosDaPergunta(msg: string): string[] {
   return [...new Set(cands)];
 }
 
+/**
+ * A CREDENCIAL DA PESSOA — não a do ambiente (correção de exposição, 19/11/2026).
+ *
+ * Medido: `headersDaArca()` usa UM token do ambiente (o do dono) e
+ * `/context?q=...` com ele devolvia **19 documentos + 8 memórias + 8 decisões
+ * do dono**; com o token do próprio usuário, **0/0/0**. O chat só consultava a
+ * Arca para o dono, mas era uma porta com o cadeado na fechadura errada: um
+ * dia alguém alarga o `if` e o acervo inteiro desce para todo mundo.
+ *
+ * Aqui a memória é da PESSOA: token do cofre da conta (o mesmo da tela da
+ * Arca) e, se ainda não houver, emite pelo serviço. Sem credencial → sem
+ * memória. Cache de 5 min para não pedir token a cada turno.
+ */
+const credencialEmCache = new Map<string, { token: string; expira: number }>();
+
+async function credencialDaPessoa(conta: { id: number; email: string } | null): Promise<string> {
+  if (!conta) return "";
+  const chave = `${conta.id}:${conta.email}`;
+  const agora = Date.now();
+  const guardada = credencialEmCache.get(chave);
+  if (guardada && guardada.expira > agora) return guardada.token;
+
+  let token = "";
+  try {
+    token = (await tokenArcaDaConta(conta.id)) || "";
+  } catch {
+    token = "";
+  }
+  if (!token) {
+    try {
+      const r = await pedirTokenNaArca(conta.email);
+      if (r.ok) token = r.token;
+    } catch {
+      /* sem credencial: fica sem memória, que é o comportamento honesto */
+    }
+  }
+  if (token) credencialEmCache.set(chave, { token, expira: agora + 5 * 60_000 });
+  return token;
+}
+
 /** Uma consulta crua à Arca. Devolve as listas ou vazio (nunca lança). */
-async function consultarArca(q: string): Promise<{ docs: unknown[]; mems: unknown[]; decs: unknown[] }> {
+async function consultarArca(
+  q: string,
+  token: string,
+): Promise<{ docs: unknown[]; mems: unknown[]; decs: unknown[] }> {
   // Sem credencial de Arca neste ambiente, a memória simplesmente não existe —
   // e isso NÃO é o mesmo que "a Arca está vazia". Devolver vazio aqui (em vez
   // de tentar) evita requisições inúteis por turno.
   if (!arcaConfigurada()) return { docs: [], mems: [], decs: [] };
+  // SEM credencial da pessoa = SEM memória. Nunca cair no token do ambiente:
+  // esse token é do dono e devolveria o acervo dele para quem perguntou.
+  if (!token) return { docs: [], mems: [], decs: [] };
 
   const res = await fetch(`${ARCA_URL}/context?q=${encodeURIComponent(q)}`, {
-    headers: headersDaArca(),
+    headers: { "X-Arca-Token": token },
     // A Arca responde o multi-termo em ~17 ms (medido 17/11/2026); 2,5 s é teto
     // de sobra e corta o pior caso que existia antes (7 chamadas × 4 s).
     signal: AbortSignal.timeout(2500),
@@ -544,7 +591,7 @@ async function consultarArca(q: string): Promise<{ docs: unknown[]; mems: unknow
  * uma consulta. A Arca passou a achar também por `resumo`/`conteudo` (o que não
  * cabia em título/tags ficava invisível: "edição" era 5 de 15 documentos).
  */
-async function queryArca(msg: string): Promise<string> {
+async function queryArca(msg: string, token: string): Promise<string> {
   try {
     const cru = msg.slice(0, 150).trim();
     const palavras = [...new Set(termosDaPergunta(msg))].slice(0, 5);
@@ -552,13 +599,13 @@ async function queryArca(msg: string): Promise<string> {
 
     let r: { docs: unknown[]; mems: unknown[]; decs: unknown[] } = { docs: [], mems: [], decs: [] };
     try {
-      r = await consultarArca(consulta);
+      r = await consultarArca(consulta, token);
     } catch {
       /* queda/timeout não derruba o turno */
     }
     if (!r.docs.length && !r.mems.length && !r.decs.length && cru && consulta !== cru) {
       try {
-        r = await consultarArca(cru);
+        r = await consultarArca(cru, token);
       } catch {
         /* idem */
       }
@@ -1153,9 +1200,10 @@ export async function POST(req: NextRequest) {
     //
     // Falha da Arca não derruba o chat: sem memória, a resposta sai como saía
     // antes — só não é mais o caso normal.
-    if (conta?.ehDono && textoUsuarioNovo) {
+    if (conta && textoUsuarioNovo) {
       try {
-        apoio.memoriaArca = await queryArca(textoUsuarioNovo);
+        const credencial = await credencialDaPessoa(conta);
+        apoio.memoriaArca = credencial ? await queryArca(textoUsuarioNovo, credencial) : "";
       } catch {
         apoio.memoriaArca = "";
       }
