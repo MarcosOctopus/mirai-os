@@ -316,11 +316,21 @@ export default function ArcaPage() {
   const [arrastando, setArrastando] = useState(false);
   const [subindo, setSubindo] = useState(false);
   const inputArquivoRef = useRef<HTMLInputElement | null>(null);
+  // PASTA INTEIRA (dono, 19/11/2026): "os clientes podem upar pastas completas?"
+  // — até aqui só dava arquivo por arquivo. O input com `webkitdirectory` abre o
+  // seletor de PASTA do sistema e manda tudo de uma vez; a organização continua
+  // sendo a da Arca (a pasta de origem não vira pasta no acervo).
+  const inputPastaRef = useRef<HTMLInputElement | null>(null);
 
   const subirArquivos = useCallback(
     async (arquivos: FileList | File[]) => {
       const lista = Array.from(arquivos);
       if (!lista.length) return;
+      // Envio é sequencial (um por vez): pasta gigante travaria a tela.
+      if (lista.length > 300) {
+        setErro(`${lista.length} arquivos de uma vez é demais — mande a pasta em blocos de até 300.`);
+        return;
+      }
       setSubindo(true);
       setErro("");
       try {
@@ -1257,6 +1267,28 @@ export default function ArcaPage() {
                 className="rounded border border-white/[0.14] px-2 py-1 text-[11.5px] text-dash-fg/85 transition hover:border-dash-brandHi/50 hover:text-dash-fg disabled:opacity-50"
               >
                 {subindo ? "subindo…" : "subir arquivo"}
+              </button>
+              <input
+                ref={inputPastaRef}
+                type="file"
+                multiple
+                className="hidden"
+                data-arca-input-pasta="sim"
+                {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+                onChange={(e) => {
+                  const fs = e.target.files;
+                  if (fs && fs.length) void subirArquivos(fs);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                data-arca-subir-pasta="sim"
+                disabled={subindo}
+                onClick={() => inputPastaRef.current?.click()}
+                className="rounded border border-white/[0.14] px-2 py-1 text-[11.5px] text-dash-fg/85 transition hover:border-dash-brandHi/50 hover:text-dash-fg disabled:opacity-50"
+              >
+                {subindo ? "subindo…" : "subir pasta"}
               </button>
               <span className="text-[10.5px] text-dash-muted/70">ou arraste para cá</span>
             </div>
