@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { exigirDono } from "@/lib/orgs";
+import { exigirConta, exigirDono } from "@/lib/orgs";
 import { estados, gravar, ITENS, type Estado } from "@/lib/visibilidade";
 
 export const runtime = "nodejs";
@@ -15,8 +15,13 @@ export const dynamic = "force-dynamic";
  * POST é a escrita: `exigirDono()` + lista fechada de itens (`gravar` recusa href
  *      inventado). Não aceita estado arbitrário — só os três que existem.
  */
-export async function GET() {
-  return NextResponse.json({ mapa: estados(), itens: ITENS }, {
+export async function GET(req: NextRequest) {
+  // `ehDono` vem da SESSÃO, não da prop que cada página passa para a casca:
+  // página que esquece a prop fazia o dono ser tratado como visitante e bater no
+  // aviso de "em breve" no próprio app dele (medido 19/11/2026).
+  const conta = await exigirConta(req);
+  const ehDono = conta.ok ? Boolean(conta.conta.ehDono) : false;
+  return NextResponse.json({ mapa: estados(), itens: ITENS, ehDono }, {
     headers: { "cache-control": "no-store" },
   });
 }

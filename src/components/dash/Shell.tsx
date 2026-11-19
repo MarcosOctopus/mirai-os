@@ -319,19 +319,20 @@ export default function Shell({
   const router = useRouter();
   const { lista, aberta } = useConversas();
   const inicial = (usuario?.nome || usuario?.email || "?").trim().charAt(0).toUpperCase();
-  const visib = usarVisibilidade();
-  // OCULTO some para quem não é dono; EM BREVE vira selo (e não abre). O dono
-  // continua vendo e entrando em tudo — ele está justamente testando o que
-  // ainda não está pronto.
+  const { mapa: visib, ehDono: donoDaApi } = usarVisibilidade();
+  // O DONO VÊ TUDO SEMPRE — inclusive o que ele mesmo marcou como oculto. O
+  // `ehDono` vem da SESSÃO; a prop da página é atalho e pode faltar.
+  const souDono = Boolean(usuario?.ehDono) || donoDaApi;
+  // OCULTO some para quem não é dono; EM BREVE vira selo (e não abre).
   const visiveis = (lista: Item[]) =>
     lista
       .map((i) => {
-        if (!i.href || usuario?.ehDono) return i;
+        if (!i.href || souDono) return i;
         return estadoNoMapa(visib, i.href) === "em_breve" ? { ...i, emBreve: true } : i;
       })
       .filter((i) => {
-        if (i.soDono && !usuario?.ehDono) return false;
-        if (i.href && !usuario?.ehDono && estadoNoMapa(visib, i.href) === "oculto") return false;
+        if (i.soDono && !souDono) return false;
+        if (i.href && !souDono && estadoNoMapa(visib, i.href) === "oculto") return false;
         return true;
       });
 
@@ -692,7 +693,7 @@ export default function Shell({
           </header>
 
           <div className={cheio ? "min-h-0 flex-1" : "mt-8"}>
-            {!usuario?.ehDono && ["em_breve", "oculto"].includes(estadoNoMapa(visib, caminho)) ? (
+            {!souDono && ["em_breve", "oculto"].includes(estadoNoMapa(visib, caminho)) ? (
               /* Marcar no admin não pode ser só cosmético: quem não é dono bate
                  num aviso curto em vez de entrar numa tela inacabada. */
               <div className="rounded-[20px] border border-dashed border-dash-hair/[0.12] bg-dash-card/60 px-6 py-8">
@@ -731,10 +732,11 @@ function MenuDaConta({
   const caixa = useRef<HTMLDivElement | null>(null);
   const { tema, alternar: alternarTema } = usarTema();
   // Mesmo corte por dono do resto do menu (a trava real segue no servidor).
-  const visib = usarVisibilidade();
+  const { mapa: visib, ehDono: donoDaApi } = usarVisibilidade();
+  const souDono = Boolean(usuario?.ehDono) || donoDaApi;
   const itens = SECUNDARIO.filter((i) => {
-    if (i.soDono && !usuario?.ehDono) return false;
-    if (i.href && !usuario?.ehDono && estadoNoMapa(visib, i.href) === "oculto") return false;
+    if (i.soDono && !souDono) return false;
+    if (i.href && !souDono && estadoNoMapa(visib, i.href) === "oculto") return false;
     return true;
   });
 

@@ -14,8 +14,8 @@ import { useEffect, useState } from "react";
 export type Estado = "publico" | "em_breve" | "oculto";
 export type Mapa = Record<string, Estado>;
 
-let cache: Mapa | null = null;
-let pendente: Promise<Mapa> | null = null;
+let cache: Leitura | null = null;
+let pendente: Promise<Leitura> | null = null;
 
 export function normalizar(href: string): string {
   const limpo = (href || "").split("?")[0].split("#")[0];
@@ -27,29 +27,37 @@ export function estadoNoMapa(mapa: Mapa, href?: string): Estado {
   return mapa[normalizar(href)] || "publico";
 }
 
-export function usarVisibilidade(): Mapa {
-  const [mapa, setMapa] = useState<Mapa>(cache || {});
+export type Leitura = { mapa: Mapa; ehDono: boolean };
+
+export function usarVisibilidade(): Leitura {
+  const [leitura, setLeitura] = useState<Leitura>(cache || { mapa: {}, ehDono: false });
 
   useEffect(() => {
-    if (cache) return;
+    if (cache) {
+      setLeitura(cache);
+      return;
+    }
     if (!pendente) {
+      // `ehDono` vem da SESSÃO (servidor) e é a fonte da verdade: a prop que cada
+      // página passa para a casca é conveniência, e página que esquece dela
+      // fazia o dono ser tratado como visitante dentro do próprio app.
       pendente = fetch("/api/visibilidade", { cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : { mapa: {} }))
-        .then((d) => (d?.mapa || {}) as Mapa)
-        .catch(() => ({} as Mapa))
-        .then((m) => {
-          cache = m;
-          return m;
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => ({ mapa: (d?.mapa || {}) as Mapa, ehDono: Boolean(d?.ehDono) }))
+        .catch(() => ({ mapa: {} as Mapa, ehDono: false }))
+        .then((l) => {
+          cache = l;
+          return l;
         });
     }
     let vivo = true;
-    void pendente.then((m) => {
-      if (vivo) setMapa(m);
+    void pendente.then((l) => {
+      if (vivo) setLeitura(l);
     });
     return () => {
       vivo = false;
     };
   }, []);
 
-  return mapa;
+  return leitura;
 }
