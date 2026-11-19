@@ -330,6 +330,76 @@ export default function ArcaPage() {
   // sendo a da Arca (a pasta de origem não vira pasta no acervo).
   const inputPastaRef = useRef<HTMLInputElement | null>(null);
 
+  /* ARRASTAR PASTA (dono, 19/11/2026: "ainda não tá conseguindo arrastar pasta, dá erro").
+   *
+   * POR QUE FALHAVA: `dataTransfer.files` só entrega ARQUIVOS. Quando se arrasta uma
+   * pasta, o Chrome põe na lista um item de 0 byte (ou nada) — o envio ia vazio e voltava
+   * erro. O que descreve a pasta é `dataTransfer.items[i].webkitGetAsEntry()`, que é uma
+   * árvore: ou é arquivo (`file()`), ou é diretório (`createReader().readEntries()`).
+   *
+   * `readEntries` entrega em BLOCOS (100 por chamada) — chamar uma vez só devolveria
+   * metade de uma pasta grande, então aqui se lê até vir lote vazio.
+   * Sem esta varredura, "subir pasta" só funcionava pelo seletor do sistema.
+   */
+  const LIXO = /^(\.DS_Store|Thumbs\.db|desktop\.ini|\._.*)$/i;
+
+  const coletarDeDrop = useCallback(async (dt: DataTransfer): Promise<File[]> => {
+    const entradas: { webkitGetAsEntry?: () => unknown }[] = [];
+    for (let i = 0; i < dt.items.length; i += 1) {
+      const it = dt.items[i];
+      if (it.kind !== "file") continue;
+      const e = (it as DataTransferItem & { webkitGetAsEntry?: () => unknown }).webkitGetAsEntry?.();
+      if (e) entradas.push({ webkitGetAsEntry: () => e });
+    }
+
+    type Entrada = {
+      isFile: boolean;
+      isDirectory: boolean;
+      name: string;
+      file?: (ok: (f: File) => void, falha?: (e: unknown) => void) => void;
+      createReader?: () => {
+        readEntries: (ok: (l: Entrada[]) => void, falha?: (e: unknown) => void) => void;
+      };
+    };
+
+    const lerArvore = async (entrada: Entrada, profundidade = 0): Promise<File[]> => {
+      if (profundidade > 8) return [];                     // trava de sanidade
+      if (entrada.isFile) {
+        const f = await new Promise<File | null>((ok) => {
+          entrada.file?.(
+            (arq) => ok(arq),
+            () => ok(null),
+          );
+        });
+        return f && !LIXO.test(f.name) ? [f] : [];
+      }
+      if (!entrada.isDirectory || !entrada.createReader) return [];
+      const leitor = entrada.createReader();
+      const filhos: Entrada[] = [];
+      for (;;) {
+        const lote = await new Promise<Entrada[]>((ok) => {
+          leitor.readEntries(
+            (l) => ok(l as Entrada[]),
+            () => ok([]),
+          );
+        });
+        if (!lote.length) break;
+        filhos.push(...lote);
+      }
+      const saida: File[] = [];
+      for (const filho of filhos) saida.push(...(await lerArvore(filho, profundidade + 1)));
+      return saida;
+    };
+
+    const arquivos: File[] = [];
+    const soltas = entradas.map((e) => e.webkitGetAsEntry?.()).filter(Boolean) as Entrada[];
+    if (soltas.length) {
+      for (const e of soltas) arquivos.push(...(await lerArvore(e)));
+    }
+    if (!arquivos.length && dt.files?.length) arquivos.push(...Array.from(dt.files));
+    return arquivos;
+  }, []);
+
   const subirArquivos = useCallback(
     async (arquivos: FileList | File[]) => {
       const lista = Array.from(arquivos);
@@ -1342,7 +1412,26 @@ export default function ArcaPage() {
             <span className="truncate">{fantasma.nome}</span>
           </div>
         )}
-        <div className="flex min-h-0 flex-1">
+        <div
+          className="flex min-h-0 flex-1"
+          onDragOver={(e) => {
+            if (e.dataTransfer?.types?.includes("Files")) {
+              e.preventDefault();
+              setArrastando(true);
+            }
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setArrastando(false);
+            const dt = e.dataTransfer;
+            if (!dt) return;
+            void (async () => {
+              const arquivos = await coletarDeDrop(dt);
+              if (arquivos.length) await subirArquivos(arquivos);
+              else setErro("não achei arquivo nesse item solto — solte arquivos ou uma pasta com arquivos.");
+            })();
+          }}
+        >
           {/* COLUNA 1 — ESTRUTURA (a divisão é por pasta) */}
           <aside
             data-arca-dropzone="sim"
@@ -1358,12 +1447,19 @@ export default function ArcaPage() {
             }}
             onDragLeave={() => setArrastando(false)}
             onDrop={(e) => {
-              const fs = e.dataTransfer?.files;
-              if (fs && fs.length) {
-                e.preventDefault();
-                setArrastando(false);
-                void subirArquivos(fs);
-              }
+              e.preventDefault();
+              e.stopPropagation();          // não borbulha para o painel (evita envio duplicado)
+              setArrastando(false);
+              if (!e.dataTransfer) return;
+              const dt = e.dataTransfer;
+              void (async () => {
+                const arquivos = await coletarDeDrop(dt);
+                if (!arquivos.length) {
+                  setErro("não achei arquivo nessa pasta — ela está vazia?");
+                  return;
+                }
+                await subirArquivos(arquivos);
+              })();
             }}
             className={
               "w-full shrink-0 overflow-y-auto border-r border-white/[0.07] px-3 py-4 sm:w-[310px] " +
