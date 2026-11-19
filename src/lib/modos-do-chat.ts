@@ -84,6 +84,8 @@ const PEDE_BUSCA: RegExp[] = [
   /\b(not[íi]cias?|manchetes?|o que est[áa] acontecendo|novidades|aconteceu)\b/i,
   /\b(me atualiz[ea]|atualizado|de hoje|recente|recentes|[úu]ltim[oa]s?)\b/i,
   /\b(fontes?|refer[êe]ncias?|com link|com links)\b/i,
+  // O modo pelo NOME — o seletor saiu da tela, então chamar pelo nome é a porta.
+  /\b(observador|modo observador|usa[r]? o observador|chama[r]? o observador|com o observador)\b/i,
 ];
 
 /** O texto pede PROFUNDIDADE — o pedido explícito do dono mora aqui. */
@@ -92,6 +94,8 @@ const PEDE_PROFUNDO: RegExp[] = [
   /\b(quero saber tudo|tudo sobre|tudo o que|saber tudo|complet[oa]|exaustiv[ao])\b/i,
   /\b(investig\w+|investiga[çc][ãa]o|relat[óo]rio completo|an[áa]lise profunda)\b/i,
   /\b(n[ãa]o deixa nada de fora|o m[áa]ximo que|bem detalhad[oa])\b/i,
+  // O modo pelo NOME (Sr. Xi) — mesma razão de cima.
+  /\b(sr\.?\s*xi|seu xi|modo profundo|usa[r]? o sr\.?\s*xi|chama[r]? o sr\.?\s*xi|com o sr\.?\s*xi)\b/i,
 ];
 
 export type Escalada = {

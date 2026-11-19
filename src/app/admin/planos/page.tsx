@@ -25,9 +25,17 @@ const noEscopo = (id?: string) => EM_ESCOPO.includes((id || "").toLowerCase());
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Shell from "@/components/dash/Shell";
-import { Card, CardTitulo, Chip, Secao, Tabela, Vazio } from "@/components/dash/kit";
-import type { Coluna } from "@/components/dash/kit";
-import { IconeBusca, IconePlanos, IconeUsuarios } from "@/components/dash/icons";
+import { Chip, Secao, Vazio } from "@/components/dash/kit";
+import {
+  IconeBusca,
+  IconePlanos,
+  IconeUsuarios,
+} from "@/components/dash/icons";
+import { FERRAMENTAS_OS, ferramentasDeCapacidades } from "@/lib/ferramentas-os";
+import type { FerramentaOS } from "@/lib/ferramentas-os";
+import { iconeDaFerramenta } from "@/components/admin/icones-ferramentas";
+import JanelaPlano from "@/components/admin/JanelaPlano";
+import type { DadosPlano } from "@/components/admin/JanelaPlano";
 
 /* ── Tipos (alinhados ao contrato; campos tolerantes a variação de nome) ─── */
 interface Plano {
@@ -65,6 +73,9 @@ interface Usuario {
   tenant_id?: string;
   organizacao?: string;
   org_nome?: string;
+  /** o /v1/admin/usuarios devolve o nome do espaço assim (`tenant_nome`) */
+  tenant_nome?: string;
+  product_id?: string;
   papel?: string;
   role?: string;
   plan_id?: string;
@@ -76,82 +87,49 @@ interface Usuario {
   status_pagamento?: string;
 }
 
-const LIMITES: { chave: string; rotulo: string; nota?: string }[] = [
-  { chave: "usuarios", rotulo: "Usuários" },
-  { chave: "contatos", rotulo: "Contatos / leads" },
-  { chave: "canais", rotulo: "Canais / números" },
-  { chave: "mensagens_mes", rotulo: "Mensagens / mês" },
-  {
-    chave: "ia_teto_mensal_centavos",
-    rotulo: "Teto de gasto de IA (centavos/mês)",
-    nota: "ai_budgets.monthly_limit_cents",
-  },
-  {
-    chave: "envio_diario_por_numero",
-    rotulo: "Teto diário de envio por número",
-    nota: "channel_sessions.daily_message_limit",
-  },
-  // ── Espaço, projetos de fora e bancos (dono, 15/10/2026) ──────────────────
-  // "Projetos aqui dentro do Mirai OS ele pode ter quanto quiser ate bater os 3gb
-  //  dele, porem de fora como git e server coloca um limite por plano."
-  // Logo: `storage_gb` é o teto de ESPAÇO (vale para tudo, inclusive interno) e
-  // `projetos_externos` é o teto de QUANTIDADE — que só existe para o que vem de
-  // fora. Projeto criado aqui dentro não tem teto de quantidade nenhum.
-  {
-    chave: "storage_gb",
-    rotulo: "Espaço (GB)",
-    nota: "teto de espaço da conta no Arquiteto · ex.: 3 = 3 GB",
-  },
-  {
-    chave: "projetos_externos",
-    rotulo: "Projetos de fora (git/servidor)",
-    nota: "só os trazidos de fora · criado aqui dentro não tem teto de quantidade · ex.: 3",
-  },
-  {
-    chave: "bancos",
-    rotulo: "Bancos de dados",
-    nota: "quantos bancos a conta pode ter · ex.: 5",
-  },
-  // ── Acesso simultâneo + faixa de pico (decidido por Marcos, 06/out/2026) ──
-  // O preço é editado AQUI e vive em `limites` (JSONB no plano de controle —
-  // zero migration). Modelo e faixas: docs/PLANOS-E-CAPACIDADES.md §4.1.
-  {
-    chave: "acessos_simultaneos",
-    rotulo: "Acessos simultâneos inclusos",
-    nota: "teto base do plano — ex.: 200",
-  },
-  {
-    chave: "simultaneos_faixa1_centavos",
-    rotulo: "Faixa 201–500 · preço do MÊS (centavos)",
-    nota: "a FAIXA inteira no mês — NÃO é por acesso · ex.: 14900 = R$ 149,00",
-  },
-  {
-    chave: "simultaneos_faixa2_centavos",
-    rotulo: "Faixa 501–1.000 · preço do MÊS (centavos)",
-    nota: "a FAIXA inteira no mês — NÃO é por acesso · ex.: 39900 = R$ 399,00",
-  },
-  {
-    chave: "simultaneos_faixa3_centavos",
-    rotulo: "Faixa 1.001–2.500 · preço do MÊS (centavos)",
-    nota: "a FAIXA inteira no mês — NÃO é por acesso · acima de 2.500: sob consulta",
-  },
-];
+  "rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60";
 
-/* ── util ────────────────────────────────────────────────────────────────── */
-function reais(centavos?: number): string {
-  return ((centavos ?? 0) / 100).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
+/* ── Apoio ──────────────────────────────────────────────────────────────── */
+/** Limites do plano, sem susto de undefined. */
+function limitesDoPlano(p: Plano): Record<string, number> {
+  return (p.limites || {}) as Record<string, number>;
 }
 
-function primeiro(...vals: (string | undefined | null)[]): string {
-  for (const v of vals) {
-    if (v !== undefined && v !== null && String(v).trim() !== "") return String(v);
-  }
-  return "";
+/** A franquia é o que separa um plano do outro — vira etiqueta legível no cartão. */
+function franquiasDoPlano(p: Plano): [string, string][] {
+  const L = limitesDoPlano(p);
+  const itens: [string, string | undefined][] = [
+    ["organizações", L.organizacoes ? String(L.organizacoes) : undefined],
+    ["tokens/mês", L.tokens_mes ? `${L.tokens_mes}M` : undefined],
+    ["Arca", L.storage_gb ? `${L.storage_gb} GB` : undefined],
+    ["reuniões", L.reuniao_horas ? `${L.reuniao_horas} h` : undefined],
+    ["voz", L.voz_trocas ? `${L.voz_trocas} trocas` : undefined],
+    ["execuções", L.execucoes_mes ? String(L.execucoes_mes) : undefined],
+  ];
+  return itens.filter((x) => x[1] !== undefined) as [string, string][];
+}
+/** Nome de gente para o produto — o id técnico não é linguagem de quem lê a tela. */
+const PRODUTOS: Record<string, string> = {
+  mirai: "MIRAI OS",
+  saaso: "Saaso CRM",
+  darkmatter: "Dark Matter",
+  mediafactory: "Media Factory",
+  pathfinder: "Pathfinder",
+};
+const nomeProduto = (id?: string) => PRODUTOS[id || ""] || id || "";
+
+function reais(centavos?: number | null): string {
+  const n = (centavos || 0) / 100;
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+/** Primeiro valor que existe de verdade — o plano de controle varia nome de campo. */
+function primeiro(...vals: (string | number | undefined | null)[]): string {
+  const v = vals.find((x) => x !== undefined && x !== null && String(x).trim() !== "");
+  return v === undefined ? "" : String(v);
+}
+
+/** Chama a rota de admin do plano de controle. */
 async function api(
   acao: string,
   opts?: { method?: string; body?: unknown; params?: Record<string, string> },
@@ -168,71 +146,18 @@ async function api(
   return d as Record<string, unknown>;
 }
 
-/* ── chave liga/desliga (traço, sem emoji) ───────────────────────────────── */
-function Chave({
-  ligado,
-  onToggle,
-  desabilitado,
-}: {
-  ligado: boolean;
-  onToggle: () => void;
-  desabilitado?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={ligado}
-      disabled={desabilitado}
-      onClick={onToggle}
-      title={ligado ? "Ligado — clique para desligar" : "Desligado — clique para ligar"}
-      className={`inline-flex h-[22px] w-[40px] shrink-0 items-center rounded-full border px-[3px] transition disabled:opacity-50 ${
-        ligado ? "border-dash-brand/70 bg-dash-brand/25" : "border-dash-hair/15 bg-dash-raise"
-      }`}
-    >
-      <span
-        className={`h-[15px] w-[15px] rounded-full transition-transform ${
-          ligado ? "translate-x-[19px] bg-dash-brand" : "translate-x-0 bg-dash-muted"
-        }`}
-      />
-    </button>
-  );
-}
-
-const campoClasse =
-  "rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60";
-
 /* ── Tela ────────────────────────────────────────────────────────────────── */
 export default function PlanosPage() {
-  const [aba, setAba] = useState<"planos" | "orgs" | "usuarios">("planos");
+  const [aba, setAba] = useState<"planos" | "ferramentas" | "usuarios">("planos");
   const [planos, setPlanos] = useState<Plano[]>([]);
   const [capacidades, setCapacidades] = useState<Capacidade[]>([]);
   const [orgs, setOrgs] = useState<Organizacao[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [selecionado, setSelecionado] = useState<string>("");
-  const [capsDoPlano, setCapsDoPlano] = useState<string[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
-  const [salvandoCaps, setSalvandoCaps] = useState(false);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
   const [conta, setConta] = useState<{ nome?: string; email?: string }>({});
-
-  const [form, setForm] = useState({
-    plan_id: "",
-    product_id: "mirai",
-    nome: "",
-    preco: "",
-    intervalo: "mensal",
-    ativo: true,
-  });
-  const [edicao, setEdicao] = useState({
-    nome: "",
-    preco: "0.00",
-    intervalo: "mensal",
-    ativo: true,
-    limites: {} as Record<string, number>,
-  });
 
   const [busca, setBusca] = useState("");
   const [filtroPlano, setFiltroPlano] = useState("");
@@ -278,6 +203,17 @@ export default function PlanosPage() {
     setOrgs(o);
     setUsuarios(u);
     if (falhas.length) setErro(falhas[0]);
+    // Preço de add-on mora no APP (não no plano de controle): falha aqui não pode
+    // derrubar a tela nem apagar o que já chegou.
+    try {
+      const rp = await fetch("/api/admin/ferramentas");
+      if (rp.ok) {
+        const dp = (await rp.json().catch(() => ({}))) as { precos?: Record<string, number> };
+        setPrecosFerramentas(dp.precos || {});
+      }
+    } catch {
+      /* sem preço salvo: a tela mostra 0,00 e o dono preenche */
+    }
     setCarregando(false);
   }, []);
 
@@ -285,34 +221,6 @@ export default function PlanosPage() {
     carregarTudo();
   }, [carregarTudo]);
 
-  const selecionar = useCallback(
-    async (plano: Plano) => {
-      setSelecionado(plano.plan_id);
-      setEdicao({
-        nome: plano.nome || "",
-        preco: ((plano.preco_centavos ?? 0) / 100).toFixed(2),
-        intervalo: plano.intervalo || "mensal",
-        ativo: plano.ativo !== false,
-        limites: { ...(plano.limites || {}) },
-      });
-      try {
-        const d = await api("capacidades_do_plano", { params: { plan_id: plano.plan_id } });
-        setCapsDoPlano((d.capacidades as string[]) || plano.capacidades || []);
-      } catch {
-        setCapsDoPlano(plano.capacidades || []);
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!selecionado && planos.length) void selecionar(planos[0]);
-  }, [planos, selecionado, selecionar]);
-
-  const planoAtual = useMemo(
-    () => planos.find((p) => p.plan_id === selecionado) || null,
-    [planos, selecionado],
-  );
 
   const orgsPorPlano = useMemo(() => {
     const m = new Map<string, number>();
@@ -320,141 +228,80 @@ export default function PlanosPage() {
     return m;
   }, [orgs]);
 
-  /* capacidades agrupadas por produto e por área */
-  const grupos = useMemo(() => {
-    const mapa = new Map<string, Map<string, Capacidade[]>>();
+  /* Produtos que existem no catálogo — é o que o seletor da janela oferece.
+     (Antes daqui saía um agrupamento por área para desenhar o construtor inline; com o
+     construtor na janela, o que a página ainda precisa é só a lista de produtos.) */
+  const produtosDisponiveis = useMemo(() => {
+    const s = new Set<string>();
     for (const c of capacidades) {
-      const produto = c.product_id || c.capability_id.split(".")[0] || "outros";
-      const area = c.area || c.capability_id.split(".")[1] || "geral";
-      if (!mapa.has(produto)) mapa.set(produto, new Map());
-      const areas = mapa.get(produto) as Map<string, Capacidade[]>;
-      if (!areas.has(area)) areas.set(area, []);
-      (areas.get(area) as Capacidade[]).push(c);
+      const produto = c.product_id || c.capability_id.split(".")[0];
+      if (produto) s.add(produto);
     }
-    return Array.from(mapa.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    return Array.from(s).sort();
   }, [capacidades]);
 
-  /* ── escritas ──────────────────────────────────────────────────────────── */
-  const alternarCapacidade = useCallback(
-    async (id: string) => {
-      if (!selecionado) return;
-      const antes = capsDoPlano;
-      const novo = antes.includes(id) ? antes.filter((x) => x !== id) : [...antes, id];
-      setCapsDoPlano(novo);
-      setSalvandoCaps(true);
-      setErro("");
-      setAviso("");
-      try {
-        await api("definir_capacidades_do_plano", {
-          method: "PUT",
-          body: {
-            acao: "definir_capacidades_do_plano",
-            plan_id: selecionado,
-            capacidades: novo,
-          },
-        });
-        setAviso(`Capacidades de ${selecionado} atualizadas.`);
-      } catch (e) {
-        setCapsDoPlano(antes);
-        setErro(e instanceof Error ? e.message : "falha ao salvar capacidade");
-      } finally {
-        setSalvandoCaps(false);
-      }
-    },
-    [capsDoPlano, selecionado],
+  /* ── janela de plano (criar/editar) ───────────────────────────────────────
+     O dono pediu (19/11/2026): "quero que abra a nova janela na hora de criar".
+     Tudo que é montar/editar mora aqui dentro; a página só lista. */
+  const [janela, setJanela] = useState<{ modo: "novo" | "editar"; plano: Plano | null } | null>(
+    null,
   );
+  const [erroJanela, setErroJanela] = useState("");
 
-  const salvarEdicao = useCallback(async () => {
-    if (!selecionado) return;
-    setSalvando(true);
+  /* ── preço adicional de cada ferramenta (aba Ferramentas) ──────────────────
+     Mora no app (`/api/admin/ferramentas` → plataforma_config, cifrado), não no plano de
+     controle: preço de add-on é dado comercial nosso, e mexer no serviço de identidade só
+     para isso seria desproporcional. */
+  const [precosFerramentas, setPrecosFerramentas] = useState<Record<string, number>>({});
+  const [ferramentaAberta, setFerramentaAberta] = useState("");
+  /** Pessoa aberta na aba Usuários (uma linha por PESSOA, não por vínculo). */
+  const [usuarioAberto, setUsuarioAberto] = useState("");
+
+  const salvarPrecoFerramenta = useCallback(async (ferramentaId: string) => {
+    const centavos = precosFerramentas[ferramentaId] ?? 0;
     setErro("");
     setAviso("");
     try {
-      await api("editar_plano", {
-        method: "PATCH",
-        body: {
-          acao: "editar_plano",
-          plan_id: selecionado,
-          nome: edicao.nome,
-          preco_centavos: Math.round(parseFloat(edicao.preco.replace(",", ".") || "0") * 100),
-          intervalo: edicao.intervalo,
-          ativo: edicao.ativo,
-          limites: edicao.limites,
-        },
+      const r = await fetch("/api/admin/ferramentas", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ferramenta_id: ferramentaId, preco_centavos: centavos }),
       });
-      setAviso(`Plano ${selecionado} atualizado.`);
-      await carregarTudo();
+      const d = (await r.json().catch(() => ({}))) as { error?: string; precos?: Record<string, number> };
+      if (!r.ok) throw new Error(d?.error || `HTTP ${r.status}`);
+      if (d.precos) setPrecosFerramentas(d.precos);
+      setAviso(`Valor de ${ferramentaId} salvo: ${reais(centavos)}.`);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "falha ao salvar plano");
-    } finally {
-      setSalvando(false);
+      setErro(e instanceof Error ? e.message : "falha ao salvar o valor da ferramenta");
     }
-  }, [selecionado, edicao, carregarTudo]);
+  }, [precosFerramentas]);
 
-  const criarPlano = useCallback(async () => {
-    if (!form.plan_id.trim() || !form.nome.trim()) {
-      setErro("Informe o id e o nome do plano.");
-      return;
-    }
-    setSalvando(true);
-    setErro("");
-    setAviso("");
-    try {
-      await api("salvar_plano", {
-        method: "POST",
-        body: {
-          acao: "salvar_plano",
-          plan_id: form.plan_id.trim(),
-          product_id: form.product_id.trim(),
-          nome: form.nome.trim(),
-          preco_centavos: Math.round(parseFloat(form.preco.replace(",", ".") || "0") * 100),
-          intervalo: form.intervalo,
-          ativo: form.ativo,
-        },
-      });
-      setAviso(`Plano ${form.plan_id.trim()} criado.`);
-      setForm({ plan_id: "", product_id: "mirai", nome: "", preco: "", intervalo: "mensal", ativo: true });
-      await carregarTudo();
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : "falha ao criar plano");
-    } finally {
-      setSalvando(false);
-    }
-  }, [form, carregarTudo]);
-
-  const mudarPlanoDaOrg = useCallback(
-    async (org: Organizacao, planId: string) => {
-      setErro("");
-      setAviso("");
-      try {
-        await api("definir_plano_da_org", {
-          method: "POST",
-          body: { acao: "definir_plano_da_org", tenant_id: org.tenant_id, plan_id: planId },
-        });
-        setAviso(`${org.nome} agora é ${planId}.`);
-        await carregarTudo();
-      } catch (e) {
-        setErro(e instanceof Error ? e.message : "falha ao trocar plano");
+  /** Ligar/desligar TODAS as capacidades de uma ferramenta numa organização. */
+  const concederFerramenta = useCallback(
+    async (org: Organizacao, ferramenta: FerramentaOS, conceder: boolean) => {
+      if (!ferramenta.capacidades.length) {
+        setErro(`${ferramenta.nome} é tela de gestão: não há add-on para conceder.`);
+        return;
       }
-    },
-    [carregarTudo],
-  );
-
-  const mudarCapacidadeDaOrg = useCallback(
-    async (org: Organizacao, capabilityId: string, conceder: boolean) => {
       setErro("");
       setAviso("");
       try {
-        await api("definir_capacidade_da_org", {
-          method: "POST",
-          body: {
-            acao: "definir_capacidade_da_org",
-            tenant_id: org.tenant_id,
-            capability_id: capabilityId,
-            conceder,
-          },
-        });
-        setAviso(conceder ? `${capabilityId} concedida a ${org.nome}.` : `${capabilityId} revogada de ${org.nome}.`);
+        for (const c of ferramenta.capacidades) {
+          await api("definir_capacidade_da_org", {
+            method: "POST",
+            body: {
+              acao: "definir_capacidade_da_org",
+              tenant_id: org.tenant_id,
+              capability_id: c,
+              conceder,
+            },
+          });
+        }
+        setAviso(
+          conceder
+            ? `${ferramenta.nome} concedida a ${org.nome || org.tenant_id}.`
+            : `${ferramenta.nome} revogada de ${org.nome || org.tenant_id}.`,
+        );
         await carregarTudo();
       } catch (e) {
         setErro(e instanceof Error ? e.message : "falha ao mudar add-on");
@@ -463,7 +310,84 @@ export default function PlanosPage() {
     [carregarTudo],
   );
 
-  /* ── usuários: busca + filtro por plano ────────────────────────────────── */
+  const salvarDaJanela = useCallback(
+    async (dados: DadosPlano) => {
+      const editando = janela?.modo === "editar";
+      setSalvando(true);
+      setErro("");
+      setErroJanela("");
+      try {
+        if (editando) {
+          await api("editar_plano", {
+            method: "PATCH",
+            body: {
+              acao: "editar_plano",
+              plan_id: dados.plan_id,
+              nome: dados.nome,
+              preco_centavos: dados.preco_centavos,
+              intervalo: dados.intervalo,
+              ativo: dados.ativo,
+              limites: dados.limites,
+            },
+          });
+          await api("definir_capacidades_do_plano", {
+            method: "PUT",
+            body: {
+              acao: "definir_capacidades_do_plano",
+              plan_id: dados.plan_id,
+              capacidades: dados.capacidades,
+            },
+          });
+          setAviso(`Plano ${dados.plan_id} atualizado.`);
+        } else {
+          await api("salvar_plano", {
+            method: "POST",
+            body: {
+              acao: "salvar_plano",
+              plan_id: dados.plan_id,
+              product_id: dados.product_id,
+              nome: dados.nome,
+              preco_centavos: dados.preco_centavos,
+              intervalo: dados.intervalo,
+              ativo: dados.ativo,
+            },
+          });
+          // As ferramentas entram DEPOIS de o plano existir (FK), e falha aqui não
+          // esconde que o plano nasceu — o aviso diz exatamente o que faltou.
+          if (dados.capacidades.length) {
+            try {
+              await api("definir_capacidades_do_plano", {
+                method: "PUT",
+                body: {
+                  acao: "definir_capacidades_do_plano",
+                  plan_id: dados.plan_id,
+                  capacidades: dados.capacidades,
+                },
+              });
+            } catch {
+              setAviso(
+                `Plano ${dados.plan_id} criado, mas as ferramentas não entraram — abra o plano e ligue uma a uma.`,
+              );
+              setJanela(null);
+              await carregarTudo();
+              return;
+            }
+          }
+          setAviso(`Plano ${dados.plan_id} criado com ${dados.capacidades.length} ferramenta(s).`);
+        }
+        setJanela(null);
+        await carregarTudo();
+      } catch (e) {
+        setErroJanela(e instanceof Error ? e.message : "falha ao salvar plano");
+      } finally {
+        setSalvando(false);
+      }
+    },
+    [janela, carregarTudo],
+  );
+
+  /* ── escritas ──────────────────────────────────────────────────────────── */
+            /* ── usuários: busca + filtro por plano ────────────────────────────────── */
   const planosParaFiltro = useMemo(() => {
     const s = new Set<string>();
     for (const p of planos) s.add(p.plan_id);
@@ -487,66 +411,35 @@ export default function PlanosPage() {
     });
   }, [usuarios, busca, filtroPlano]);
 
-  const colunasUsuarios: Coluna[] = [
-    { chave: "nome", titulo: "Nome", fracao: "1.2fr" },
-    { chave: "email", titulo: "E-mail", fracao: "1.6fr" },
-    { chave: "organizacao", titulo: "Organização", fracao: "1.1fr" },
-    { chave: "papel", titulo: "Papel", fracao: "0.7fr" },
-    { chave: "plano", titulo: "Plano", fracao: "0.7fr" },
-    { chave: "extras", titulo: "Extras (add-ons)", fracao: "1.3fr" },
-    { chave: "desde", titulo: "Desde", fracao: "0.7fr" },
-    { chave: "pagamento", titulo: "Pagamento", fracao: "0.8fr" },
-  ];
-
-  const linhasUsuarios = usuariosFiltrados.map((u, i) => {
-    const extras = u.capacidades_extras || u.extras || [];
-    const desde = primeiro(u.desde, u.criado_em);
-    return {
-      chave: primeiro(u.user_id, u.id, u.email) || `u${i}`,
-      celulas: {
-        nome: <span className="text-dash-fg">{primeiro(u.nome, u.name) || "—"}</span>,
-        email: <span className="truncate">{u.email || "—"}</span>,
-        organizacao: (
-          <span className="text-dash-fg">
-            {primeiro(u.organizacao, u.org_nome, u.tenant_id) || "—"}
-          </span>
-        ),
-        papel: (
-          <span className="rounded-full bg-dash-raise px-2.5 py-[3px] text-[10px] uppercase tracking-[0.12em] text-dash-muted">
-            {primeiro(u.papel, u.role) || "—"}
-          </span>
-        ),
-        plano: <span className="text-dash-brand">{primeiro(u.plan_id, u.plano) || "free"}</span>,
-        extras:
-          extras.length > 0 ? (
-            <span className="flex flex-wrap gap-1">
-              {extras.slice(0, 4).map((x) => (
-                <span
-                  key={x}
-                  className="rounded-full border border-dash-hair/12 px-2 py-[2px] text-[10px] text-dash-muted"
-                >
-                  {x}
-                </span>
-              ))}
-              {extras.length > 4 && (
-                <span className="text-[10px] text-dash-dim">+{extras.length - 4}</span>
-              )}
-            </span>
-          ) : (
-            <span className="text-dash-dim">núcleo do plano</span>
-          ),
-        desde: <span className="text-dash-muted">{desde ? desde.slice(0, 10) : "—"}</span>,
-        pagamento: <span className="text-dash-dim">{u.status_pagamento || "—"}</span>,
-      },
-    };
-  });
+  const pessoasDaAba = useMemo(() => {
+    const mapa = new Map<
+      string,
+      { chave: string; nome: string; email: string; papel: string; espacos: Usuario[] }
+    >();
+    for (const u of usuariosFiltrados) {
+      const email = u.email || "";
+      const chave = email || primeiro(u.user_id, u.id) || `${mapa.size}`;
+      const atual = mapa.get(chave);
+      if (atual) {
+        atual.espacos.push(u);
+      } else {
+        mapa.set(chave, {
+          chave,
+          nome: primeiro(u.nome, u.name) || email,
+          email,
+          papel: primeiro(u.papel, u.role) || "",
+          espacos: [u],
+        });
+      }
+    }
+    return Array.from(mapa.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [usuariosFiltrados]);
 
   return (
     <Shell titulo="Planos" usuario={{ nome: conta.nome, email: conta.email, ehDono: true }}>
       <p className="max-w-2xl text-[13px] leading-[1.65] text-dash-muted">
-        O plano vive no <span className="text-dash-fg">plano de controle</span> (identidade) — aqui só
-        se mostra e se edita. Só o e-mail autorizado muda preço e plano; conceder e revogar add-on
-        também passa por ele.
+        Cada plano vive no <span className="text-dash-fg">plano de controle</span> e passa a valer
+        nos produtos na hora. Preço e plano só mudam pelo e-mail autorizado.
       </p>
 
       {erro && (
@@ -565,8 +458,8 @@ export default function PlanosPage() {
         <Chip ativo={aba === "planos"} onClick={() => setAba("planos")}>
           Planos
         </Chip>
-        <Chip ativo={aba === "orgs"} onClick={() => setAba("orgs")}>
-          Quem tem o quê
+        <Chip ativo={aba === "ferramentas"} onClick={() => setAba("ferramentas")}>
+          Ferramentas
         </Chip>
         <Chip ativo={aba === "usuarios"} onClick={() => setAba("usuarios")}>
           Usuários
@@ -578,333 +471,230 @@ export default function PlanosPage() {
       {/* ═══════════════ ABA PLANOS ═══════════════ */}
       {aba === "planos" && !carregando && (
         <>
-          <Secao titulo="Planos" contagem={`${planos.length}`}>
-            {planos.length === 0 ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-[12.5px] text-dash-muted">
+              {planos.length} plano(s) no plano de controle
+            </p>
+            <button
+              type="button"
+              onClick={() => setJanela({ modo: "novo", plano: null })}
+              className="ml-auto flex items-center gap-2 rounded-[10px] bg-dash-brand px-4 py-2.5 text-[12px] font-semibold text-white shadow-[0_10px_30px_-16px_rgb(255_117_31/0.9)] transition hover:bg-dash-brandHi"
+            >
+              <span className="text-[14px] leading-none">＋</span> Novo plano
+            </button>
+          </div>
+
+          {planos.length === 0 ? (
+            <div className="mt-4">
               <Vazio
                 icone={<IconePlanos className="h-7 w-7" />}
                 titulo="Nenhum plano ainda"
-                texto="Crie o primeiro plano abaixo. Ele nasce no plano de controle e passa a valer nos produtos na hora."
+                texto="Crie o primeiro: escolha as ferramentas, defina o preço e salve. Ele nasce no plano de controle e passa a valer nos produtos na hora."
               />
-            ) : (
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,340px)_1fr]">
-                {/* lista */}
-                <div className="flex flex-col gap-3">
-                  {planos.map((p) => {
-                    const ativo = p.plan_id === selecionado;
-                    return (
-                      <button
-                        key={p.plan_id}
-                        onClick={() => void selecionar(p)}
-                        className={`rounded-[24px] border p-5 text-left transition ${
-                          ativo
-                            ? "border-dash-brand/60 bg-dash-card"
-                            : "border-dash-hair/[0.07] bg-dash-card hover:border-dash-hair/15"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <p className="text-[15px] font-semibold text-dash-fg">{p.nome || p.plan_id}</p>
-                          {!p.ativo && (
-                            <span className="rounded-full bg-dash-raise px-2.5 py-[3px] text-[10px] uppercase tracking-[0.14em] text-dash-dim">
-                              inativo
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1 font-mono text-[11px] text-dash-dim">{p.plan_id}</p>
-                        <div className="mt-3 flex items-baseline gap-2">
-                          <span className="text-[20px] font-semibold text-dash-fg">
-                            {reais(p.preco_centavos)}
-                          </span>
-                          <span className="text-[12px] text-dash-muted">
-                            / {p.intervalo || "mensal"}
-                          </span>
-                        </div>
-                        <p className="mt-3 text-[12px] text-dash-muted">
-                          {p.capacidades?.length || 0} capacidades ·{" "}
-                          {orgsPorPlano.get(p.plan_id) || 0} organização(ões)
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* detalhe */}
-                <Card>
-                  {!planoAtual ? (
-                    <p className="text-[13px] text-dash-muted">Escolha um plano à esquerda.</p>
-                  ) : (
-                    <>
-                      <CardTitulo rotulo="Detalhe do plano" titulo={planoAtual.nome || planoAtual.plan_id} />
-
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
-                          Nome
-                          <input
-                            value={edicao.nome}
-                            onChange={(e) => setEdicao((s) => ({ ...s, nome: e.target.value }))}
-                            className={campoClasse}
-                          />
-                        </label>
-                        <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
-                          Preço (R$)
-                          <input
-                            value={edicao.preco}
-                            onChange={(e) => setEdicao((s) => ({ ...s, preco: e.target.value }))}
-                            inputMode="decimal"
-                            className={campoClasse}
-                          />
-                        </label>
-                        <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
-                          Intervalo
-                          <select
-                            value={edicao.intervalo}
-                            onChange={(e) => setEdicao((s) => ({ ...s, intervalo: e.target.value }))}
-                            className={campoClasse}
-                          >
-                            <option value="mensal">mensal</option>
-                            <option value="anual">anual</option>
-                            <option value="unico">único</option>
-                          </select>
-                        </label>
-                        <div className="flex items-center gap-3 pt-6 text-[12px] text-dash-muted">
-                          <Chave
-                            ligado={edicao.ativo}
-                            onToggle={() => setEdicao((s) => ({ ...s, ativo: !s.ativo }))}
-                          />
-                          {edicao.ativo ? "plano ativo" : "plano inativo"}
-                        </div>
-                      </div>
-
-                      {/* limites */}
-                      <p className="mt-6 text-[11px] uppercase tracking-[0.18em] text-dash-dim">
-                        Limites
-                      </p>
-                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        {LIMITES.map((l) => (
-                          <label
-                            key={l.chave}
-                            className="flex flex-col gap-1.5 text-[12px] text-dash-muted"
-                          >
-                            {l.rotulo}
-                            <input
-                              value={edicao.limites[l.chave] ?? ""}
-                              onChange={(e) =>
-                                setEdicao((s) => ({
-                                  ...s,
-                                  limites: {
-                                    ...s.limites,
-                                    [l.chave]: e.target.value === "" ? 0 : Number(e.target.value),
-                                  },
-                                }))
-                              }
-                              inputMode="numeric"
-                              placeholder="—"
-                              className={campoClasse}
-                            />
-                            {l.nota && <span className="text-[10.5px] text-dash-dim">{l.nota}</span>}
-                          </label>
-                        ))}
-                      </div>
-
-                      <button
-                        onClick={salvarEdicao}
-                        disabled={salvando}
-                        className="mt-5 rounded-[10px] bg-dash-brand px-5 py-2.5 text-[12px] font-semibold text-white transition hover:bg-dash-brandHi disabled:opacity-40"
-                      >
-                        {salvando ? "Salvando..." : "Salvar plano"}
-                      </button>
-
-                      {/* capacidades */}
-                      <div className="mt-8 flex items-center gap-3">
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-dash-dim">
-                          Capacidades
-                        </p>
-                        {salvandoCaps && <span className="text-[11px] text-dash-muted">salvando...</span>}
-                        <span className="ml-auto text-[11px] text-dash-muted">
-                          {capsDoPlano.length} ligada(s)
-                        </span>
-                      </div>
-
-                      {grupos.length === 0 ? (
-                        <p className="mt-3 text-[12px] text-dash-dim">
-                          O plano de controle não devolveu o catálogo de capacidades.
-                        </p>
-                      ) : (
-                        grupos.map(([produto, areas]) => (
-                          <div key={produto} className="mt-5">
-                            <p className="text-[12.5px] font-semibold text-dash-fg">{produto}</p>
-                            {Array.from(areas.entries()).map(([area, caps]) => (
-                              <div key={area} className="mt-3">
-                                <p className="text-[11px] uppercase tracking-[0.14em] text-dash-dim">
-                                  {area}
-                                </p>
-                                <ul className="mt-2 flex flex-col gap-1.5">
-                                  {caps.map((c) => (
-                                    <li
-                                      key={c.capability_id}
-                                      className="flex items-center justify-between gap-3 rounded-[12px] bg-dash-bg px-3.5 py-2.5"
-                                    >
-                                      <div className="min-w-0">
-                                        <p className="truncate text-[13px] text-dash-fg">
-                                          {c.nome || c.capability_id}
-                                        </p>
-                                        <p className="truncate font-mono text-[11px] text-dash-dim">
-                                          {c.capability_id}
-                                        </p>
-                                      </div>
-                                      <Chave
-                                        ligado={capsDoPlano.includes(c.capability_id)}
-                                        desabilitado={salvandoCaps}
-                                        onToggle={() => alternarCapacidade(c.capability_id)}
-                                      />
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ))}
-                          </div>
-                        ))
-                      )}
-                    </>
-                  )}
-                </Card>
-              </div>
-            )}
-          </Secao>
-
-          {/* novo plano */}
-          <Secao titulo="Novo plano">
-            <Card>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
-                  Id do plano
-                  <input
-                    value={form.plan_id}
-                    onChange={(e) => setForm((s) => ({ ...s, plan_id: e.target.value }))}
-                    placeholder="ex.: mirai-os_pro"
-                    className={campoClasse}
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
-                  Produto
-                  <input
-                    value={form.product_id}
-                    onChange={(e) => setForm((s) => ({ ...s, product_id: e.target.value }))}
-                    placeholder="mirai-os"
-                    className={campoClasse}
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
-                  Nome
-                  <input
-                    value={form.nome}
-                    onChange={(e) => setForm((s) => ({ ...s, nome: e.target.value }))}
-                    placeholder="Ex.: MIRAI OS Pro"
-                    className={campoClasse}
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
-                  Preço (R$)
-                  <input
-                    value={form.preco}
-                    onChange={(e) => setForm((s) => ({ ...s, preco: e.target.value }))}
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    className={campoClasse}
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5 text-[12px] text-dash-muted">
-                  Intervalo
-                  <select
-                    value={form.intervalo}
-                    onChange={(e) => setForm((s) => ({ ...s, intervalo: e.target.value }))}
-                    className={campoClasse}
-                  >
-                    <option value="mensal">mensal</option>
-                    <option value="anual">anual</option>
-                    <option value="unico">único</option>
-                  </select>
-                </label>
-                <div className="flex items-center gap-3 pt-6 text-[12px] text-dash-muted">
-                  <Chave ligado={form.ativo} onToggle={() => setForm((s) => ({ ...s, ativo: !s.ativo }))} />
-                  {form.ativo ? "nascer ativo" : "nascer inativo"}
-                </div>
-              </div>
-              <button
-                onClick={criarPlano}
-                disabled={salvando}
-                className="mt-4 rounded-[10px] bg-dash-brand px-5 py-2.5 text-[12px] font-semibold text-white transition hover:bg-dash-brandHi disabled:opacity-40"
-              >
-                {salvando ? "Criando..." : "Criar plano"}
-              </button>
-            </Card>
-          </Secao>
-        </>
-      )}
-
-      {/* ═══════════════ ABA QUEM TEM O QUÊ ═══════════════ */}
-      {aba === "orgs" && !carregando && (
-        <Secao titulo="Quem tem o quê" contagem={`${orgs.length} organização(ões)`}>
-          {orgs.length === 0 ? (
-            <Vazio
-              titulo="Nenhuma organização no plano de controle"
-              texto="Quando uma organização nascer, ela aparece aqui com o plano e os add-ons."
-            />
+            </div>
           ) : (
-            <div className="flex flex-col gap-3">
-              {orgs.map((org) => {
-                const extras = org.capacidades_extras || [];
-                const disponiveis = capacidades.filter((c) => !extras.includes(c.capability_id));
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {planos.map((p) => {
+                const feitas = ferramentasDeCapacidades(p.capacidades || []);
+                const quantasOrgs = orgsPorPlano.get(p.plan_id) || 0;
                 return (
                   <article
-                    key={org.tenant_id}
-                    className="rounded-[24px] border border-dash-hair/[0.07] bg-dash-card p-5"
+                    key={p.plan_id}
+                    className="flex flex-col rounded-[20px] border border-dash-hair/[0.07] bg-dash-card p-5 transition hover:border-dash-hair/[0.16]"
                   >
-                    <div className="flex flex-wrap items-center gap-3">
-                      <p className="text-[15px] font-semibold text-dash-fg">{org.nome || org.tenant_id}</p>
-                      <span className="font-mono text-[11px] text-dash-dim">{org.tenant_id}</span>
-                      <span className="ml-auto text-[11px] text-dash-muted">
-                        desde {org.desde ? org.desde.slice(0, 10) : "—"}
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-[15px] font-semibold text-dash-fg">
+                          {p.nome || p.plan_id}
+                        </p>
+                        <p className="mt-0.5 truncate font-mono text-[10.5px] text-dash-dim">
+                          {p.plan_id}
+                        </p>
+                      </div>
+                      <span
+                        className={`ml-auto shrink-0 rounded-full px-2.5 py-[3px] text-[9.5px] uppercase tracking-[0.14em] ${
+                          p.ativo
+                            ? "bg-dash-brand/[0.12] text-dash-brand"
+                            : "bg-dash-raise text-dash-dim"
+                        }`}
+                      >
+                        {p.ativo ? "ativo" : "inativo"}
                       </span>
                     </div>
 
-                    <div className="mt-4 flex flex-wrap items-center gap-3">
-                      <span className="text-[12px] text-dash-muted">Plano</span>
-                      <select
-                        value={org.plan_id || ""}
-                        onChange={(e) => void mudarPlanoDaOrg(org, e.target.value)}
-                        className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-3.5 py-2 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60"
-                      >
-                        {!planos.some((p) => p.plan_id === org.plan_id) && org.plan_id && (
-                          <option value={org.plan_id}>{org.plan_id}</option>
-                        )}
-                        {planos.map((p) => (
-                          <option key={p.plan_id} value={p.plan_id}>
-                            {p.nome || p.plan_id}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="mt-4 flex items-baseline gap-2">
+                      <span className="public-sans text-[22px] font-semibold text-dash-fg">
+                        {reais(p.preco_centavos)}
+                      </span>
+                      <span className="text-[11.5px] text-dash-muted">
+                        / {p.intervalo || "mensal"}
+                      </span>
                     </div>
 
-                    <div className="mt-4">
-                      <p className="text-[11px] uppercase tracking-[0.14em] text-dash-dim">
-                        Capacidades extras (add-ons)
+                    {/* Ferramenta virou igual para todos (19/11/2026): o cartão mostra a FRANQUIA,
+                        que é o que de fato separa um plano do outro. */}
+                    <p className="mt-3 flex flex-wrap items-center gap-2 text-[11.5px] text-dash-muted">
+                      <span className="rounded-full bg-dash-brand/[0.12] px-2 py-[2px] text-[10px] text-dash-brand">
+                        OS inteiro
+                      </span>
+                      <span>{feitas.length} ferramenta(s)</span>
+                      {limitesDoPlano(p).ferramentas_travadas === 1 && (
+                        <span className="text-dash-dim">· travadas</span>
+                      )}
+                      <span className="text-dash-dim">· {quantasOrgs} em uso</span>
+                    </p>
+
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {franquiasDoPlano(p).length === 0 ? (
+                        <span className="text-[10.5px] text-dash-dim">sem franquia definida</span>
+                      ) : (
+                        franquiasDoPlano(p).map(([rotulo, valor]) => (
+                          <span
+                            key={rotulo}
+                            className="rounded-full border border-dash-hair/[0.1] px-2 py-[3px] text-[10px] text-dash-muted"
+                          >
+                            <span className="public-sans text-dash-fg">{valor}</span> {rotulo}
+                          </span>
+                        ))
+                      )}
+                    </div>
+
+                    {limitesDoPlano(p).excedente_token_reais !== undefined && (
+                      <p className="mt-2.5 text-[10.5px] text-dash-dim">
+                        excedente: 1M de tokens {reais((limitesDoPlano(p).excedente_token_reais || 0) * 100)} ·
+                        hora de reunião {reais((limitesDoPlano(p).excedente_reuniao_reais || 0) * 100)}
                       </p>
-                      {extras.length === 0 ? (
-                        <p className="mt-1.5 text-[12px] text-dash-dim">
-                          só o que vem do plano — nenhum add-on avulso.
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setJanela({ modo: "editar", plano: p })}
+                      className="mt-4 self-start rounded-full bg-dash-raise/50 px-3.5 py-1.5 text-[11.5px] text-dash-muted transition hover:text-dash-fg"
+                    >
+                      Editar
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ═══════════════ ABA FERRAMENTAS ═══════════════
+          Pedido do dono (19/11/2026): "troque a aba Quem tem o quê para aba Ferramentas, que
+          TODAS as ferramentas entrem lá listadas e coloque o valor adicional delas
+          individualmente". Cada ferramenta: quanto custa por fora do plano, em que planos ela já
+          entra e quem tem por add-on. */}
+      {aba === "ferramentas" && !carregando && (
+        <Secao titulo="Ferramentas" contagem={`${FERRAMENTAS_OS.length} ferramenta(s)`}>
+          <p className="max-w-[70ch] text-[12.5px] leading-relaxed text-dash-muted">
+            Cada ferramenta tem o seu <span className="text-dash-fg">valor adicional</span>, cobrado
+            por fora do plano. Quem já tem a ferramenta incluída no plano não paga de novo.
+          </p>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {FERRAMENTAS_OS.map((f) => {
+              const Icone = iconeDaFerramenta(f.id);
+              const centavos = precosFerramentas[f.id] ?? 0;
+              // Ferramenta sem capacidade é PRODUTO incluso (o CRM): vale em todo plano.
+              const nosPlanos = f.semCapacidade
+                ? planos
+                : planos.filter((p) => f.capacidades.some((c) => (p.capacidades || []).includes(c)));
+              const comAddOn = orgs.filter((o) =>
+                f.capacidades.some((c) => (o.capacidades_extras || []).includes(c)),
+              );
+              const aberta = ferramentaAberta === f.id;
+              const semAddOn = orgs.filter(
+                (o) => !comAddOn.some((x) => x.tenant_id === o.tenant_id),
+              );
+              return (
+                <article
+                  key={f.id}
+                  className="flex flex-col rounded-[20px] border border-dash-hair/[0.07] bg-dash-card p-4"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-dash-brand/[0.12] text-dash-brand ring-1 ring-dash-brand/25">
+                      <Icone className="h-[15px] w-[15px]" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[13.5px] font-medium text-dash-fg">{f.nome}</p>
+                      <p className="mt-0.5 text-[11.5px] leading-snug text-dash-muted">
+                        {f.descricao}
+                      </p>
+                      {f.semCapacidade && (
+                        <p className="mt-1 text-[10px] text-dash-dim">
+                          tela de gestão — não liga capacidade técnica
+                        </p>
+                      )}
+                    </div>
+                    <label className="ml-auto flex shrink-0 flex-col items-end gap-1">
+                      <span className="text-[10px] uppercase tracking-[0.14em] text-dash-dim">
+                        valor adicional
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-[12px] text-dash-muted">R$</span>
+                        <input
+                          value={(centavos / 100).toFixed(2).replace(".", ",")}
+                          onChange={(e) =>
+                            setPrecosFerramentas((s) => ({
+                              ...s,
+                              [f.id]: Math.round(
+                                parseFloat(e.target.value.replace(",", ".") || "0") * 100,
+                              ),
+                            }))
+                          }
+                          onBlur={() => void salvarPrecoFerramenta(f.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                          }}
+                          inputMode="decimal"
+                          className="public-sans w-[88px] rounded-[10px] border border-dash-hair/10 bg-dash-bg px-2.5 py-1.5 text-right text-[13px] text-dash-fg outline-none focus:border-dash-brand/60"
+                        />
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10.5px] text-dash-dim">no plano:</span>
+                    {nosPlanos.length === 0 ? (
+                      <span className="text-[10.5px] text-dash-dim">nenhum</span>
+                    ) : (
+                      nosPlanos.map((p) => (
+                        <span
+                          key={p.plan_id}
+                          className="rounded-full border border-dash-hair/[0.1] px-2 py-[2px] text-[10px] text-dash-muted"
+                        >
+                          {p.nome || p.plan_id}
+                        </span>
+                      ))
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setFerramentaAberta(aberta ? "" : f.id)}
+                      className="ml-auto text-[10.5px] text-dash-dim transition hover:text-dash-fg"
+                    >
+                      {comAddOn.length} com add-on {aberta ? "▴" : "▾"}
+                    </button>
+                  </div>
+
+                  {aberta && (
+                    <div className="mt-3 rounded-[14px] bg-dash-bg p-3">
+                      {comAddOn.length === 0 ? (
+                        <p className="text-[11px] text-dash-dim">
+                          nenhuma organização com esta ferramenta por add-on.
                         </p>
                       ) : (
-                        <ul className="mt-1.5 flex flex-wrap gap-2">
-                          {extras.map((c) => (
-                            <li
-                              key={c}
-                              className="flex items-center gap-2 rounded-full border border-dash-hair/12 px-3 py-1 text-[11px] text-dash-fg"
-                            >
-                              {c}
+                        <ul className="flex flex-col gap-1.5">
+                          {comAddOn.map((o) => (
+                            <li key={o.tenant_id} className="flex items-center gap-2">
+                              <span className="truncate text-[11.5px] text-dash-fg">
+                                {o.nome || o.tenant_id}
+                              </span>
                               <button
-                                onClick={() => void mudarCapacidadeDaOrg(org, c, false)}
-                                className="text-dash-bad/80 transition hover:text-dash-bad"
-                                title="Revogar add-on"
+                                type="button"
+                                onClick={() => void concederFerramenta(o, f, false)}
+                                className="ml-auto text-[10.5px] text-dash-dim transition hover:text-dash-fg"
                               >
                                 revogar
                               </button>
@@ -912,44 +702,51 @@ export default function PlanosPage() {
                           ))}
                         </ul>
                       )}
+                      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                        <select
+                          id={`ferr-${f.id}`}
+                          defaultValue=""
+                          className="min-w-[190px] flex-1 rounded-[10px] border border-dash-hair/10 bg-dash-card px-3 py-2 text-[11.5px] text-dash-fg outline-none focus:border-dash-brand/60"
+                        >
+                          <option value="">+ conceder a uma organização…</option>
+                          {semAddOn.map((o) => (
+                            <option key={o.tenant_id} value={o.tenant_id}>
+                              {o.nome || o.tenant_id}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const sel = document.getElementById(
+                              `ferr-${f.id}`,
+                            ) as HTMLSelectElement | null;
+                            const org = orgs.find((o) => o.tenant_id === sel?.value);
+                            if (org) void concederFerramenta(org, f, true);
+                          }}
+                          className="rounded-[10px] border border-dash-hair/[0.12] px-4 py-2 text-[11.5px] font-semibold text-dash-muted transition hover:text-dash-fg"
+                        >
+                          Conceder
+                        </button>
+                      </div>
                     </div>
-
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <select
-                        id={`add-${org.tenant_id}`}
-                        defaultValue=""
-                        className="min-w-[240px] flex-1 rounded-[10px] border border-dash-hair/10 bg-dash-bg px-3.5 py-2 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60"
-                      >
-                        <option value="">+ conceder add-on…</option>
-                        {disponiveis.map((c) => (
-                          <option key={c.capability_id} value={c.capability_id}>
-                            {c.nome || c.capability_id}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => {
-                          const sel = document.getElementById(`add-${org.tenant_id}`) as HTMLSelectElement | null;
-                          if (sel?.value) void mudarCapacidadeDaOrg(org, sel.value, true);
-                        }}
-                        className="rounded-[10px] border border-dash-hair/12 px-5 py-2.5 text-[12px] font-semibold text-dash-muted transition hover:text-dash-fg"
-                      >
-                        Conceder
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
+                  )}
+                </article>
+              );
+            })}
+          </div>
         </Secao>
       )}
 
       {/* ═══════════════ ABA USUÁRIOS ═══════════════ */}
+      {/* ═══════════════ ABA USUÁRIOS ═══════════════
+          Mostra PESSOA, não vínculo: a mesma pessoa em dois produtos era DUAS linhas na
+          tabela antiga e a leitura virava bagunça. Agora é uma linha por pessoa, e os
+          espaços dela (com plano e add-ons) abrem ao clicar. */}
       {aba === "usuarios" && !carregando && (
-        <Secao titulo="Usuários" contagem={`${usuariosFiltrados.length} de ${usuarios.length}`}>
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <label className="flex flex-1 items-center gap-2 rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5">
+        <Secao titulo="Usuários" contagem={`${pessoasDaAba.length} pessoa(s)`}>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex min-w-[240px] flex-1 items-center gap-2 rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5">
               <IconeBusca className="h-[16px] w-[16px] text-dash-dim" />
               <input
                 value={busca}
@@ -958,36 +755,192 @@ export default function PlanosPage() {
                 className="w-full bg-transparent text-[13px] text-dash-fg outline-none placeholder:text-dash-dim"
               />
             </label>
-            <select
-              value={filtroPlano}
-              onChange={(e) => setFiltroPlano(e.target.value)}
-              className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-4 py-2.5 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60"
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFiltroPlano("")}
+              className={`shrink-0 rounded-full px-3.5 py-1.5 text-[11.5px] transition ${
+                filtroPlano === ""
+                  ? "bg-dash-raise text-dash-fg"
+                  : "text-dash-dim hover:text-dash-muted"
+              }`}
             >
-              <option value="">Todos os planos</option>
-              {planosParaFiltro.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+              Todos os planos
+            </button>
+            {planosParaFiltro.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setFiltroPlano(p)}
+                className={`shrink-0 rounded-full px-3.5 py-1.5 text-[11.5px] transition ${
+                  filtroPlano === p
+                    ? "bg-dash-raise text-dash-fg"
+                    : "text-dash-dim hover:text-dash-muted"
+                }`}
+              >
+                {p}
+              </button>
+            ))}
           </div>
 
           {usuarios.length === 0 ? (
-            <Vazio
-              icone={<IconeUsuarios className="h-7 w-7" />}
-              titulo="Nenhum usuário retornado"
-              texto="O plano de controle ainda não expôs GET /v1/admin/usuarios, ou não há contas cadastradas."
-            />
+            <div className="mt-4">
+              <Vazio
+                icone={<IconeUsuarios className="h-7 w-7" />}
+                titulo="Nenhum usuário retornado"
+                texto="O plano de controle ainda não expôs GET /v1/admin/usuarios, ou não há contas cadastradas."
+              />
+            </div>
+          ) : pessoasDaAba.length === 0 ? (
+            <p className="mt-4 text-[12.5px] text-dash-dim">Nenhuma pessoa neste filtro.</p>
           ) : (
-            <Tabela colunas={colunasUsuarios} linhas={linhasUsuarios} />
-          )}
+            <div className="mt-4 flex flex-col gap-2">
+              {pessoasDaAba.map((pessoa) => {
+                const aberta = usuarioAberto === pessoa.chave;
+                const iniciais = (pessoa.nome || "?")
+                  .trim()
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map((x) => x[0])
+                  .join("")
+                  .toUpperCase();
+                const planosDaPessoa = Array.from(
+                  new Set(pessoa.espacos.map((u) => primeiro(u.plan_id, u.plano) || "free")),
+                );
+                return (
+                  <article
+                    key={pessoa.chave}
+                    className={`rounded-[18px] border bg-dash-card transition ${
+                      aberta
+                        ? "border-dash-brand/35"
+                        : "border-dash-hair/[0.07] hover:border-dash-hair/[0.16]"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setUsuarioAberto(aberta ? "" : pessoa.chave)}
+                      className="flex w-full items-center gap-3.5 px-4 py-3.5 text-left"
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-dash-brand/[0.12] text-[12px] font-semibold text-dash-brand ring-1 ring-dash-brand/25">
+                        {iniciais}
+                      </span>
 
-          <p className="mt-3 text-[11px] text-dash-dim">
-            A coluna <span className="text-dash-muted">Pagamento</span> fica reservada: o status vem
-            do AbacatePay depois e preenche esta mesma coluna, sem refazer o layout.
-          </p>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="truncate text-[14px] font-semibold text-dash-fg">
+                            {pessoa.nome}
+                          </span>
+                          {pessoa.papel && (
+                            <span className="rounded-full bg-dash-raise px-2 py-[2px] text-[9.5px] uppercase tracking-[0.12em] text-dash-muted">
+                              {pessoa.papel}
+                            </span>
+                          )}
+                        </span>
+                        <span className="mt-0.5 block truncate text-[11.5px] text-dash-muted">
+                          {pessoa.email}
+                        </span>
+                      </span>
+
+                      <span className="hidden shrink-0 items-center gap-1.5 sm:flex">
+                        {planosDaPessoa.map((p) => (
+                          <span
+                            key={p}
+                            className="rounded-full border border-dash-hair/[0.1] px-2 py-[2px] text-[10px] text-dash-muted"
+                          >
+                            {p}
+                          </span>
+                        ))}
+                      </span>
+
+                      <span className="shrink-0 text-right">
+                        <span className="public-sans block text-[12px] text-dash-muted">
+                          {pessoa.espacos.length} espaço{pessoa.espacos.length > 1 ? "s" : ""}
+                        </span>
+                      </span>
+                      <span
+                        className={`shrink-0 text-[12px] text-dash-dim transition ${
+                          aberta ? "rotate-180" : ""
+                        }`}
+                        aria-hidden
+                      >
+                        ▾
+                      </span>
+                    </button>
+
+                    {aberta && (
+                      <div className="border-t border-dash-hair/[0.07] px-4 py-3.5">
+                        <div className="flex flex-col gap-2">
+                          {pessoa.espacos.map((u, i) => {
+                            const extras = u.capacidades_extras || u.extras || [];
+                            const desde = primeiro(u.desde, u.criado_em);
+                            return (
+                              <div
+                                key={primeiro(u.tenant_id, u.organizacao, u.user_id) || `e${i}`}
+                                className="flex flex-wrap items-center gap-3 rounded-[12px] bg-dash-bg px-3 py-2.5"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <p className="flex flex-wrap items-center gap-2 text-[12.5px] text-dash-fg">
+                                    <span className="font-semibold">
+                                      {primeiro(u.tenant_nome, u.organizacao, u.org_nome, u.tenant_id) ||
+                                        "—"}
+                                    </span>
+                                    {u.product_id && (
+                                      <span className="rounded-full border border-dash-hair/[0.1] px-2 py-[2px] text-[10px] text-dash-muted">
+                                        {nomeProduto(u.product_id)}
+                                      </span>
+                                    )}
+                                    <span className="rounded-full bg-dash-brand/[0.12] px-2 py-[2px] text-[10px] text-dash-brand">
+                                      {primeiro(u.plan_id, u.plano) || "free"}
+                                    </span>
+                                  </p>
+                                  <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[10.5px] text-dash-dim">
+                                    {desde && <span>desde {desde.slice(0, 10)}</span>}
+                                    {u.status_pagamento && <span>· {u.status_pagamento}</span>}
+                                    {extras.length > 0 ? (
+                                      extras.slice(0, 3).map((x) => (
+                                        <span
+                                          key={x}
+                                          className="rounded-[8px] bg-dash-raise px-2 py-0.5 font-mono text-[10px] text-dash-muted"
+                                        >
+                                          +{x}
+                                        </span>
+                                      ))
+                                    ) : (
+                                      <span>· núcleo do plano</span>
+                                    )}
+                                    {extras.length > 3 && (
+                                      <span className="text-dash-dim">+{extras.length - 3}</span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </Secao>
       )}
+      <JanelaPlano
+        aberto={!!janela}
+        plano={janela?.plano ?? null}
+        produtos={produtosDisponiveis}
+        salvando={salvando}
+        erro={erroJanela}
+        aoFechar={() => {
+          setJanela(null);
+          setErroJanela("");
+        }}
+        aoSalvar={(dados) => void salvarDaJanela(dados)}
+      />
+
     </Shell>
   );
 }

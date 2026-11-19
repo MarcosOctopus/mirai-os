@@ -28,7 +28,7 @@
  * arrastar better-sqlite3.
  */
 
-export type TipoEscopo = "pessoal" | "organizacao";
+export type TipoEscopo = "pessoal" | "organizacao" | "tudo";
 
 export type Escopo = {
   tipo: TipoEscopo;
@@ -97,8 +97,17 @@ export function escopoPessoal(conta: ContaParaEscopo): Escopo {
  */
 export function escoposDaConta(conta: ContaParaEscopo): Escopo[] {
   const lista: Escopo[] = [escopoPessoal(conta)];
-  for (const org of orgsDaConta(conta)) {
+  const orgs = orgsDaConta(conta);
+  for (const org of orgs) {
     lista.push({ tipo: "organizacao", id: org.slug, nome: org.nome || org.slug });
+  }
+  // "TUDO" (dono, 18/11/2026): ver o pessoal e as organizações na MESMA tela.
+  // Só aparece quando existe mais de um espaço — com um só, "tudo" seria o
+  // mesmo espaço com outro nome, e nome que não muda nada é ruído.
+  if (orgs.length > 0) {
+    // entra em SEGUNDO lugar: o pessoal continua sendo o primeiro (o padrão),
+    // e "tudo" é a escolha de quem quer ver os dois lados de uma vez.
+    lista.splice(1, 0, { tipo: "tudo", id: "tudo", nome: "Tudo (pessoal + organizações)" });
   }
   return lista;
 }
@@ -115,6 +124,13 @@ export function resolverEscopo(conta: ContaParaEscopo, pedido?: string | null): 
   const p = (pedido || "").trim().toLowerCase();
   const pessoal = escopoPessoal(conta);
   if (!p || p === "pessoal" || p === pessoal.id.toLowerCase()) return pessoal;
+  // "tudo" = pessoal + todas as organizações, numa leitura só (sem escrita).
+  if (p === "tudo" || p === "todos" || p === "all") {
+    if (orgsDaConta(conta).length > 0) {
+      return { tipo: "tudo", id: "tudo", nome: "Tudo (pessoal + organizações)" };
+    }
+    return pessoal; // sem organização, "tudo" é o próprio espaço pessoal
+  }
 
   const org = orgsDaConta(conta).find(
     (o) => o.slug.toLowerCase() === p || (o.id || "").toLowerCase() === p,

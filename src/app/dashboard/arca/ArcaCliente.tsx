@@ -21,6 +21,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import PillsEscopo from "./PillsEscopo";
 
 import NotaTexto from "@/components/dash/NotaTexto";
 import Shell from "@/components/dash/Shell";
@@ -1093,11 +1094,17 @@ export default function ArcaPage() {
                   <>
                     segundo cérebro ·{" "}
                     {arvore
-                      ? `${arvore.subpastas.length} pastas · ${fmt(arvore.total_notas)} notas`
+                      ? `${arvore.subpastas.length} ${arvore.subpastas.length === 1 ? "pasta" : "pastas"} · ${fmt(arvore.total_notas)} ${arvore.total_notas === 1 ? "nota" : "notas"}`
                       : "sem números agora"}
                   </>
                 )}
               </p>
+              {/* ESCOLHA DO QUE A ESTANTE MOSTRA (dono, 18/11/2026):
+                  tudo (pessoal + organizações) · só eu · só uma organização.
+                  Só aparece quando a conta tem mais de um espaço. */}
+              <div className="mt-2">
+                <PillsEscopo />
+              </div>
             </div>
             <div className="flex min-w-[260px] flex-1 items-center gap-3 border-b border-white/[0.1] pb-1.5 focus-within:border-dash-brandHi/60">
               <span aria-hidden className="text-dash-muted">

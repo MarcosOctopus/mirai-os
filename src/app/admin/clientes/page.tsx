@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Shell from "@/components/dash/Shell";
+import JanelaCliente from "@/components/admin/JanelaCliente";
 import { Card, Secao, Selo, Vazio } from "@/components/dash/kit";
 import { IconePlanos, IconeUsuarios } from "@/components/dash/icons";
 
@@ -111,6 +112,9 @@ async function apiPlanos(
 
 export default function ClientesPage() {
   const [aba, setAba] = useState<"clientes" | "planos">("clientes");
+  /** Filtro por produto (as "chips" do topo) e a linha que está aberta. */
+  const [filtroProduto, setFiltroProduto] = useState("");
+  const [expandido, setExpandido] = useState("");
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
   const [semConta, setSemConta] = useState<OrganizacaoDoCliente[]>([]);
   const [planos, setPlanos] = useState<Plano[]>([]);
@@ -409,6 +413,10 @@ export default function ClientesPage() {
     </button>
   );
 
+  const pessoasFiltradas = pessoas.filter(
+    (p) => !filtroProduto || p.organizacoes.some((o) => o.produto === filtroProduto),
+  );
+
   return (
     <Shell titulo="Clientes" usuario={{ ehDono: true }}>
       <div className="flex flex-wrap items-center gap-2">
@@ -435,102 +443,46 @@ export default function ClientesPage() {
       {/* ══════════════════ ABA CLIENTES ══════════════════ */}
       {aba === "clientes" && (
         <>
-          <p className="mt-5 max-w-2xl text-[13px] leading-[1.65] text-dash-muted">
-            Uma linha por <span className="text-dash-fg">pessoa</span> — e dentro dela a lista de onde
-            ela está. Quem tem conta em dois produtos aparece{" "}
-            <span className="text-dash-fg">uma vez só</span>, porque é a mesma conta. O plano é posto{" "}
-            <span className="text-dash-fg">à mão</span>, no seletor de cada vínculo.
+          <p className="mt-4 max-w-[72ch] text-[12.5px] leading-relaxed text-dash-muted">
+            Uma linha por <span className="text-dash-fg">pessoa</span> — e dentro dela onde ela está.
+            Quem tem conta em dois produtos aparece <span className="text-dash-fg">uma vez só</span>,
+            porque é a mesma conta.
           </p>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          <div className="mt-5 flex flex-wrap items-center gap-2">
             <button
-              onClick={() => setAbrirNovoCliente((v) => !v)}
-              className="inline-flex items-center gap-2 rounded-[10px] bg-dash-brand px-5 py-2.5 text-[12px] font-semibold text-white transition hover:bg-dash-brandHi"
+              type="button"
+              onClick={() => setFiltroProduto("")}
+              className={`shrink-0 rounded-full px-3.5 py-1.5 text-[11.5px] transition ${
+                filtroProduto === ""
+                  ? "bg-dash-raise text-dash-fg"
+                  : "text-dash-dim hover:text-dash-muted"
+              }`}
             >
-              {abrirNovoCliente ? "Fechar" : "Adicionar novo cliente"}
+              Todas
             </button>
-            {semConta.length > 0 && (
-              <span className="text-[12px] text-dash-dim">
-                {semConta.length} espaço(s) esperando alguém entrar
-              </span>
-            )}
+            {EM_ESCOPO.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setFiltroProduto(p)}
+                className={`shrink-0 rounded-full px-3.5 py-1.5 text-[11.5px] transition ${
+                  filtroProduto === p
+                    ? "bg-dash-raise text-dash-fg"
+                    : "text-dash-dim hover:text-dash-muted"
+                }`}
+              >
+                {rotuloProduto(p)}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setAbrirNovoCliente(true)}
+              className="ml-auto inline-flex items-center gap-2 rounded-[10px] bg-dash-brand px-4 py-2.5 text-[12px] font-semibold text-white shadow-[0_10px_30px_-16px_rgb(255_117_31/0.9)] transition hover:bg-dash-brandHi"
+            >
+              <span className="text-[14px] leading-none">＋</span> Adicionar cliente
+            </button>
           </div>
-
-          {abrirNovoCliente && (
-            <Card className="mt-4">
-              <p className="text-[13px] font-semibold text-dash-fg">Novo cliente</p>
-              <p className="mt-1 max-w-2xl text-[12px] leading-[1.6] text-dash-muted">
-                Cria a <span className="text-dash-fg">organização</span> e o convite do dono. Nada de
-                senha: a conta nasce quando a pessoa entrar com esse e-mail — e ela cai direto neste
-                espaço, no plano escolhido aqui.
-              </p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[11px] uppercase tracking-[0.14em] text-dash-dim">Nome</span>
-                  <input
-                    value={nomeCliente}
-                    onChange={(e) => setNomeCliente(e.target.value)}
-                    placeholder="Nome da pessoa ou empresa"
-                    className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-3.5 py-2 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60"
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[11px] uppercase tracking-[0.14em] text-dash-dim">
-                    E-mail (o login dela)
-                  </span>
-                  <input
-                    value={emailCliente}
-                    onChange={(e) => setEmailCliente(e.target.value)}
-                    placeholder="pessoa@empresa.com"
-                    className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-3.5 py-2 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60"
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[11px] uppercase tracking-[0.14em] text-dash-dim">Produto</span>
-                  <select
-                    value={produtoCliente}
-                    onChange={(e) => {
-                      setProdutoCliente(e.target.value);
-                      setPlanoCliente("");
-                    }}
-                    className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-3.5 py-2 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60"
-                  >
-                    {EM_ESCOPO.map((p) => (
-                      <option key={p} value={p}>
-                        {rotuloProduto(p)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[11px] uppercase tracking-[0.14em] text-dash-dim">
-                    Plano inicial
-                  </span>
-                  <select
-                    value={planoCliente}
-                    onChange={(e) => setPlanoCliente(e.target.value)}
-                    className="rounded-[10px] border border-dash-hair/10 bg-dash-bg px-3.5 py-2 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60"
-                  >
-                    <option value="">Free (padrão)</option>
-                    {planosDe(produtoCliente, "").map((p) => (
-                      <option key={p.plan_id} value={p.plan_id}>
-                        {p.nome || p.plan_id}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div className="mt-4">
-                <button
-                  onClick={() => void criarCliente()}
-                  disabled={ocupado === "novo-cliente"}
-                  className="rounded-[10px] bg-dash-brand px-5 py-2.5 text-[12px] font-semibold text-white transition hover:bg-dash-brandHi disabled:opacity-50"
-                >
-                  {ocupado === "novo-cliente" ? "Criando…" : "Criar cliente"}
-                </button>
-              </div>
-            </Card>
-          )}
 
           <Secao
             titulo="Clientes"
@@ -548,95 +500,158 @@ export default function ClientesPage() {
                 titulo="Nenhum cliente ainda"
                 texto="Quando alguém criar conta no MIRAI OS, aparece aqui — e o plano é posto à mão."
               />
+            ) : pessoasFiltradas.length === 0 ? (
+              <p className="text-[12.5px] text-dash-dim">Nenhum cliente neste produto ainda.</p>
             ) : (
-              <div className="flex flex-col gap-3">
-                {pessoas.map((p) => (
-                  <Card key={p.email}>
-                    <div className="flex flex-wrap items-start gap-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <p className="text-[15px] font-semibold text-dash-fg">{p.nome}</p>
-                          {p.conta_id !== null ? (
-                            <Selo tom={p.entra_por === "Google" ? "info" : "ok"}>
-                              entra por {p.entra_por}
-                            </Selo>
-                          ) : (
-                            <Selo tom="alerta">sem conta no MIRAI OS</Selo>
-                          )}
-                          {p.conta_id !== null &&
-                            p.organizacoes.length > 0 &&
-                            (p.vinculado ? (
-                              <Selo tom="ok">vinculado</Selo>
-                            ) : (
-                              <Selo tom="alerta">vínculo pendente</Selo>
-                            ))}
-                        </div>
-                        <p className="mt-1 break-all text-[12px] text-dash-muted">{p.email}</p>
-                      </div>
-                      <span className="shrink-0 rounded-[8px] bg-dash-side px-2.5 py-1 font-mono text-[10px] text-dash-dim">
-                        {p.organizacoes.length === 0
-                          ? "sem organização"
-                          : `${p.organizacoes.length} vínculo${p.organizacoes.length > 1 ? "s" : ""}`}
-                      </span>
-                    </div>
+              <div className="flex flex-col gap-2">
+                {pessoasFiltradas.map((p) => {
+                  const aberta = expandido === p.email;
+                  const iniciais = (p.nome || "?")
+                    .trim()
+                    .split(/\s+/)
+                    .slice(0, 2)
+                    .map((x) => x[0])
+                    .join("")
+                    .toUpperCase();
+                  const produtosDoCliente = Array.from(
+                    new Set(p.organizacoes.map((o) => rotuloProduto(o.produto))),
+                  );
+                  return (
+                    <article
+                      key={p.email}
+                      className={`rounded-[18px] border bg-dash-card transition ${
+                        aberta ? "border-dash-brand/35" : "border-dash-hair/[0.07] hover:border-dash-hair/[0.16]"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setExpandido(aberta ? "" : p.email)}
+                        className="flex w-full items-center gap-3.5 px-4 py-3.5 text-left"
+                      >
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-dash-brand/[0.12] text-[12px] font-semibold text-dash-brand ring-1 ring-dash-brand/25">
+                          {iniciais}
+                        </span>
 
-                    {/* A lista de DENTRO: cada produto onde esta pessoa está. */}
-                    {p.organizacoes.length === 0 ? (
-                      <p className="mt-3 border-t border-dash-hair/10 pt-3 text-[12px] text-dash-dim">
-                        Sem organização no plano de controle — ainda não aparece para receber plano.
-                      </p>
-                    ) : (
-                      <div className="mt-3 flex flex-col gap-2 border-t border-dash-hair/10 pt-3">
-                        {p.organizacoes.map((org) => (
-                          <div
-                            key={org.tenant_id}
-                            className="flex flex-wrap items-center gap-3 rounded-[10px] bg-dash-side/40 px-3 py-2.5"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[12px] font-semibold text-dash-fg">
-                                {rotuloProduto(org.produto)}
-                                <span className="ml-2 font-normal text-dash-muted">
-                                  {org.organizacao}
-                                </span>
-                              </p>
-                              <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-dash-dim">
-                                {org.papel && <span>{org.papel}</span>}
-                                <span className="font-mono text-[10px]">{org.tenant_id}</span>
-                                {org.extras.map((e) => (
-                                  <span
-                                    key={e}
-                                    className="rounded-[8px] bg-dash-side px-2 py-0.5 font-mono text-[10px] text-dash-muted"
-                                  >
-                                    +{e}
-                                  </span>
-                                ))}
-                              </p>
-                            </div>
-                            <label className="flex shrink-0 flex-col gap-1">
-                              <span className="text-[10px] uppercase tracking-[0.14em] text-dash-dim">
-                                Plano (à mão)
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="truncate text-[14px] font-semibold text-dash-fg">
+                              {p.nome}
+                            </span>
+                            {p.conta_id !== null ? (
+                              <span className="rounded-full bg-dash-raise px-2 py-[2px] text-[9.5px] uppercase tracking-[0.12em] text-dash-muted">
+                                entra por {p.entra_por}
                               </span>
-                              <select
-                                value={org.plano || ""}
-                                disabled={ocupado === org.tenant_id}
-                                onChange={(e) => void trocarPlano(org.tenant_id, e.target.value, p.nome)}
-                                className="min-w-[180px] rounded-[10px] border border-dash-hair/10 bg-dash-bg px-3 py-1.5 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60 disabled:opacity-50"
+                            ) : (
+                              <span className="rounded-full bg-dash-warn/[0.12] px-2 py-[2px] text-[9.5px] uppercase tracking-[0.12em] text-dash-warn">
+                                sem conta
+                              </span>
+                            )}
+                            {p.conta_id !== null &&
+                              p.organizacoes.length > 0 &&
+                              (p.vinculado ? (
+                                <span className="rounded-full bg-dash-ok/[0.12] px-2 py-[2px] text-[9.5px] uppercase tracking-[0.12em] text-dash-ok">
+                                  vinculado
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-dash-warn/[0.12] px-2 py-[2px] text-[9.5px] uppercase tracking-[0.12em] text-dash-warn">
+                                  vínculo pendente
+                                </span>
+                              ))}
+                          </span>
+                          <span className="mt-0.5 flex flex-wrap items-center gap-2 text-[11.5px] text-dash-muted">
+                            <span className="truncate">{p.email}</span>
+                            {produtosDoCliente.map((x) => (
+                              <span
+                                key={x}
+                                className="rounded-full border border-dash-hair/[0.1] px-2 py-[2px] text-[10px]"
                               >
-                                {planosDe(org.produto, org.plano).map((pl) => (
-                                  <option key={pl.plan_id} value={pl.plan_id}>
-                                    {org.produto
-                                      ? pl.nome || pl.plan_id
-                                      : `${pl.nome || pl.plan_id} · ${rotuloProduto(pl.product_id)}`}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </Card>
-                ))}
+                                {x}
+                              </span>
+                            ))}
+                          </span>
+                        </span>
+
+                        <span className="shrink-0 text-right">
+                          <span className="public-sans block text-[12px] text-dash-muted">
+                            {p.organizacoes.length === 0
+                              ? "sem organização"
+                              : `${p.organizacoes.length} vínculo${p.organizacoes.length > 1 ? "s" : ""}`}
+                          </span>
+                        </span>
+                        <span
+                          className={`shrink-0 text-[12px] text-dash-dim transition ${
+                            aberta ? "rotate-180" : ""
+                          }`}
+                          aria-hidden
+                        >
+                          ▾
+                        </span>
+                      </button>
+
+                      {aberta && (
+                        <div className="border-t border-dash-hair/[0.07] px-4 py-3.5">
+                          {p.organizacoes.length === 0 ? (
+                            <p className="text-[11.5px] text-dash-dim">
+                              Sem organização no plano de controle — ainda não aparece para receber
+                              plano.
+                            </p>
+                          ) : (
+                            <div className="flex flex-col gap-2">
+                              {p.organizacoes.map((org) => (
+                                <div
+                                  key={org.tenant_id}
+                                  className="flex flex-wrap items-center gap-3 rounded-[12px] bg-dash-bg px-3 py-2.5"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-[12px] font-semibold text-dash-fg">
+                                      {rotuloProduto(org.produto)}
+                                      <span className="ml-2 font-normal text-dash-muted">
+                                        {org.organizacao}
+                                      </span>
+                                    </p>
+                                    <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-dash-dim">
+                                      {org.papel && <span>{org.papel}</span>}
+                                      <span className="font-mono text-[10px]">{org.tenant_id}</span>
+                                      {org.extras.map((e) => (
+                                        <span
+                                          key={e}
+                                          className="rounded-[8px] bg-dash-raise px-2 py-0.5 font-mono text-[10px] text-dash-muted"
+                                        >
+                                          +{e}
+                                        </span>
+                                      ))}
+                                    </p>
+                                  </div>
+                                  <label className="flex shrink-0 flex-col gap-1">
+                                    <span className="text-[10px] uppercase tracking-[0.14em] text-dash-dim">
+                                      Plano (à mão)
+                                    </span>
+                                    <select
+                                      value={org.plano || ""}
+                                      disabled={ocupado === org.tenant_id}
+                                      onChange={(e) =>
+                                        void trocarPlano(org.tenant_id, e.target.value, p.nome)
+                                      }
+                                      className="min-w-[170px] rounded-[10px] border border-dash-hair/10 bg-dash-card px-3 py-1.5 text-[12px] text-dash-fg outline-none focus:border-dash-brand/60 disabled:opacity-50"
+                                    >
+                                      {planosDe(org.produto, org.plano).map((pl) => (
+                                        <option key={pl.plan_id} value={pl.plan_id}>
+                                          {org.produto
+                                            ? pl.nome || pl.plan_id
+                                            : `${pl.nome || pl.plan_id} · ${rotuloProduto(pl.product_id)}`}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
               </div>
             )}
           </Secao>
@@ -911,6 +926,27 @@ export default function ClientesPage() {
           })}
         </>
       )}
+      <JanelaCliente
+        aberto={abrirNovoCliente}
+        aoFechar={() => setAbrirNovoCliente(false)}
+        criando={ocupado === "novo-cliente"}
+        erro={erro}
+        aoCriar={() => void criarCliente()}
+        produtos={EM_ESCOPO.map((p) => ({ id: p, rotulo: rotuloProduto(p) }))}
+        planos={planosDe(produtoCliente, "").map((p) => ({
+          plan_id: p.plan_id,
+          nome: p.nome || p.plan_id,
+        }))}
+        nome={nomeCliente}
+        setNome={setNomeCliente}
+        email={emailCliente}
+        setEmail={setEmailCliente}
+        produto={produtoCliente}
+        setProduto={setProdutoCliente}
+        plano={planoCliente}
+        setPlano={setPlanoCliente}
+      />
+
     </Shell>
   );
 }

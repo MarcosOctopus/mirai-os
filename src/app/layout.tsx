@@ -1,20 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import fs from "node:fs";
-import path from "node:path";
+import { lerSelo } from "@/lib/build-no-ar";
 import AtualizadorAutomatico from "@/components/mirai/AtualizadorAutomatico";
 import "./globals.css";
 
-// Build no ar, gravado no HTML servido. O AtualizadorAutomatico compara este
-// valor com /version: se a aba estiver rodando código velho, ela se recarrega
-// sozinha (o JS já carregado não troca quando eu publico algo novo).
-function buildNoAr() {
-  try {
-    return fs.readFileSync(path.join(process.cwd(), ".next", "BUILD_ID"), "utf8").trim();
-  } catch {
-    return "dev";
-  }
-}
-
+// O selo da publicação vai no HTML servido: o AtualizadorAutomatico compara com
+// /version e recarrega a aba que ficou com código velho. A leitura é a mesma dos
+// dois lados (`lib/build-no-ar`) — antes eram duas leituras diferentes e a aba
+// recarregava em ciclo.
 export const metadata: Metadata = {
   title: "MIRAI OS",
   description: "Assistente inteligente com memória, voz e visão | Construindo o futuro",
@@ -53,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
         />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="x-build" content={buildNoAr()} />
+        <meta name="x-build" content={lerSelo()} />
         {/* O TEMA, ANTES DA PRIMEIRA PINTURA. Este script roda antes de o
             navegador desenhar qualquer coisa: ele lê a escolha guardada e põe a
             classe `light` no <html>. Feito aqui (e não no React) porque o React

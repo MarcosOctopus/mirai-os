@@ -8,6 +8,9 @@ import { promisify } from "node:util";
 import { exigirConta } from "@/lib/orgs";
 import { basePublica } from "@/lib/base-publica";
 import { ARCA_URL, arcaDaConta, guardarArcaDaConta, pedirTokenNaArca, servicoConfigurado } from "@/lib/arca-conta";
+import { escopoDaRequisicao } from "@/lib/escopo-ativo";
+import { escoposDaConta } from "@/lib/escopos";
+import { credencialDoEscopo } from "@/lib/credencial-do-escopo";
 
 /** Concessão de pasta vinda da Arca (compartilhamento estilo Drive). */
 type ConcessaoArca = {
@@ -282,6 +285,134 @@ async function rodarCli(args: string[]): Promise<Record<string, unknown>> {
     env: { ...process.env, PYTHONIOENCODING: "utf-8" },
   });
   return JSON.parse(stdout);
+}
+
+/**
+ * "TUDO" — LEITURA AGREGADA (dono, 18/11/2026: "quero ver tudo, tanto só eu
+ * quanto as organizações, ou eles sós").
+ *
+ * Regras que este agregado respeita:
+ *  - é SÓ LEITURA. Em "tudo" não se cria, move, renomeia nem apaga: o destino
+ *    seria ambíguo por natureza, e escolher por conta própria é o que não se faz.
+ *  - cada espaço vem com o seu PREFIXO no caminho (`<espaco>/<pasta>/<nota>.md`),
+ *    então abrir uma nota depois continua sabendo de quem ela é.
+ *  - um espaço que falha não derruba os outros: o bloco sai com o motivo.
+ */
+async function servirTudo(
+  req: NextRequest,
+  u: URL,
+  conta: Parameters<typeof escoposDaConta>[0],
+  acao: string,
+) {
+  const LEITURA = new Set(["arvore", "stats", "buscar", "listar", "recentes", "nota"]);
+  if (!LEITURA.has(acao)) {
+    return erro(400, "em 'tudo' só a leitura é permitida: para gravar, editar ou excluir, escolha um espaço (o seu ou uma organização).", { acao });
+  }
+
+  const porta = process.env.PORT || "3333";
+  const espacos = escoposDaConta(conta).filter((e) => e.tipo !== "tudo");
+  const cookie = req.headers.get("cookie") || "";
+
+  async function noEspaco(espaco: string, extras: Record<string, string>): Promise<Record<string, unknown> | null> {
+    const url = new URL(`http://127.0.0.1:${porta}/api/admin/acervo`);
+    for (const [k, v] of u.searchParams) {
+      if (k === "acao" || k === "escopo") continue;
+      url.searchParams.set(k, v);
+    }
+    for (const [k, v] of Object.entries(extras)) url.searchParams.set(k, v);
+    url.searchParams.set("acao", acao);
+    url.searchParams.set("escopo", espaco);
+    try {
+      const r = await fetch(url, { headers: { cookie }, cache: "no-store" });
+      const d = (await r.json().catch(() => null)) as Record<string, unknown> | null;
+      if (!r.ok || !d) return null;
+      return d;
+    } catch {
+      return null;
+    }
+  }
+
+  // ── NOTA: o prefixo diz de que espaço ela é ──────────────────────────────
+  if (acao === "nota") {
+    const cru = String(u.searchParams.get("path") || u.searchParams.get("note_id") || "");
+    const corte = cru.indexOf("/");
+    const espaco = corte > 0 ? cru.slice(0, corte) : "";
+    const resto = corte > 0 ? cru.slice(corte + 1) : "";
+    if (!espaco || !resto) return erro(400, "em 'tudo' informe o caminho com o espaço: <espaco>/<pasta>/<nota>.md");
+    const d = await noEspaco(espaco, { path: resto });
+    if (!d) return erro(404, `nota não encontrada em ${espaco}`, { espaco });
+    return NextResponse.json({ ...d, espaco, origem: "tudo" });
+  }
+
+  const prefixar = (no: Record<string, unknown>, espaco: string): Record<string, unknown> => {
+    const out: Record<string, unknown> = { ...no };
+    const p = typeof no.path === "string" ? no.path : "";
+    if (p && !p.startsWith(espaco + "/")) out.path = `${espaco}/${p}`;
+    if (Array.isArray(no.subpastas)) {
+      out.subpastas = (no.subpastas as Record<string, unknown>[]).map((x) => prefixar(x, espaco));
+    }
+    if (Array.isArray(no.notas)) {
+      out.notas = (no.notas as Record<string, unknown>[]).map((x) => prefixar(x, espaco));
+    }
+    return out;
+  };
+
+  const resultados = await Promise.all(
+    espacos.map(async (e) => ({ espaco: e, dados: await noEspaco(e.id, {}) })),
+  );
+
+  if (acao === "stats") {
+    const soma: Record<string, number> = {};
+    const porEspaco: Record<string, unknown>[] = [];
+    for (const { espaco, dados } of resultados) {
+      if (!dados) {
+        porEspaco.push({ espaco: espaco.id, nome: espaco.nome, erro: "sem resposta" });
+        continue;
+      }
+      for (const [k, v] of Object.entries(dados)) {
+        if (typeof v === "number") soma[k] = (soma[k] || 0) + v;
+      }
+      porEspaco.push({ espaco: espaco.id, nome: espaco.nome, notas: dados.notas_md ?? dados.total ?? null });
+    }
+    return NextResponse.json({ org: "tudo", ...soma, por_espaco: porEspaco, origem: "tudo" });
+  }
+
+  if (acao === "arvore") {
+    const blocos = resultados.map(({ espaco, dados }) => {
+      const arv = (dados?.arvore || {}) as Record<string, unknown>;
+      return {
+        path: espaco.id,
+        nome: espaco.nome,
+        espaco: espaco.id,
+        subpastas: ((arv.subpastas as Record<string, unknown>[]) || []).map((x) => prefixar(x, espaco.id)),
+        notas: ((arv.notas as Record<string, unknown>[]) || []).map((x) => prefixar(x, espaco.id)),
+      };
+    });
+    // a soma tem de descer a árvore: contar só a raiz devolvia "0 notas" com
+    // 1.336 notas na tela (medido no navegador em 18/11/2026).
+    const contar = (no: Record<string, unknown>): number => {
+      const proprias = Array.isArray(no.notas) ? (no.notas as unknown[]).length : 0;
+      const subs = Array.isArray(no.subpastas) ? (no.subpastas as Record<string, unknown>[]) : [];
+      return proprias + subs.reduce((n, x) => n + contar(x), 0);
+    };
+    const total = blocos.reduce((n, b) => n + contar(b as Record<string, unknown>), 0);
+    return NextResponse.json({
+      org: "tudo",
+      arvore: { path: "", notas: [], subpastas: blocos, total_notas: total },
+      escopos: espacos.map((e) => ({ id: e.id, nome: e.nome, tipo: e.tipo })),
+      tags: [],
+      origem: "tudo",
+    });
+  }
+
+  // buscar / listar / recentes: junta os itens, cada um com o prefixo e o espaço
+  const chave = acao === "buscar" ? "notas" : acao === "listar" ? "arquivos" : "recentes";
+  const itens: Record<string, unknown>[] = [];
+  for (const { espaco, dados } of resultados) {
+    const lista = (dados?.[chave] as Record<string, unknown>[]) || [];
+    for (const it of lista) itens.push({ ...prefixar(it, espaco.id), espaco: espaco.id, espaco_nome: espaco.nome });
+  }
+  return NextResponse.json({ org: "tudo", [chave]: itens, total: itens.length, origem: "tudo" });
 }
 
 function erro(status: number, msg: string, extra?: Record<string, unknown>) {
@@ -742,8 +873,27 @@ async function atenderAcervo(req: NextRequest) {
   const recebido = (u.searchParams.get("recebido") || "").slice(0, 300).trim();
   let org: string;
   let tokLeitura: string | null = null;
+  // ESCOPO ATIVO (modelo unificado, 18/11/2026): a tela escolhe `pessoal-<id>`
+  // ou o slug da organização, e isso vale igual em todas as ferramentas. A
+  // validação é contra os escopos DESTA conta — escopo de terceiro cai no pessoal.
+  const escopoAtivo = escopoDaRequisicao(req, conta as never);
   try {
-    if (recebido && !conta.ehDono) {
+    if (escopoAtivo.tipo === "tudo" && !recebido) {
+      return await servirTudo(req, u, conta as Parameters<typeof escoposDaConta>[0], acao);
+    }
+    if (escopoAtivo.tipo === "organizacao") {
+      // ACERVO DA EMPRESA: espaço próprio na Arca (tenants/<slug>/vault) e
+      // credencial PRÓPRIA do escopo (nunca o token pessoal de quem está lendo).
+      org = escopoAtivo.id;
+      tokLeitura = await credencialDoEscopo(escopoAtivo, conta);
+      if (!tokLeitura) {
+        return erro(
+          503,
+          `não consegui abrir o acervo de ${escopoAtivo.nome}: a credencial da organização não está disponível agora.`,
+          { escopo: escopoAtivo.id, origem: "credencial-do-escopo" },
+        );
+      }
+    } else if (recebido && !conta.ehDono) {
       // Visão de pasta RECEBIDA: o espaço é o de quem compartilhou (a concessão
       // é conferida logo abaixo). Nada de criar espaço próprio para o convidado.
       if (!SLUG_OK.test(orgPedida)) return erro(400, "org inválida");
@@ -765,7 +915,33 @@ async function atenderAcervo(req: NextRequest) {
    * uma pasta recebida — vale a credencial de sempre, com o arquivo local como
    * último recurso (é o único caso em que ele ainda faz sentido).
    */
-  const tok = tokLeitura || (await tokenDaArca(org, { email: conta.email, ehDono: conta.ehDono }));
+  let tok = tokLeitura || (await tokenDaArca(org, { email: conta.email, ehDono: conta.ehDono }));
+
+  /**
+   * ESCÔPO QUE NÃO É ESPAÇO (18/11/2026 — incidente do dono no acervo).
+   *
+   * A tela pode pedir `?org=<slug>` de um escopo do PRODUTO (`time-do-futuro`,
+   * `pessoal-5`) que não existe na Arca como tenancy. A Arca recusa (`org não
+   * existe`), a rota fica sem token, cai no disco e devolve "a Arca não
+   * respondeu" — mensagem que culpa a Arca por um escopo inexistente.
+   *
+   * Aqui o pedido é resolvido pelo que EXISTE: o acervo da própria pessoa. É o
+   * único acervo daquela tela, então servir o espaço dela é a resposta correta —
+   * e o ajuste fica no log e na resposta (`escopo_ajustado`), nunca em silêncio.
+   */
+  let escopoAjustado = "";
+  if (!tok && orgPedida) {
+    const proprio = await credencialDaPessoa(conta.id, conta.email);
+    if (proprio?.token) {
+      console.warn(
+        "[acervo] escopo pedido não é espaço na Arca — servindo o acervo da própria pessoa:",
+        JSON.stringify({ pedido: orgPedida, servido: proprio.org }),
+      );
+      escopoAjustado = orgPedida;
+      org = String(proprio.org || org).toLowerCase();
+      tok = proprio.token;
+    }
+  }
 
   // ── Leitura ─────────────────────────────────────────────────────────
   try {
@@ -927,15 +1103,22 @@ async function atenderAcervo(req: NextRequest) {
       // não sabe nada disso — ler só o disco deixaria a tela sem como reordenar.
       const comNotas = u.searchParams.get("com_notas") !== "false";
       const q = `com_notas=${comNotas ? "true" : "false"}`;
+      // DIAGNÓSTICO (18/11/2026): quando esta resposta 503 chega ao dono, o log
+      // precisa dizer POR QUE — antes só existia "a Arca não respondeu" e não
+      // havia como separar token ausente × camada recusando × sem cofre local.
+      let diagCamada = tok ? "nao-chamada" : "sem-token";
+      let diagVault = "nao-chamada";
       if (tok) {
         const r = await pedirCamada(tok, "GET", `/acervo/arvore?${q}`);
+        diagCamada = String(r.status);
         if (r.status === 200 && r.dados && (r.dados as { arvore?: unknown }).arvore) {
           const arv = recebido ? recortarArvore((r.dados as { arvore?: unknown }).arvore, recebido) : (r.dados as { arvore?: unknown }).arvore;
-          return NextResponse.json({ org, ...r.dados, arvore: arv, origem: "camada", somente_recebido: Boolean(recebido) });
+          return NextResponse.json({ org, ...r.dados, arvore: arv, origem: "camada", somente_recebido: Boolean(recebido), ...(escopoAjustado ? { escopo_ajustado: escopoAjustado } : {}) });
         }
         // Camada antiga (sem /acervo/arvore): a árvore crua da Arca serve, só
         // perde ordem/cor — mas NUNCA volta vazia por falta de disco.
         const rv = await lerDoVault(tok, `/vault/arvore?${q}`);
+        diagVault = rv ? "200" : "falhou";
         if (rv && (rv as { arvore?: unknown }).arvore) {
           const arv = recebido ? recortarArvore((rv as { arvore?: unknown }).arvore, recebido) : (rv as { arvore?: unknown }).arvore;
           return NextResponse.json({ org, arvore: arv, tags: [], origem: "arca", somente_recebido: Boolean(recebido) });
@@ -946,10 +1129,14 @@ async function atenderAcervo(req: NextRequest) {
       if (!arvoreDisco) {
         // NÃO existe cofre local neste ambiente (é o caso do container do Stage):
         // responder 200 com árvore vazia era mentir para a tela.
+        console.warn(
+          "[acervo] arvore sem resposta:",
+          JSON.stringify({ org, camada: diagCamada, vault: diagVault, cofreLocal: false, recebido: Boolean(recebido) }),
+        );
         return erro(
           503,
           "não consegui abrir o seu acervo agora: a Arca não respondeu. tente de novo em instantes.",
-          { org, origem: "sem-resposta" },
+          { org, origem: "sem-resposta", camada: diagCamada, vault: diagVault },
         );
       }
       return NextResponse.json({

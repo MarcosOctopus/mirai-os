@@ -24,15 +24,11 @@ import {
   IconeDocumento,
   IconeFechar,
   IconeImagem,
-  IconeMais,
-  IconeMicrofone,
   IconeMusica,
-  IconeSeta,
 } from "@/components/dash/icons";
-import SeletorDeModo from "@/components/dash/SeletorDeModo";
+import CaixaDeEntrada from "@/components/dash/CaixaDeEntrada";
 import type { ModoId } from "@/lib/modos-do-chat";
 import {
-  MAX_UPLOAD_ROTULO,
   MIMES_PERMITIDOS,
   type AnexoCliente,
   validarArquivoNoNavegador,
@@ -197,6 +193,18 @@ export default function ChatEscrito({
       return false;
     }
   });
+
+  /* A autonomia virou preferência da CONTA (dono, 19/11/2026: "só coloca o
+     agir sozinho em configuração da conta e n ali"). Ela é ligada em /perfil e
+     chega aqui por evento — sem isso, mudar no perfil não valeria nesta aba
+     até recarregar. */
+  useEffect(() => {
+    const ao = (e: Event) => {
+      setSozinho((e as CustomEvent<string>).detail === "sozinho");
+    };
+    window.addEventListener("mirai:autonomia", ao);
+    return () => window.removeEventListener("mirai:autonomia", ao);
+  }, []);
   // O CHAT É SÓ CONVERSA (dono, 10/10/2026): o modo "arquiteto" saiu DESTA tela —
   // o Arquiteto tem a própria tela, alcançada pelo menu. Antes havia duas abas
   // (conversa/arquiteto) aqui, e o dono foi claro: "não tem modo arquiteto" no chat.
@@ -832,106 +840,35 @@ export default function ChatEscrito({
                 }}
               />
 
-              {/* a caixa: "+" à esquerda, campo que cresce, microfone e enviar à direita */}
-              <div className="rounded-[26px] border border-dash-hair/10 bg-dash-card p-2 shadow-2xl transition focus-within:border-dash-brand/60">
-                <div className="flex items-end gap-1 sm:gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => inputArquivo.current?.click()}
-                    disabled={enviando}
-                    aria-label="Anexar arquivo"
-                    title={`Anexar arquivo (até ${MAX_UPLOAD_ROTULO} por arquivo)`}
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-dash-muted transition hover:bg-dash-hair/[0.06] hover:text-dash-fg disabled:opacity-40"
-                  >
-                    <IconeMais className="h-[19px] w-[19px]" />
-                  </button>
-
-                  <textarea
-                    ref={caixa}
-                    value={texto}
-                    rows={1}
-                    onFocus={() => setCaixaFocada(true)}
-                    onBlur={() => setCaixaFocada(false)}
-                    onChange={(e) => setTexto(e.target.value)}
-                    onPaste={(e) => {
-                      const files = Array.from(e.clipboardData?.files || []);
-                      if (files.length) {
-                        e.preventDefault();
-                        void subirArquivos(files);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        void enviar();
-                      }
-                    }}
-                    placeholder="Escreve para a Mirai…"
-                    style={{ transition: "height 220ms cubic-bezier(.22,.61,.36,1)" }}
-                    className="min-h-[40px] max-h-[200px] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1 py-[9px] text-[15px] leading-[22px] text-dash-fg outline-none placeholder:text-dash-dim"
-                  />
-
-                  <SeletorDeModo
-                    modo={modoPesquisa}
-                    aoTrocar={(m) => {
-                      setModoPesquisa(m);
-                      setAvisoModo(null);
-                    }}
-                    desabilitado={enviando}
-                  />
-
-                  <button
-                    type="button"
-                    onClick={alternarDitado}
-                    disabled={!temDitado}
-                    aria-pressed={ouvindo}
-                    aria-label={
-                      temDitado ? (ouvindo ? "Parar ditado" : "Ditar") : "Ditado por voz indisponível"
-                    }
-                    title={
-                      temDitado
-                        ? ouvindo ? "Parar ditado" : "Ditar (voz, pt-BR)"
-                        : "Seu navegador não oferece ditado por voz"
-                    }
-                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-full transition ${
-                      !temDitado
-                        ? "cursor-not-allowed text-dash-dim opacity-50"
-                        : ouvindo
-                          ? "bg-dash-bad/20 text-dash-bad ring-1 ring-dash-bad/50"
-                          : "text-dash-muted hover:bg-dash-hair/[0.06] hover:text-dash-fg"
-                    }`}
-                  >
-                    <IconeMicrofone className="h-[19px] w-[19px]" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => void enviar()}
-                    disabled={enviando || (!texto.trim() && !anexos.length)}
-                    aria-label="Enviar"
-                    title="Enviar (Enter)"
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-dash-brand text-white transition hover:bg-dash-brandHi disabled:opacity-40"
-                  >
-                    <IconeSeta />
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-3 flex items-center justify-between gap-3 px-2 text-[10px] text-dash-dim">
-                <span>Até {MAX_UPLOAD_ROTULO} por arquivo · documento, imagem ou áudio</span>
-                {ouvindo ? (
-                  <span className="flex items-center gap-1.5 text-dash-brand">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-dash-brand" />
-                    Ouvindo…
-                  </span>
-                ) : (
-                  uso && (
-                    <span>
-                      {tamanhoLegivel(uso.usado_bytes)} de {tamanhoLegivel(uso.limite_bytes)}
-                    </span>
-                  )
-                )}
-              </div>
+              {/* A CAIXA — a mesma do outro estado da conversa (componente único).
+                  Dono, 19/11/2026: "TENTA IMITAR ESSA CAIXA" (o composer do ChatGPT):
+                  um retângulo arredondado, texto em cima, controles dentro embaixo. */}
+              <CaixaDeEntrada
+                texto={texto}
+                setTexto={setTexto}
+                enviando={enviando}
+                podeEnviar={!!texto.trim() || anexos.length > 0}
+                enviar={() => void enviar()}
+                subirArquivos={subirArquivos}
+                inputArquivo={inputArquivo}
+                caixa={caixa}
+                setCaixaFocada={setCaixaFocada}
+                modelo={modelo}
+                setModelo={(id) => {
+                  setModelo(id);
+                  try {
+                    localStorage.setItem("mirai:modelo", id);
+                  } catch {}
+                }}
+                ouvindo={ouvindo}
+                temDitado={temDitado}
+                alternarDitado={alternarDitado}
+                usoTexto={
+                  uso
+                    ? `${tamanhoLegivel(uso.usado_bytes)} de ${tamanhoLegivel(uso.limite_bytes)}`
+                    : null
+                }
+              />
 
               {!!avisoModo && (
                 <div className="mt-2 flex items-start gap-2 px-2 text-[11px] text-dash-brand">
@@ -1048,106 +985,35 @@ export default function ChatEscrito({
                 }}
               />
 
-              {/* Seletor de modelo + autonomia — luz contida */}
-              <div className="mb-2 flex items-center gap-2">
-                {[
-                  { id: "supernova-flash", nome: "Supernova Flash", dica: "resposta rápida" },
-                  { id: "supernova-high", nome: "Supernova High", dica: "raciocínio profundo" },
-                ].map((m) => {
-                  const ativo = modelo === m.id;
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      title={m.dica}
-                      onClick={() => {
-                        setModelo(m.id);
-                        try {
-                          localStorage.setItem("mirai:modelo", m.id);
-                        } catch {}
-                      }}
-                      className={`flex h-7 items-center rounded-full px-3 text-[11px] transition-all duration-200 ${
-                        ativo ? "text-dash-ink" : "text-dash-muted hover:text-dash-ink/70"
-                      }`}
-                      style={{
-                        background: ativo ? "rgba(10,239,255,0.10)" : "transparent",
-                        border: `1px solid ${ativo ? "rgba(10,239,255,0.35)" : "rgba(255,255,255,0.06)"}`,
-                      }}
-                    >
-                      {m.nome}
-                    </button>
-                  );
-                })}
-                <label
-                  className="ml-auto flex cursor-pointer select-none items-center gap-2 text-[11px] text-dash-muted transition-colors hover:text-dash-ink/70"
-                  title="Marcado: a Mirai executa sem perguntar. Desmarcado: ela propõe e espera você aprovar."
-                >
-                  <input
-                    type="checkbox"
-                    checked={sozinho}
-                    onChange={(e) => {
-                      const v = e.target.checked;
-                      setSozinho(v);
-                      try {
-                        localStorage.setItem("mirai:autonomia", v ? "sozinho" : "aprovar");
-                      } catch {}
-                    }}
-                    className="h-3.5 w-3.5 cursor-pointer accent-cyan-400"
-                  />
-                  agir sozinho
-                </label>
-              </div>
-
-              <div className="flex items-end gap-2">
-                <button
-                  onClick={() => inputArquivo.current?.click()}
-                  disabled={enviando}
-                  aria-label="Anexar arquivo"
-                  title={`Anexar arquivo (até ${MAX_UPLOAD_ROTULO} por arquivo)`}
-                  className="grid h-[46px] w-[46px] shrink-0 place-items-center rounded-[12px] border border-dash-hair/10 bg-dash-bg text-dash-muted transition hover:border-dash-brand/50 hover:text-dash-fg disabled:opacity-40"
-                >
-                  <IconeClipe />
-                </button>
-
-                <textarea
-                  value={texto}
-                  onChange={(e) => setTexto(e.target.value)}
-                  onPaste={(e) => {
-                    const files = Array.from(e.clipboardData?.files || []);
-                    if (files.length) {
-                      e.preventDefault();
-                      void subirArquivos(files);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      void enviar();
-                    }
-                  }}
-                  rows={1}
-                  placeholder="Escreve para a Mirai…"
-                  style={{ transition: "height 220ms cubic-bezier(.22,.61,.36,1)" }}
-                  className="max-h-32 min-h-[40px] flex-1 resize-none rounded-[12px] border border-dash-hair/10 bg-dash-bg px-4 py-2 text-[13px] text-dash-fg outline-none placeholder:text-dash-dim focus:border-dash-brand/60"
-                />
-                <button
-                  onClick={() => void enviar()}
-                  disabled={enviando || (!texto.trim() && !anexos.length)}
-                  aria-label="Enviar"
-                  className="grid h-[46px] w-[46px] place-items-center rounded-[12px] bg-dash-brand text-white transition hover:bg-dash-brandHi disabled:opacity-40"
-                >
-                  <IconeSeta />
-                </button>
-              </div>
-
-              <div className="mt-2 flex items-center justify-between px-1 text-[10px] text-dash-dim">
-                <span>Até {MAX_UPLOAD_ROTULO} por arquivo · documento, imagem ou áudio</span>
-                {uso && (
-                  <span>
-                    {tamanhoLegivel(uso.usado_bytes)} de {tamanhoLegivel(uso.limite_bytes)}
-                  </span>
-                )}
-              </div>
+              {/* A CAIXA — a mesma do outro estado da conversa (componente único).
+                  Dono, 19/11/2026: "TENTA IMITAR ESSA CAIXA" (o composer do ChatGPT):
+                  um retângulo arredondado, texto em cima, controles dentro embaixo. */}
+              <CaixaDeEntrada
+                texto={texto}
+                setTexto={setTexto}
+                enviando={enviando}
+                podeEnviar={!!texto.trim() || anexos.length > 0}
+                enviar={() => void enviar()}
+                subirArquivos={subirArquivos}
+                inputArquivo={inputArquivo}
+                caixa={caixa}
+                setCaixaFocada={setCaixaFocada}
+                modelo={modelo}
+                setModelo={(id) => {
+                  setModelo(id);
+                  try {
+                    localStorage.setItem("mirai:modelo", id);
+                  } catch {}
+                }}
+                ouvindo={ouvindo}
+                temDitado={temDitado}
+                alternarDitado={alternarDitado}
+                usoTexto={
+                  uso
+                    ? `${tamanhoLegivel(uso.usado_bytes)} de ${tamanhoLegivel(uso.limite_bytes)}`
+                    : null
+                }
+              />
             </div>
           </>
         )}

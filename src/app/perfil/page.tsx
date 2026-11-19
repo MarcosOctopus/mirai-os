@@ -20,6 +20,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import CartaoAutonomia from "@/components/dash/CartaoAutonomia";
 import CartaoIaDaConta from "@/components/dash/CartaoIaDaConta";
 import Shell from "@/components/dash/Shell";
 import { Botao, Card, CardTitulo, Secao, Selo, StatCard } from "@/components/dash/kit";
@@ -473,6 +474,13 @@ export default function PerfilPage() {
       {/* ── IA da conta: onde o cliente cadastra a IA dele (item novo) ─── */}
       <div className="mt-6 grid gap-4">
         <CartaoIaDaConta />
+      </div>
+
+      {/* ── AUTONOMIA: o "agir sozinho" saiu do campo de escrita e veio para
+             cá (dono, 19/11/2026: "só coloca o agir sozinho em configuração
+             da conta e n ali"). Preferência de conta, não controle de digitação. */}
+      <div className="mt-6 grid gap-4">
+        <CartaoAutonomia />
       </div>
 
       {/* ── sessão (o card de PLANO/LIMITES saiu: decisão do dono) ───── */}

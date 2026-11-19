@@ -144,6 +144,11 @@ export default function BlocoArca({ onMudou }: { onMudou?: () => void }) {
   const [erro, setErro] = useState("");
   const [recado, setRecado] = useState("");
   const [copiado, setCopiado] = useState<"" | "url" | "token">("");
+  /* ALCANCE DO MCP (dono, 18/11/2026): pessoal + organizações / só pessoal /
+     só organizações. É o recorte da credencial de CONTA — o token não muda. */
+  const [alcance, setAlcance] = useState<"tudo" | "pessoal" | "organizacoes">("tudo");
+  const [espacos, setEspacos] = useState<{ espaco: string; nome: string; pessoal: boolean }[]>([]);
+  const [mudandoAlcance, setMudandoAlcance] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
 
   /* O provisionamento é do SERVIDOR: abrir o cartão já emite (ou relê) o token
@@ -157,6 +162,23 @@ export default function BlocoArca({ onMudou }: { onMudou?: () => void }) {
       setEstado(d);
       setToken(d.token ?? null);
       if (d.mensagem && !d.conectado) setErro(d.mensagem);
+
+      /* A credencial do MCP é de CONTA (não de organização): ela que manda no
+         token exibido e traz o alcance escolhido. Se falhar, o painel segue com
+         o token de organização — nada quebra, só não mostra o recorte. */
+      try {
+        const rc = await fetch("/api/integracoes/arca/conta", { cache: "no-store" });
+        const dc = (await rc.json().catch(() => null)) as
+          | { token?: string | null; escopo?: string; espacos?: { espaco: string; nome: string; pessoal: boolean }[] }
+          | null;
+        if (dc?.token) {
+          setToken(dc.token);
+          setAlcance(dc.escopo === "pessoal" || dc.escopo === "organizacoes" ? dc.escopo : "tudo");
+          setEspacos(Array.isArray(dc.espacos) ? dc.espacos : []);
+        }
+      } catch {
+        /* silencioso de propósito: o painel já funciona com o token de org */
+      }
     } catch {
       setErro("não consegui falar com a Arca agora — recarregue a tela em instantes.");
     } finally {
@@ -193,6 +215,49 @@ export default function BlocoArca({ onMudou }: { onMudou?: () => void }) {
       setErro("a conexão caiu antes de terminar. Nada foi alterado.");
     } finally {
       setOcupado("");
+    }
+  }
+
+  /* Troca do alcance do MCP: mesma credencial, recorte novo (o token não muda). */
+  async function mudarAlcance(novo: "tudo" | "pessoal" | "organizacoes") {
+    if (novo === alcance || mudandoAlcance) return;
+    setErro("");
+    setRecado("");
+    setMudandoAlcance(true);
+    const anterior = alcance;
+    setAlcance(novo);
+    try {
+      const r = await fetch("/api/integracoes/arca/conta", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ escopo: novo }),
+      });
+      const d = (await r.json().catch(() => ({}))) as {
+        token?: string | null;
+        escopo?: string;
+        espacos?: { espaco: string; nome: string; pessoal: boolean }[];
+        mensagem?: string;
+      };
+      if (!r.ok || !d.token) {
+        setAlcance(anterior);
+        setErro(d.mensagem || "não consegui mudar o alcance agora. Nada mudou.");
+        return;
+      }
+      setToken(d.token);
+      setEspacos(Array.isArray(d.espacos) ? d.espacos : []);
+      setRecado(
+        novo === "pessoal"
+          ? "O MCP agora alcança só o seu espaço pessoal."
+          : novo === "organizacoes"
+            ? "O MCP agora alcança só as organizações."
+            : "O MCP agora alcança o pessoal e as organizações.",
+      );
+      onMudou?.();
+    } catch {
+      setAlcance(anterior);
+      setErro("a conexão caiu antes de terminar. Nada foi alterado.");
+    } finally {
+      setMudandoAlcance(false);
     }
   }
 
@@ -258,9 +323,9 @@ export default function BlocoArca({ onMudou }: { onMudou?: () => void }) {
       </div>
 
       <p className="mt-3 text-[12.5px] leading-[1.6] text-dash-fg/70">
-        A Arca já está habilitada nesta conta: o token da organização foi emitido pela sua sessão Mirai, sem
-        segundo login e sem colar nada. Ele serve para usar o acervo fora do MIRAI OS — no editor, no terminal ou
-        em qualquer agente.
+        A Arca já está habilitada nesta conta: o token da sua CONTA foi emitido pela sessão Mirai, sem segundo
+        login e sem colar nada. Ele é da pessoa, não da empresa — alcança o que você escolher logo abaixo, e é
+        isso que vale no editor, no terminal e em qualquer agente.
       </p>
 
       {erro && (
@@ -274,13 +339,54 @@ export default function BlocoArca({ onMudou }: { onMudou?: () => void }) {
         </p>
       )}
 
+      {/* ALCANCE DO MCP — a escolha do dono no compartilha (18/11/2026):
+             pessoal + organizações · só pessoal · só organizações. Um clique
+             troca o recorte; a credencial continua a mesma. */}
+      <div className="mt-5">
+        <p className="text-[11.5px] font-medium text-dash-fg">o que o MCP alcança</p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {(
+            [
+              ["tudo", "pessoal + organizações"],
+              ["pessoal", "só pessoal"],
+              ["organizacoes", "só organizações"],
+            ] as const
+          ).map(([valor, rotulo]) => {
+            const ligado = alcance === valor;
+            return (
+              <button
+                key={valor}
+                type="button"
+                disabled={mudandoAlcance}
+                onClick={() => void mudarAlcance(valor)}
+                className={`rounded-full px-3 py-[6px] text-[11.5px] transition-colors ${
+                  ligado
+                    ? "bg-dash-brand/[0.16] text-dash-brandHi"
+                    : "bg-dash-hair/[0.08] text-dash-fg/70 hover:bg-dash-hair/[0.14] hover:text-dash-fg"
+                } ${mudandoAlcance ? "opacity-60" : ""}`}
+              >
+                {rotulo}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-1.5 text-[11px] leading-[1.5] text-dash-muted">
+          {espacos.length
+            ? `alcançando: ${espacos.map((e) => e.nome || e.espaco).join("  ·  ")}`
+            : lendo
+              ? "lendo os seus espaços…"
+              : "nenhum espaço com vínculo ativo agora"}
+          {alcance !== "pessoal" ? " · a escrita sem destino continua indo para o seu espaço pessoal" : ""}
+        </p>
+      </div>
+
       {/* TÍTULO DO PAINEL — dentro do mesmo container, sem moldura em volta */}
       <div className="mt-5 flex items-center gap-2">
         <IconeCadeado className="h-[14px] w-[14px] text-dash-muted" />
         <p className="text-[12.5px] font-medium text-dash-fg">usar em qualquer ambiente</p>
       </div>
       <p className="mt-1 text-[11.5px] leading-[1.5] text-dash-muted">
-        Servidor MCP da Arca. Cole a URL e o token onde o agente pede — o acervo é o da sua organização.
+        Servidor MCP da Arca. Cole a URL e o token onde o agente pede — o acervo é o da sua conta, no alcance escolhido acima.
       </p>
 
       {/* LINHAS: rótulo + valor + copiar, separadas por fio (sem caixa) */}
@@ -292,7 +398,7 @@ export default function BlocoArca({ onMudou }: { onMudou?: () => void }) {
           copiado={copiado === "url"}
         />
         <Linha
-          rotulo="Token da sua organização"
+          rotulo="Token da sua conta (MCP)"
           valor={
             token ??
             (lendo

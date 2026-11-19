@@ -28,6 +28,15 @@ export async function GET(req: NextRequest) {
     // conexão existe, não o token (dono, 13/10/2026).
     const { cofreSemSegredos } = await import("@/lib/github-conta");
 
+    // ── ESCOPOS (modelo unificado, 18/11/2026) ───────────────────────────
+    // A tela precisa saber QUAIS espaços esta pessoa tem e qual está ativo,
+    // em vez de deduzir "a org do e-mail". O pessoal vem sempre primeiro.
+    const { escoposDaConta } = await import("@/lib/escopos");
+    const { escopoDaRequisicao } = await import("@/lib/escopo-ativo");
+    const paraEscopo = { id: user.id, nome: user.name, org: conta?.org ?? null };
+    const escopos = escoposDaConta(paraEscopo).map((e) => ({ id: e.id, tipo: e.tipo, nome: e.nome }));
+    const ativo = escopoDaRequisicao(req, paraEscopo);
+
     const resposta = NextResponse.json({
       user: {
         id: user.id,
@@ -42,6 +51,9 @@ export async function GET(req: NextRequest) {
         organizacao: conta?.org
           ? { id: conta.org.id, nome: conta.org.nome, slug: conta.org.slug }
           : null,
+        // ESCOPOS: pessoal (padrão) + organizações de que a pessoa é membro.
+        escopos,
+        escopoAtivo: { id: ativo.id, tipo: ativo.tipo, nome: ativo.nome },
       },
     });
 

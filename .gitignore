@@ -111,3 +111,6 @@ SESSION_STATE.md
 # Cofre de credenciais do ecossistema: fica no DISCO, nunca no git (medido 18/11/2026)
 data/arca-credenciais.json
 data/*credenciais*.json
+
+# Selo da publicacao (muda a cada build)
+.build-no-ar

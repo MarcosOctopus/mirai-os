@@ -38,6 +38,18 @@ export default function AtualizadorAutomatico() {
           return;
         }
 
+        // Só recarrego se o servidor estiver ADIANTE do que eu tenho — o selo é
+        // ordenável (AAMMDDHHMMSS-hash), então comparar texto basta. Isto evita
+        // a recarga inútil contra um processo que ainda serve o build anterior
+        // (publicação sem reinício): nesse caso a aba aberta é justamente a
+        // certa, e recarregar só matava o estado da tela.
+        //
+        // A comparação só vale entre SELOS: se algum dos lados ainda fala o
+        // formato antigo (id do Next), cai no comportamento clássico — diferente
+        // = recarrega, com a trava de 3 por aba.
+        const ehSelo = (v: string) => /^\d{12}-/.test(v);
+        if (ehSelo(build) && ehSelo(meu) && build < meu) return;
+
         const recargas = Number(sessionStorage.getItem("mirai-recargas") ?? "0");
         if (recargas >= 3) return; // trava anti-loop
         if (document.visibilityState !== "visible") return; // tenta no próximo ciclo

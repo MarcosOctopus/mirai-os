@@ -18,7 +18,9 @@ import {
 } from "@/lib/conversas-cliente";
 import {
   IconeBusca,
+  IconeBlocos,
   IconeCadeado,
+  IconeCaret,
   IconeChat,
   IconeEstrela,
   IconeEstrelaCheia,
@@ -28,6 +30,7 @@ import {
   IconeLua,
   IconeMais,
   IconeMenu,
+  IconeMicrofone,
   IconeOrganizacoes,
   IconePontos,
   IconeProdutos,
@@ -42,6 +45,7 @@ import {
 } from "./icons";
 import { usarTema } from "@/lib/tema";
 import { Sininho } from "./Sininho";
+import SeletorEscopo from "./SeletorEscopo";
 
 type Item = {
   label: string;
@@ -54,6 +58,8 @@ type Item = {
   destaque?: boolean;
   /** item que não navega: dispara uma ação (ex.: abrir conversa nova) */
   acao?: "nova";
+  /** submenu: o item vira um grupo que abre/fecha e não navega sozinho */
+  filhos?: Item[];
 };
 
 // "+ novo" NÃO é um link para a tela inicial: precisa ABRIR uma conversa nova
@@ -67,18 +73,25 @@ const PRIMARIO: Item[] = [
   // (/dashboard/connect) — nenhum link quebra. Lá dentro a tela tem duas
   // seções (Integrações e Skills), trocadas pelo seletor do topo.
   { label: "Synapse", href: "/dashboard/connect", icone: <IconeSynapse /> },
-  { label: "Arquiteto", href: "/arquiteto", icone: <IconeRobo /> },
   // A Arca desceu do grupo secundario para a lista principal (dono, 10/11/2026:
   // "no menu lateral de baixo do arquiteto coloca 'A Arca'"). Continua NAO
-  // sendo so-dono: o acervo e de quem entrou.
+  // sendo so-dono: o acervo e de quem entrou. FICA no menu principal: é o
+  // acervo da pessoa, não uma ferramenta de trabalho.
   { label: "A Arca", href: "/dashboard/arca", icone: <IconeCamadas /> },
-  // Agendamentos logo abaixo da Arca (dono, 12/11/2026): o que o time faz
-  // sozinho — mesma família visual e mesmo corte por papel dos vizinhos.
-  { label: "Agendamentos", href: "/dashboard/agendamentos", icone: <IconeRelogio /> },
-  // Chaves de API (dono, 13/11/2026): a chave PRÓPRIA da pessoa (BYOK). Fica
-  // logo abaixo de Agendamentos porque é o mesmo tipo de coisa — configuração
-  // da conta, não produto. Sem esta entrada a tela existiria e ninguém acharia.
-  { label: "Chaves de API", href: "/dashboard/chaves", icone: <IconeCadeado /> },
+  // ORANGE BOX (dono, 18/11/2026): as ferramentas saem do menu principal e
+  // passam a viver num submenu, com a ordem que ele ditou — Arquiteto,
+  // Agendamentos, Reunião e Chaves de API por ÚLTIMO (é o que se mexe uma vez
+  // e nunca mais). O menu principal fica curto: conversa, acervo, ferramentas.
+  {
+    label: "Orange Box",
+    icone: <IconeBlocos />,
+    filhos: [
+      { label: "Arquiteto", href: "/arquiteto", icone: <IconeRobo /> },
+      { label: "Agendamentos", href: "/dashboard/agendamentos", icone: <IconeRelogio /> },
+      { label: "Reunião", href: "/dashboard/reuniao", icone: <IconeMicrofone /> },
+      { label: "Chaves de API", href: "/dashboard/chaves", icone: <IconeCadeado /> },
+    ],
+  },
   // A entrada "Skills" saiu do menu (dono, 08/10/2026): "Essa página do menu
   // esquerdo chamada skill tem que sumir. Só existir da Synapse junto com essa do
   // botão de explorar todas as skills." A vitrine vive na aba Skills da Synapse
@@ -119,16 +132,26 @@ function Marca({ recolhida = false }: { recolhida?: boolean }) {
 function ItemMenu({
   item,
   ativo,
+  caminho,
   onNavegar,
   onAcionar,
   recolhida = false,
 }: {
   item: Item;
   ativo: boolean;
+  caminho?: string;
   onNavegar: () => void;
   onAcionar?: () => void;
   recolhida?: boolean;
 }) {
+  // Submenu nasce fechado, ABRE se o que está na tela é um dos filhos — sem
+  // isso, entrar em /dashboard/reuniao por link direto esconderia onde a pessoa
+  // está. `ativo` do grupo já significa "algum filho está ativo".
+  const [aberto, setAberto] = useState(ativo);
+  useEffect(() => {
+    if (ativo) setAberto(true);
+  }, [ativo]);
+
   const base = `flex w-full items-center gap-4 rounded-[12px] px-4 py-3 text-left text-[14px] transition ${
     recolhida ? "lg:justify-center lg:px-0 lg:gap-0" : ""
   }`;
@@ -139,6 +162,48 @@ function ItemMenu({
       : "text-dash-muted hover:bg-dash-hair/[0.04] hover:text-dash-fg";
   const rotulo = `truncate ${recolhida ? "lg:hidden" : ""}`;
   const selo = `ml-auto rounded-full px-2 py-[3px] text-[10px] ${recolhida ? "lg:hidden" : ""}`;
+
+  // GRUPO (Orange Box): o item não navega — abre e fecha. Os filhos são os
+  // mesmos itens de sempre, um degrau abaixo, com o fio da marca à esquerda.
+  if (item.filhos?.length) {
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => setAberto((v) => !v)}
+          className={`${base} ${cor}`}
+          title={item.label}
+          aria-expanded={aberto}
+        >
+          {item.icone}
+          <span className={rotulo}>{item.label}</span>
+          <IconeCaret
+            className={`ml-auto h-3.5 w-3.5 shrink-0 transition-transform ${
+              aberto ? "rotate-180" : ""
+            } ${recolhida ? "lg:hidden" : ""}`}
+          />
+        </button>
+        {aberto && (
+          <div
+            className={`mt-1 space-y-1 ${
+              recolhida ? "" : "ml-4 border-l border-dash-line pl-2"
+            }`}
+          >
+            {item.filhos.map((f) => (
+              <ItemMenu
+                key={f.label}
+                item={f}
+                ativo={!!f.href && caminho === f.href}
+                caminho={caminho}
+                onNavegar={onNavegar}
+                recolhida={recolhida}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // Item de AÇÃO ("+ novo"): não navega sozinho, dispara a criação da conversa.
   if (item.acao) {
@@ -406,7 +471,13 @@ export default function Shell({
             <ItemMenu
               key={i.label}
               item={i}
-              ativo={!!i.href && caminho === i.href}
+              // Grupo conta como ativo quando ALGUM filho é a tela atual: é o
+              // que abre o submenu sozinho ao entrar por link direto.
+              ativo={
+                (!!i.href && caminho === i.href) ||
+                !!i.filhos?.some((f) => !!f.href && caminho === f.href)
+              }
+              caminho={caminho}
               onNavegar={() => setAberto(false)}
               onAcionar={() => void abrirNova()}
               recolhida={recolhida}
@@ -701,6 +772,12 @@ function MenuDaConta({
               </Link>
             ))}
           </nav>
+
+          <div className="my-1 h-px bg-dash-hair/[0.08]" />
+
+          {/* ESCOLHA DO ESPAÇO (pessoal × empresa) — modelo unificado, 18/11/2026.
+              Só aparece para quem tem mais de um escopo. */}
+          <SeletorEscopo />
 
           <div className="my-1 h-px bg-dash-hair/[0.08]" />
 

@@ -31,6 +31,7 @@
  * afirmar.
  */
 import { getUserPlatformConfig, updateUserPlatformConfig } from "./auth";
+import { cifrar } from "./segredo-guardado";
 
 /** A chave no cofre da conta. É a mesma do `chaveConfig` no catálogo. */
 export const CHAVE_ARCA = "arca";
@@ -278,5 +279,128 @@ export async function conferirArcaDaConta(userId: number): Promise<"viva" | "mor
     return "indefinido";
   } catch {
     return "indefinido";
+  }
+}
+
+/* ── CREDENCIAL DE CONTA (18/11/2026) ────────────────────────────────────────
+ * Pedido do dono: "o MCP tem de ser da conta, não dividido por empresa" — e
+ * "no compartilha você escolhe: pessoal + organizações · só pessoal · só
+ * organizações".
+ *
+ * Por que uma chave SEPARADA do cofre: `arca` (token de organização) continua
+ * sendo o que o app usa para LER o acervo (as rotas /vault/* exigem token de
+ * espaço). O MCP é outra coisa: usa credencial de CONTA, com alcance escolhido.
+ * Misturar as duas quebraria a leitura do acervo.
+ */
+export const CHAVE_ARCA_CONTA = "arca_conta";
+
+export type EscopoConta = "tudo" | "pessoal" | "organizacoes";
+
+export type ContaNaArca = {
+  tokenCifrado: string;
+  escopo: EscopoConta;
+  espacos: { espaco: string; nome: string; papel: string; pessoal: boolean; escreve?: boolean }[];
+  criadoEm: string | null;
+  mcp: string;
+};
+
+export function contaNaArca(userId: number): ContaNaArca | null {
+  const config = getUserPlatformConfig(userId) as Record<string, unknown>;
+  const v = config?.[CHAVE_ARCA_CONTA];
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  if (typeof o.token_cifrado !== "string" || !o.token_cifrado) return null;
+  const modo = String(o.escopo || "pessoal"); // padrão conservador (dono, 18/11/2026)
+  const escopo: EscopoConta =
+    modo === "tudo" || modo === "organizacoes" ? modo : "pessoal";
+  return {
+    tokenCifrado: o.token_cifrado as string,
+    escopo,
+    espacos: Array.isArray(o.espacos) ? (o.espacos as ContaNaArca["espacos"]) : [],
+    criadoEm: typeof o.criado_em === "string" ? o.criado_em : null,
+    mcp: typeof o.mcp === "string" ? o.mcp : ARCA_MCP_URL,
+  };
+}
+
+export function guardarContaNaArca(
+  userId: number,
+  dados: { tokenClaro: string; escopo: EscopoConta; espacos: ContaNaArca["espacos"]; criadoEm: string | null; mcp: string },
+): void {
+  updateUserPlatformConfig(userId, {
+    [CHAVE_ARCA_CONTA]: {
+      token_cifrado: cifrar(dados.tokenClaro),
+      escopo: dados.escopo,
+      espacos: dados.espacos,
+      criado_em: dados.criadoEm,
+      mcp: dados.mcp,
+      guardado_em: new Date().toISOString(),
+    },
+  });
+}
+
+export function esquecerContaNaArca(userId: number): void {
+  updateUserPlatformConfig(userId, { [CHAVE_ARCA_CONTA]: null });
+}
+
+export type ResultadoContaArca = {
+  ok: boolean;
+  token?: string;
+  escopo?: EscopoConta;
+  espacos?: ContaNaArca["espacos"];
+  criadoEm?: string | null;
+  mcp?: string;
+  erro?: string;
+};
+
+/** Provisiona (ou relê) a credencial de CONTA para o MCP, com o alcance pedido.
+ *  Idempotente na Arca: o token não muda ao trocar o alcance. */
+export async function pedirContaNaArca(
+  email: string,
+  escopo: EscopoConta = "pessoal",
+): Promise<ResultadoContaArca> {
+  const segredo = (process.env.ARCA_SERVICO_CREDENCIAL || "").trim();
+  if (segredo.length < 20) return { ok: false, erro: "serviço da Arca não configurado neste ambiente" };
+  try {
+    const r = await fetch(`${ARCA_URL}/org/token-conta`, {
+      method: "POST",
+      headers: cabecalhoServico(),
+      body: JSON.stringify({ email, escopo }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(TETO_MS),
+    });
+    const d = (await r.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!r.ok || !d || typeof d.token !== "string") {
+      return { ok: false, erro: `a Arca recusou a credencial de conta (HTTP ${r.status})` };
+    }
+    const modo = String((d.escopo as Record<string, unknown> | undefined)?.modo || escopo);
+    const final: EscopoConta = modo === "pessoal" || modo === "organizacoes" ? modo : "tudo";
+    return {
+      ok: true,
+      token: d.token as string,
+      escopo: final,
+      espacos: Array.isArray(d.espacos) ? (d.espacos as ContaNaArca["espacos"]) : [],
+      criadoEm: typeof d.criado_em === "string" ? d.criado_em : null,
+      mcp: typeof d.mcp === "string" ? d.mcp : ARCA_MCP_URL,
+    };
+  } catch (e) {
+    return { ok: false, erro: `não consegui falar com a Arca: ${(e as Error).name}` };
+  }
+}
+
+/** Revoga a credencial de conta do e-mail (o token deixa de valer no MCP). */
+export async function revogarContaNaArca(email: string): Promise<{ ok: boolean; erro?: string }> {
+  const segredo = (process.env.ARCA_SERVICO_CREDENCIAL || "").trim();
+  if (segredo.length < 20) return { ok: false, erro: "serviço da Arca não configurado" };
+  try {
+    const r = await fetch(`${ARCA_URL}/org/token-conta?email=${encodeURIComponent(email)}`, {
+      method: "DELETE",
+      headers: cabecalhoServico(),
+      cache: "no-store",
+      signal: AbortSignal.timeout(TETO_MS),
+    });
+    if (!r.ok) return { ok: false, erro: `a Arca respondeu HTTP ${r.status}` };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, erro: `não consegui falar com a Arca: ${(e as Error).name}` };
   }
 }

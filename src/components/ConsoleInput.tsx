@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useRef, useCallback, KeyboardEvent, ChangeEvent } from "react";
+import { useState, useEffect, useRef, useCallback, KeyboardEvent, ChangeEvent } from "react";
+
+import SeletorDeModelo from "@/components/dash/SeletorDeModelo";
 
 interface ConsoleInputProps {
   onSend: (text: string) => void;
@@ -82,6 +84,16 @@ export default function ConsoleInput({
     }
   });
 
+  /* A autonomia é preferência da CONTA (/perfil) desde 19/11/2026 — o checkbox
+     saiu do console. Aqui só escutamos o evento para o valor mudar na hora. */
+  useEffect(() => {
+    const ao = (e: Event) => {
+      setSozinho((e as CustomEvent<string>).detail === "sozinho");
+    };
+    window.addEventListener("mirai:autonomia", ao);
+    return () => window.removeEventListener("mirai:autonomia", ao);
+  }, []);
+
   return (
     <div
       className="fixed bottom-0 left-0 right-0 z-50 input-glow"
@@ -91,58 +103,22 @@ export default function ConsoleInput({
         backdropFilter: "blur(12px)",
       }}
     >
-      {/* Seletor de modelo — luz contida, sem "estourado" */}
+      {/* Seletor de modelo — DROPDOWN (dono, 19/11/2026): o Super Nova e os modelos da
+          chave própria da pessoa, na mesma lista. */}
       <div className="mx-auto flex max-w-4xl items-center gap-2 px-4 pt-2">
-        {[
-          { id: "supernova-flash", nome: "Supernova Flash", dica: "resposta rápida" },
-          { id: "supernova-high", nome: "Supernova High", dica: "raciocínio profundo" },
-        ].map((m) => {
-          const ativo = modelo === m.id;
-          return (
-            <button
-              key={m.id}
-              onClick={() => {
-                setModelo(m.id);
-                try {
-                  localStorage.setItem("mirai:modelo", m.id);
-                } catch {}
-                window.dispatchEvent(new CustomEvent("mirai:modelo", { detail: m.id }));
-              }}
-              title={m.dica}
-              className={`flex h-7 items-center rounded-full px-3 text-[11px] transition-all duration-200 ${
-                ativo ? "text-white" : "text-white/40 hover:text-white/70"
-              }`}
-              style={{
-                background: ativo ? "rgba(10,239,255,0.10)" : "transparent",
-                border: `1px solid ${ativo ? "rgba(10,239,255,0.35)" : "rgba(255,255,255,0.06)"}`,
-              }}
-            >
-              {m.nome}
-            </button>
-          );
-        })}
+        <SeletorDeModelo
+          modelo={modelo}
+          aoTrocar={(id) => {
+            setModelo(id);
+            try {
+              localStorage.setItem("mirai:modelo", id);
+            } catch {}
+            window.dispatchEvent(new CustomEvent("mirai:modelo", { detail: id }));
+          }}
+        />
 
         {/* Autonomia: cada pessoa usa de um jeito. Marcado = age sozinha;
             desmarcado = propõe e espera aprovação. */}
-        <label
-          className="ml-auto flex cursor-pointer select-none items-center gap-2 text-[11px] text-white/45 transition-colors hover:text-white/70"
-          title="Marcado: a Mirai executa sem perguntar. Desmarcado: ela propõe e espera você aprovar."
-        >
-          <input
-            type="checkbox"
-            checked={sozinho}
-            onChange={(e) => {
-              const v = e.target.checked;
-              setSozinho(v);
-              try {
-                localStorage.setItem("mirai:autonomia", v ? "sozinho" : "aprovar");
-              } catch {}
-              window.dispatchEvent(new CustomEvent("mirai:autonomia", { detail: v ? "sozinho" : "aprovar" }));
-            }}
-            className="h-3.5 w-3.5 cursor-pointer accent-cyan-400"
-          />
-          agir sozinho
-        </label>
       </div>
       <div className="mx-auto flex max-w-4xl items-end gap-2 px-4 py-3">
         {/* Mode Toggle */}

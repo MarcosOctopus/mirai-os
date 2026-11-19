@@ -1,6 +1,23 @@
 "use client";
 
 /**
+ * SELETOR DE MODO — FORA DA TELA (dono, 19/11/2026).
+ *
+ *   "deixa esses dois invocáveis como skill e coloca aqui os supernovas"
+ *
+ * O dropdown de modo saiu da linha da caixa de escrever; no lugar dele ficou o
+ * seletor do SUPER NOVA. Os dois modos de pesquisa continuam existindo e
+ * funcionando — deixaram de ser um botão e passaram a ser invocação:
+ *
+ *   · o servidor escala o modo pelo TEXTO do pedido (`modoDaMensagem`), e agora
+ *     também pelo NOME ("chama o observador", "usa o Sr. Xi");
+ *   · cada modo chama a ferramenta dele (`fontes_curadas`, `pesquisar_a_fundo`).
+ *
+ * O componente ficou aqui de propósito: se o dono quiser o botão de volta, é
+ * uma linha na `CaixaDeEntrada`. Nada importa este arquivo hoje.
+ */
+
+/**
  * SELETOR DE MODO — o dropdown ao lado do microfone.
  *
  * ─── Por que ele existe (dono, 14/10/2026, verbatim) ─────────────────────────
@@ -35,10 +52,14 @@ export default function SeletorDeModo({
   modo,
   aoTrocar,
   desabilitado,
+  compacto,
 }: {
   modo: ModoId;
   aoTrocar: (m: ModoId) => void;
   desabilitado?: boolean;
+  /** Só o ícone, com o rótulo no `title` e no `aria-label` (usado quando o nome
+   *  do modelo já ocupa a linha e o "Leve" escrito duas vezes confunde). */
+  compacto?: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
   const caixa = useRef<HTMLDivElement>(null);
@@ -75,17 +96,23 @@ export default function SeletorDeModo({
         aria-expanded={aberto}
         aria-label={`Modo de resposta: ${atual.rotulo}`}
         title={`Modo: ${atual.rotulo} — ${atual.resumo}`}
-        className={`flex h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-[12px] font-medium transition ${
+        className={`flex h-11 shrink-0 items-center gap-1.5 rounded-full text-[12px] font-medium transition ${
+          compacto ? "w-11 justify-center" : "px-3"
+        } ${
           ativo
             ? "bg-dash-brand/15 text-dash-brand ring-1 ring-dash-brand/40 hover:bg-dash-brand/20"
             : "text-dash-muted hover:bg-dash-hair/[0.06] hover:text-dash-fg"
         } ${desabilitado ? "cursor-not-allowed opacity-50" : ""}`}
       >
         <Icone className="h-[17px] w-[17px]" />
-        <span className="hidden sm:inline">{atual.rotulo}</span>
-        <IconeSeta
-          className={`hidden h-3 w-3 transition-transform sm:inline ${aberto ? "" : "rotate-180"}`}
-        />
+        {!compacto && (
+          <>
+            <span className="hidden sm:inline">{atual.rotulo}</span>
+            <IconeSeta
+              className={`hidden h-3 w-3 transition-transform sm:inline ${aberto ? "" : "rotate-180"}`}
+            />
+          </>
+        )}
       </button>
 
       {aberto && (
