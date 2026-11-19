@@ -30,6 +30,7 @@ import {
   IconeLua,
   IconeMais,
   IconeMenu,
+  IconeOlho,
   IconeMicrofone,
   IconeOrganizacoes,
   IconePontos,
@@ -108,6 +109,9 @@ const SECUNDARIO: Item[] = [
   { label: "Intelligence Control", href: "/admin/intelligence", icone: <IconeRobo />, soDono: true, selo: "NOVO" },
   { label: "Clientes", href: "/admin/clientes", icone: <IconeUsuarios />, soDono: true },
   { label: "Organizações", href: "/admin/organizacoes", icone: <IconeOrganizacoes />, soDono: true },
+  // O CONTROLE DA VITRINE precisava de porta: a página existia e não havia
+  // caminho até ela (dono, 19/11/2026: "pra mim tem que aparecer").
+  { label: "Visibilidade", href: "/admin/visibilidade", icone: <IconeOlho />, soDono: true },
   { label: "Explorar", href: "/explorar", icone: <IconeBusca /> },
   { label: "Sistema", href: "/system", icone: <IconeSistema />, soDono: true },
 ];
