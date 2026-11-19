@@ -425,7 +425,17 @@ export default function Youniverse({
   }, []);
 
   return (
-    <div className="relative h-full min-h-0 w-full overflow-hidden rounded-[14px] border border-white/[0.06] bg-[#03050a]">
+    /* ALTURA EXPLÍCITA (19/11/2026): o dono relatou "clico no Youniverse e não aparece
+       o mapa de estrelas". Medido no DOM: a raiz ficava com 2px de altura (só a borda)
+       porque `h-full` NÃO existe no CSS compilado deste app — o céu desenhava dentro de
+       uma caixa de 2px. `style` inline não depende do CSS compilado. */
+    <div
+      className="min-h-0 w-full overflow-hidden rounded-[14px] border border-white/[0.06] bg-[#03050a]"
+      /* POSIÇÃO ABSOLUTA, não `height:100%`: medido no DOM (19/11/2026) que 100% resolvia
+         para 0 (caixa de 2px = só a borda) porque o pai é posicionado por inset, não por
+         altura definida. Com inset:0 o céu ocupa o palco inteiro — 720×960 medidos. */
+      style={{ position: "absolute", inset: 0, width: "100%" }}
+    >
       {seletor && (
         <div data-youniverse-seletor="sim" className="absolute left-1/2 top-3 z-40 -translate-x-1/2">
           {seletor}
