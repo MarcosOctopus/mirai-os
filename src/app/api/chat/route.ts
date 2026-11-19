@@ -1213,6 +1213,11 @@ export async function POST(req: NextRequest) {
     // Extrai texto (documento), leitura+OCR (imagem) ou transcrição (áudio) e
     // injeta no conteúdo que vai pro modelo. Nunca quebra a conversa: se não
     // conseguiu ler, entra uma linha dizendo isso.
+    // ANEXOS DO TURNO: guarda os do ÚLTIMO turno do usuário (os anteriores já
+    // entraram na Arca; reingerir o histórico inteiro duplicaria nota a cada msg).
+    const anexosDoTurno = ((messages as { role: string; anexos?: { id: string }[] }[]) || [])
+      .filter((m) => m?.role === "user" && Array.isArray(m.anexos) && (m.anexos || []).length)
+      .pop()?.anexos || [];
     const expandidas: { role: string; content: string }[] = [];
     try {
       const { blocoDeAnexos } = await import("@/lib/uploads");
@@ -1231,6 +1236,52 @@ export async function POST(req: NextRequest) {
       }
     }
     messages = expandidas;
+
+    // ── ANEXO DO CHAT ENTRA NA ARCA (dono, 19/11/2026) ─────────────────────────
+    // O dono pediu: "quero testar com eu fazendo do chat direto". Até aqui o
+    // anexo só alimentava o modelo e desaparecia — não ficava no acervo. Agora o
+    // arquivo mandado no chat também vira NOTA CATALOGADA na Arca, sempre com a
+    // credencial DA PESSOA (nunca a do ambiente): quem manda é quem manda no seu.
+    // Best-effort: se a Arca falhar, a conversa continua.
+    if (anexosDoTurno.length && conta) {
+      try {
+        const { obterUpload, garantirExtracao } = await import("@/lib/uploads");
+        const tokenArca = await tokenArcaDaConta(conta.id);
+        if (tokenArca) {
+          for (const a of anexosDoTurno) {
+            const reg = obterUpload(a.id, conta.id);
+            if (!reg) continue;
+            const { texto } = await garantirExtracao(reg);
+            if (!texto || !texto.trim()) continue;
+            const ctl = new AbortController();
+            const t = setTimeout(() => ctl.abort(), 15000);
+            try {
+              const r = await fetch(`${ARCA_URL}/acervo/nota`, {
+                method: "POST",
+                headers: {
+                  "content-type": "application/json",
+                  "X-Arca-Token": tokenArca,
+                  "user-agent": "MIRAI-OS/1.0",
+                },
+                body: JSON.stringify({
+                  titulo: reg.nome_original,
+                  conteudo: texto.slice(0, 40000),
+                  keywords: ["anexo do chat"],
+                  tags: ["chat"],
+                  campos: { origem: "chat", arquivo: reg.nome_original },
+                }),
+                signal: ctl.signal,
+              });
+              if (!r.ok) console.error("anexo→arca:", r.status, await r.text().catch(() => ""));
+            } finally {
+              clearTimeout(t);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("anexo→arca:", e instanceof Error ? e.message : e);
+      }
+    }
 
     // Entrada NÃO confiável: o histórico vem do navegador do cliente (ou de uma
     // requisição forjada). Conversa antiga pode trazer interno colado, de antes

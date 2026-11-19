@@ -1098,6 +1098,34 @@ export default function ArcaPage() {
                   A Arca
                 </h1>
                 {!recebidoAtivo && <BotaoCompartilharArca soIcone />}
+                    {/* ENTRADA POR ARQUIVO/PASTA (dono, 19/11/2026): fora da coluna,
+                        dentro do "+" — a tela não tem mais seção de upload. Os inputs
+                        ficam escondidos aqui e o menu é quem os abre. */}
+                    <input
+                      ref={inputArquivoRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      data-arca-input-arquivo="sim"
+                      onChange={(e) => {
+                        const fs = e.target.files;
+                        if (fs && fs.length) void subirArquivos(fs);
+                        e.target.value = "";
+                      }}
+                    />
+                    <input
+                      ref={inputPastaRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      data-arca-input-pasta="sim"
+                      {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+                      onChange={(e) => {
+                        const fs = e.target.files;
+                        if (fs && fs.length) void subirArquivos(fs);
+                        e.target.value = "";
+                      }}
+                    />
                 {!recebidoAtivo && (
                   <span data-arca-novo-wrap="sim" className="relative inline-flex">
                     <button
@@ -1143,11 +1171,56 @@ export default function ArcaPage() {
                           <IconeDocumento className="h-[13px] w-[13px] shrink-0 text-dash-muted" />
                           nota
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNovoMenu(false);
+                            inputArquivoRef.current?.click();
+                          }}
+                          className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-1.5 text-left text-[12.5px] text-dash-fg/90 transition hover:bg-white/[0.06]"
+                        >
+                          <span
+                            aria-hidden
+                            style={{ width: 6, height: 6, borderRadius: 999, background: "rgba(255,117,31,0.75)", flexShrink: 0 }}
+                          />
+                          arquivo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNovoMenu(false);
+                            inputPastaRef.current?.click();
+                          }}
+                          className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-1.5 text-left text-[12.5px] text-dash-fg/90 transition hover:bg-white/[0.06]"
+                        >
+                          <span
+                            aria-hidden
+                            style={{ width: 6, height: 6, borderRadius: 999, background: "rgba(255,117,31,0.75)", flexShrink: 0 }}
+                          />
+                          pasta do computador
+                        </button>
                       </div>
                     )}
                   </span>
                 )}
               </div>
+              {progresso && (
+                <div className="mt-2 max-w-[340px]" data-arca-progresso="sim">
+                  <div className="h-[3px] w-full overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-dash-brandHi transition-[width] duration-200"
+                      style={{ width: `${progresso.pct}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 flex items-center justify-between text-[10.5px] text-dash-muted/80">
+                    <span className="truncate pr-2">
+                      {subindo ? "subindo" : "concluído"} {progresso.feitos}/{progresso.total} ·{" "}
+                      <span className="text-dash-fg/70">{progresso.nome}</span>
+                    </span>
+                    <span className="shrink-0 text-dash-brandHi">{progresso.pct}%</span>
+                  </p>
+                </div>
+              )}
               <p className="mt-1.5 text-[12px] text-dash-muted">
                 {recebidoAtivo ? (
                   <>
@@ -1305,72 +1378,6 @@ export default function ArcaPage() {
               >
                 solte aqui — o arquivo entra no acervo já catalogado
               </p>
-            )}
-            <div className="mb-2 flex items-center gap-2">
-              <input
-                ref={inputArquivoRef}
-                type="file"
-                multiple
-                className="hidden"
-                data-arca-input-arquivo="sim"
-                onChange={(e) => {
-                  const fs = e.target.files;
-                  if (fs && fs.length) void subirArquivos(fs);
-                  e.target.value = "";
-                }}
-              />
-              <button
-                type="button"
-                data-arca-subir="sim"
-                disabled={subindo}
-                onClick={() => inputArquivoRef.current?.click()}
-                className="rounded border border-white/[0.14] px-2 py-1 text-[11.5px] text-dash-fg/85 transition hover:border-dash-brandHi/50 hover:text-dash-fg disabled:opacity-50"
-              >
-                {subindo ? "subindo…" : "subir arquivo"}
-              </button>
-              <input
-                ref={inputPastaRef}
-                type="file"
-                multiple
-                className="hidden"
-                data-arca-input-pasta="sim"
-                {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
-                onChange={(e) => {
-                  const fs = e.target.files;
-                  if (fs && fs.length) void subirArquivos(fs);
-                  e.target.value = "";
-                }}
-              />
-              <button
-                type="button"
-                data-arca-subir-pasta="sim"
-                disabled={subindo}
-                onClick={() => inputPastaRef.current?.click()}
-                className="rounded border border-white/[0.14] px-2 py-1 text-[11.5px] text-dash-fg/85 transition hover:border-dash-brandHi/50 hover:text-dash-fg disabled:opacity-50"
-              >
-                {subindo ? "subindo…" : "subir pasta"}
-              </button>
-              <span className="text-[10.5px] text-dash-muted/70">ou arraste para cá</span>
-            </div>
-            <p className="mb-2 text-[10.5px] text-dash-muted/60">
-              até {LIMITE_MB} MB por arquivo · até {LOTE_MAX_MB} MB por vez
-            </p>
-            {progresso && (
-              <div className="mb-2" data-arca-progresso="sim">
-                <div className="h-[3px] w-full overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full bg-dash-brandHi transition-[width] duration-200"
-                    style={{ width: `${progresso.pct}%` }}
-                  />
-                </div>
-                <p className="mt-1 flex items-center justify-between text-[10.5px] text-dash-muted/80">
-                  <span className="truncate pr-2">
-                    {subindo ? "subindo" : "concluído"} {progresso.feitos}/{progresso.total} ·{" "}
-                    <span className="text-dash-fg/70">{progresso.nome}</span>
-                  </span>
-                  <span className="shrink-0 text-dash-brandHi">{progresso.pct}%</span>
-                </p>
-              </div>
             )}
                         {novaPasta !== null && (
               <form
