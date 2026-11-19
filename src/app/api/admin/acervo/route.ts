@@ -304,7 +304,10 @@ async function servirTudo(
   conta: Parameters<typeof escoposDaConta>[0],
   acao: string,
 ) {
-  const LEITURA = new Set(["arvore", "stats", "buscar", "listar", "recentes", "nota"]);
+  // "youniverse"/"grafo"/"query" ENTRARAM AQUI (19/11/2026): o dono relatou "quando coloco
+  // pra ver tudo e clico no Youniverse ele não aparece o mapa de estrelas". São LEITURA,
+  // mas não estavam na lista — caíam no guarda de escrita e a tela só mostrava o aviso.
+  const LEITURA = new Set(["arvore", "stats", "buscar", "listar", "recentes", "nota", "youniverse", "grafo", "query"]);
   if (!LEITURA.has(acao)) {
     return erro(400, "em 'tudo' só a leitura é permitida: para gravar, editar ou excluir, escolha um espaço (o seu ou uma organização).", { acao });
   }
@@ -360,6 +363,38 @@ async function servirTudo(
   const resultados = await Promise.all(
     espacos.map(async (e) => ({ espaco: e, dados: await noEspaco(e.id, {}) })),
   );
+
+  // MAPA DE ESTRELAS EM "TUDO": os céus dos espaços viram um só, reaproveitando
+  // `resultados` (nenhuma consulta extra). O id leva o prefixo do espaço para a nota
+  // continuar sabendo de quem é; espaço que falhou não derruba o mapa dos outros.
+  if (acao === "youniverse") {
+    const nodes: Record<string, unknown>[] = [];
+    const links: Record<string, unknown>[] = [];
+    for (const { espaco, dados } of resultados) {
+      const d = dados as { nodes?: Record<string, unknown>[]; links?: Record<string, unknown>[] } | null;
+      if (!d) continue;
+      const pref = (espaco as { id: string }).id;
+      for (const n of d.nodes || []) nodes.push({ ...n, id: `${pref}::${n.id}`, espaco: pref });
+      for (const l of d.links || []) {
+        links.push({ ...l, de: `${pref}::${l.de}`, para: `${pref}::${l.para}`, espaco: pref });
+      }
+    }
+    return NextResponse.json({
+      org: "tudo",
+      meta: {
+        org: "tudo",
+        gerado_em: new Date().toISOString(),
+        espacos: resultados.map((r) => ({
+          id: (r.espaco as { id: string }).id,
+          nome: (r.espaco as { nome?: string }).nome,
+          ok: !!r.dados,
+        })),
+      },
+      nodes,
+      links,
+      origem: "tudo",
+    });
+  }
 
   if (acao === "stats") {
     const soma: Record<string, number> = {};
