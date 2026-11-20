@@ -18,6 +18,8 @@ import Shell from "@/components/dash/Shell";
  */
 
 type Org = { id: string; nome: string; slug: string };
+/** O que o plano deixa criar: quantas organizações e quantas já foram usadas. */
+type Limite = { plano: string | null; total: number | null; usadas: number; dono: boolean };
 
 export default function OrganizacoesPage() {
   const [orgs, setOrgs] = useState<Org[]>([]);
@@ -28,6 +30,7 @@ export default function OrganizacoesPage() {
   const [criando, setCriando] = useState(false);
   const [membroEmail, setMembroEmail] = useState("");
   const [orgDoConvite, setOrgDoConvite] = useState<string>("");
+  const [limite, setLimite] = useState<Limite | null>(null);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -37,6 +40,7 @@ export default function OrganizacoesPage() {
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d?.error || `HTTP ${r.status}`);
       setOrgs(Array.isArray(d?.organizacoes) ? d.organizacoes : []);
+      setLimite(d?.limite ?? null);
     } catch (e) {
       setErro(e instanceof Error ? e.message : "não consegui carregar suas organizações");
     } finally {
@@ -112,6 +116,23 @@ export default function OrganizacoesPage() {
           <span className="text-dash-fg">admin</span> da que criar.
         </p>
 
+        {/* Medidor do plano: quem lê sabe quanto cabe ANTES de tentar criar. */}
+        {limite && limite.total !== null && (
+          <p className="mt-3 text-[12px] text-dash-muted">
+            Plano <span className="text-dash-fg">{limite.plano ?? "atual"}</span> ·{" "}
+            <span className={limite.usadas >= limite.total ? "text-dash-bad" : "text-dash-fg"}>
+              {limite.usadas} de {limite.total}
+            </span>{" "}
+            organização{limite.total > 1 ? "ões" : ""} em uso.
+            {limite.usadas >= limite.total && (
+              <>
+                {" "}
+                Para criar mais organizações, é preciso subir de plano.
+              </>
+            )}
+          </p>
+        )}
+
         {erro && (
           <p className="mt-5 rounded-[16px] border border-dash-bad/30 bg-dash-bad/[0.07] px-5 py-4 text-[13px] text-dash-bad">
             {erro}
@@ -142,8 +163,15 @@ export default function OrganizacoesPage() {
             />
             <button
               onClick={criar}
-              disabled={criando}
-              className="shrink-0 rounded-[12px] border border-dash-accent/40 bg-dash-accent/10 px-5 py-3 text-[13px] text-dash-fg transition hover:bg-dash-accent/20 disabled:opacity-50"
+              disabled={
+                criando || Boolean(limite && limite.total !== null && limite.usadas >= limite.total)
+              }
+              title={
+                limite && limite.total !== null && limite.usadas >= limite.total
+                  ? `Seu plano permite ${limite.total} organização(ões).`
+                  : undefined
+              }
+              className="shrink-0 rounded-[12px] border border-dash-accent/40 bg-dash-accent/10 px-5 py-3 text-[13px] text-dash-fg transition hover:bg-dash-accent/20 disabled:opacity-40"
             >
               {criando ? "criando…" : "Criar"}
             </button>

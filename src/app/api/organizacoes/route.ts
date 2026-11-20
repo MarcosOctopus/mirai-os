@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { limiteDeOrganizacoes } from "@/lib/limite-organizacoes";
 import {
   criarOrganizacao,
   exigirConta,
@@ -34,8 +35,22 @@ export async function GET(req: NextRequest) {
         (o) => o.id === s.conta.org?.id || o.membros.some((m) => m.email === s.conta.email),
       );
 
+  // QUANTAS CABEM NO PLANO (dono, 20/11/2026): a tela precisa saber para mostrar
+  // "2 de 3" e explicar o bloqueio ANTES de a pessoa tentar criar.
+  const email = s.conta.email.toLowerCase();
+  const usadas = todas.filter((o) =>
+    o.membros.some((m) => m.email.toLowerCase() === email && (m.papel === "admin" || m.papel === "dono")),
+  ).length;
+
+  let limite: { plano: string | null; total: number | null } = { plano: null, total: null };
+  if (!s.conta.ehDono) {
+    const l = await limiteDeOrganizacoes(s.conta.email);
+    limite = { plano: l.plano, total: l.total };
+  }
+
   return NextResponse.json({
     organizacoes: visiveis.map((o) => ({ id: o.id, nome: o.nome, slug: o.slug })),
+    limite: { ...limite, usadas, dono: Boolean(s.conta.ehDono) },
   });
 }
 
@@ -61,15 +76,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Nome da organização precisa ter de 2 a 60 letras." }, { status: 400 });
   }
 
+  // TETO PELO PLANO (dono, 20/11/2026): não é um número fixo — é o
+  // `limits.organizacoes` do plano `mirai` de cada um, lido do plano de controle.
   const email = s.conta.email.toLowerCase();
-  const minhas = listarOrganizacoes().filter((o) =>
-    o.membros.some((m) => m.email.toLowerCase() === email),
-  );
-  if (minhas.length >= 20) {
-    return NextResponse.json(
-      { error: "Você já criou 20 organizações. Fale com o administrador." },
-      { status: 429 },
-    );
+  const todas = listarOrganizacoes();
+  if (!s.conta.ehDono) {
+    const usadas = todas.filter((o) =>
+      o.membros.some((m) => m.email.toLowerCase() === email && (m.papel === "admin" || m.papel === "dono")),
+    ).length;
+    const { plano, total } = await limiteDeOrganizacoes(s.conta.email);
+    if (total !== null && usadas >= total) {
+      const nome = plano ?? "seu plano";
+      return NextResponse.json(
+        {
+          error:
+            total === 0
+              ? `O plano ${nome} não inclui organizações próprias.`
+              : `O plano ${nome} permite ${total} organização${total > 1 ? "ões" : ""} e você já usa ${usadas}.`,
+          plano,
+          limite: total,
+          usadas,
+        },
+        { status: 402 },
+      );
+    }
   }
 
   // `clienteEmail` = quem fundou: o vínculo entra como ADMIN da org nova.
