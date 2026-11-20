@@ -11,15 +11,15 @@ export const metadata: Metadata = {
   title: "MIRAI OS",
   description: "Assistente inteligente com memória, voz e visão | Construindo o futuro",
   manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "Mirai",
-  },
+  // META DE APP (20/11/2026): a tag `apple-mobile-web-app-capable` está DEPRECIADA
+  // e o Chrome avisa no console a cada carga ("is deprecated. Please include
+  // mobile-web-app-capable") — o dono viu o aviso e cobrou. Aqui a tag antiga sai
+  // de vez (ela era emitida 3x: por `appleWebApp`, por `other` e à mão no <head>).
+  // Fica só a padrão, que Safari e Chrome atuais já entendem.
   other: {
     "mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "black-translucent",
+    "apple-mobile-web-app-title": "Mirai",
   },
 };
 
@@ -44,7 +44,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
         />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="x-build" content={lerSelo()} />
         {/* O TEMA, ANTES DA PRIMEIRA PINTURA. Este script roda antes de o
             navegador desenhar qualquer coisa: ele lê a escolha guardada e põe a
