@@ -121,6 +121,11 @@ type NoArvore = {
   notas: { path: string; nome: string; modificado?: string; bytes?: number; ordem?: number }[];
   subpastas: NoArvore[];
   total_notas: number;
+  /** Presente quando o nó é um ESPAÇO (pessoal ou organização), não uma pasta:
+   *  a árvore de "Tudo" pendura os espaços na raiz para a pessoa ver tudo junto.
+   *  Espaço não se apaga, não se renomeia e não se arrasta — a linha não ganha
+   *  lixeira nem lápis (20/11/2026: o dono viu "Meu espaço" com 🗑 e assustou). */
+  espaco?: string;
 };
 
 type ItemNota = { path: string; titulo?: string; trecho?: string };
@@ -2010,7 +2015,11 @@ function LinhaNota({
           title={`apagar “${nome.replace(/\.md$/i, "")}”`}
           aria-label={`apagar “${nome.replace(/\.md$/i, "")}”`}
           data-arca-apagar-nota={caminho}
-          className="shrink-0 rounded p-1 text-dash-muted/60 opacity-0 transition hover:bg-[#ef4444]/10 hover:text-[#ef4444] focus-visible:opacity-100 group-hover:opacity-100"
+          /* SEMPRE visível (20/11/2026). Era `opacity-0 … group-hover:opacity-100`:
+             a lixeira da NOTA só existia no hover — no toque, no trackpad e no
+             olhar rápido ela simplesmente não existia, e o dono concluiu "não dá
+             pra apagar". Pasta e nota agora mostram a mesma lixeira, discreta. */
+          className="shrink-0 rounded p-1 text-dash-muted/45 transition hover:bg-[#ef4444]/10 hover:text-[#ef4444] focus-visible:opacity-100 opacity-80"
         >
           <svg viewBox="0 0 24 24" className="h-[13px] w-[13px]" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13" strokeLinecap="round" strokeLinejoin="round" />
@@ -2138,6 +2147,9 @@ function Ramo({
   const ed = useEditorArca();
   const soLeitura = useContext(ContextoRecebido);
   const editando = ed.editor?.tipo === "pasta" && ed.editor.caminho === no.path;
+  /** Espaço (pessoal/organização) pendurado na raiz de "Tudo": linha de pasta na
+   *  aparência, mas não é pasta — não se apaga, renomeia nem arrasta. */
+  const ehEspaco = Boolean(no.espaco);
   return (
     <div>
       <div
@@ -2153,10 +2165,12 @@ function Ramo({
         }
         style={{ paddingLeft: `${4 + nivel * 13}px` }}
       >
-        <Pegador
-          rotulo={`arrastar pasta “${no.nome}”`}
-          onIniciar={(e) => iniciarArrastoPasta(no.path, no.nome, pai, e)}
-        />
+        {!ehEspaco && (
+          <Pegador
+            rotulo={`arrastar pasta “${no.nome}”`}
+            onIniciar={(e) => iniciarArrastoPasta(no.path, no.nome, pai, e)}
+          />
+        )}
         {editando ? (
           <EditorPastaInline caminho={no.path} />
         ) : (
@@ -2188,7 +2202,7 @@ function Ramo({
         )}
         {!soLeitura && <Fotinhas pasta={no.path} />}
         <span className="shrink-0 text-[10px] text-dash-muted/70">{no.total_notas}</span>
-        {!editando && !soLeitura && (
+        {!editando && !soLeitura && !ehEspaco && (
           <>
             <button
               type="button"

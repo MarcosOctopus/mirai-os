@@ -97,5 +97,13 @@ The API key is in `~/.claude/settings.json`.
 - Nunca apaga arquivo protegido (credencial) — a Arca responde 403.
 - UI: botão de lixeira na linha da nota (aparece no hover), confirmação em duas etapas na própria linha.
 
+## Espaços, escopo e escrita (20/11/2026)
+- A conta carrega **todas** as organizações (`conta.orgs`); `conta.org` fica como compatibilidade. Antes a pessoa com duas empresas só enxergava uma no seletor.
+- Escopo ativo vem do cookie `mirai_escopo` / `?escopo=`: `pessoal-<id>`, slug da org ou `tudo`.
+- Em **"Tudo"** a árvore lista caminhos com prefixo de espaço (`pessoal-17/05_REUNIOES/x.md`, `songmetrix/...`). Toda ESCRITA (`apagar-nota`, `mover-nota`, `criar-nota`, `editar-*`) precisa reconhecer esse prefixo: ele é removido pelos escopos da conta, e caminho de organização é escrito com a credencial DAQUELA organização. Sem isso: 404 "nota não encontrada".
+- `confirmar` também perde o prefixo — senão a comparação com `path` falha e o apagar volta 400.
+- Leitura em "tudo" só serve ações da lista `LEITURA` do `servirTudo`; ação de leitura nova precisa ser adicionada lá (foi o 400 de `acesso`).
+- Organização criada no app existe só em `organizations`/`memberships`: a tenancy na Arca (banco, vault, credencial) é **provisionada no primeiro acesso** (`garantirEspacoNaArca` dentro de `credencialDoEscopo`). Antes a org nascia sem espaço e todo acesso dava 503.
+
 ## Task
 Redesign and rebuild the MIRAI OS from scratch. Use Three.js for the orb. Make it feel alive, cinematic, intelligent. The user should feel they're operating a real AI, not using a web app.
