@@ -1410,6 +1410,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, marcados: marcarTudoVisto(meu, pastas) });
   }
 
+  /**
+   * CAMINHO COM PREFIXO DE ESPAÇO (20/11/2026 — "o Junior não consegue apagar").
+   *
+   * Em "Tudo (pessoal + organizações)" a árvore lista `<espaco>/<pasta>/<nota>.md`
+   * — `pessoal-17/05_REUNIOES/x.md`, `songmetrix/...`. A escrita recebia esse
+   * caminho LITERAL e mandava `pessoal-17/` para dentro do vault: a Arca
+   * respondia 404 "nota não encontrada" e o app ainda traduzia mal o 404.
+   * Aqui o prefixo é reconhecido pelos escopos da CONTA (escopo de terceiro não
+   * casa) e removido; a ação segue no espaço certo.
+   */
+  const escoposDaPessoa = escoposDaConta(conta as never);
+  let espacoDoCaminho: (typeof escoposDaPessoa)[number] | null = null;
+  // `pasta`/`nova_pasta` entram junto: criar nota dentro de uma pasta escolhida na
+  // árvore de "Tudo" chegaria como `pessoal-17/<pasta>` e nasceria dentro de uma
+  // pasta chamada "pessoal-17" — o mesmo defeito, outra porta.
+  for (const campo of ["path", "caminho", "pasta", "nova_pasta"] as const) {
+    const cru = String(corpo[campo] || "").replace(/^\/+/, "");
+    if (!cru.includes("/")) continue;
+    const corte = cru.indexOf("/");
+    const achado = escoposDaPessoa.find((e) => e.id === cru.slice(0, corte) && e.tipo !== "tudo");
+    if (achado) {
+      espacoDoCaminho = achado;
+      corpo[campo] = cru.slice(corte + 1);
+    }
+  }
+
   // O dono já reenviou o link: marca o pedido como atendido.
   if (acao === "atender-pedido") {
     const tokAt = await tokenDaArca(ORG_CORE);
@@ -1432,6 +1458,17 @@ export async function POST(req: NextRequest) {
     if (r.erro) return r.erro;
     org = r.org as string;
     tokLeitura = r.token ?? null;
+    // Escrita pedida a partir de uma ORGANIZAÇÃO no modo "Tudo": o espaço vem do
+    // prefixo do caminho, com credencial própria (nunca a pessoal de quem escreve).
+    // Vem DEPOIS do token pessoal de propósito — senão ele sobrescreveria o da org.
+    if (espacoDoCaminho?.tipo === "organizacao") {
+      const tokOrg = await credencialDoEscopo(espacoDoCaminho, conta as never);
+      if (!tokOrg) {
+        return erro(503, `não consegui abrir o acervo de ${espacoDoCaminho.nome} agora — a credencial da organização não está disponível.`);
+      }
+      org = espacoDoCaminho.id;
+      tokLeitura = tokOrg;
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return erro(500, "não consegui resolver o acervo desta conta", { detalhe: msg.slice(0, 300) });
@@ -1612,9 +1649,16 @@ export async function POST(req: NextRequest) {
         tok, "DELETE",
         `/acervo/nota?path=${encodeURIComponent(caminho)}&confirmar=${encodeURIComponent(confirmar)}`,
       );
-      // 404 = processo antigo (rota ausente) — dizer a verdade em vez de "não achei".
+      // 404 tem DOIS significados e eles não se confundem pelo CORPO: rota ausente
+      // vem como `{"detail":"Not Found"}` (FastAPI); nota inexistente vem com o
+      // motivo escrito. Culpar o serviço por uma nota que não está lá foi o que
+      // escondeu o defeito de prefixo do modo "Tudo" (medido 20/11/2026).
       if (r.status === 404) {
-        return erro(503, "a Arca no ar ainda não sabe apagar nota — o serviço precisa ser reiniciado (rota nova, processo antigo).");
+        const detalhe = String((r.dados as { detail?: unknown }).detail || "");
+        if (!detalhe || detalhe === "Not Found") {
+          return erro(503, "a Arca no ar ainda não sabe apagar nota — o serviço precisa ser reiniciado (rota nova, processo antigo).");
+        }
+        return erro(404, detalhe);
       }
       return responder(r);
     }
