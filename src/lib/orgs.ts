@@ -66,7 +66,17 @@ export type Conta = {
   nome: string;
   email: string;
   ehDono: boolean;
+  /** A organização "principal" (compatibilidade: rotas antigas leem `conta.org`). */
   org: Organizacao | null;
+  /**
+   * TODAS as organizações da pessoa (20/11/2026).
+   *
+   * `conta.org` tem UM lugar só. Quem fundou duas empresas via, no seletor de
+   * escopo, apenas uma — a segunda existia no banco e era inalcançável (medido:
+   * Songmetrix aparecia, Pontocom Audio não). O seletor e a resolução de escopo
+   * passam a ler esta lista.
+   */
+  orgs: (Organizacao & { papel: string })[];
 };
 
 function normaliza(email: string): string {
@@ -322,6 +332,7 @@ export async function contaDaRequisicao(req: NextRequest): Promise<Conta | null>
     email,
     ehDono,
     org: orgPorEmail(email),
+    orgs: orgsDoEmail(email),
   };
 }
 
@@ -342,6 +353,7 @@ export function contaPorId(userId: number): Conta | null {
     email,
     ehDono: OWNER_EMAILS.includes(email) || user.role === "owner",
     org: orgPorEmail(email),
+    orgs: orgsDoEmail(email),
   };
 }
 
