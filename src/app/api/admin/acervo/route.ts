@@ -331,7 +331,11 @@ async function servirTudo(
   // "youniverse"/"grafo"/"query" ENTRARAM AQUI (19/11/2026): o dono relatou "quando coloco
   // pra ver tudo e clico no Youniverse ele não aparece o mapa de estrelas". São LEITURA,
   // mas não estavam na lista — caíam no guarda de escrita e a tela só mostrava o aviso.
-  const LEITURA = new Set(["arvore", "stats", "buscar", "listar", "recentes", "nota", "youniverse", "grafo", "query"]);
+  // "acesso" ENTROU AQUI (20/11/2026): o painel "quem tem acesso" (o do botão
+  // compartilhar) chama esta rota em qualquer escopo. Com "Tudo" ativo, o
+  // colaborador levava 400 "em 'tudo' só a leitura é permitida" e o painel
+  // simplesmente não abria — sem explicação na tela.
+  const LEITURA = new Set(["arvore", "stats", "buscar", "listar", "recentes", "nota", "youniverse", "grafo", "query", "acesso"]);
   if (!LEITURA.has(acao)) {
     return erro(400, "em 'tudo' só a leitura é permitida: para gravar, editar ou excluir, escolha um espaço (o seu ou uma organização).", { acao });
   }
@@ -357,6 +361,26 @@ async function servirTudo(
     } catch {
       return null;
     }
+  }
+
+  // ── ACESSO em "tudo": junta as concessões de cada espaço, marcando de qual
+  //    espaço é cada uma (sem isso o painel não sabe onde a pessoa entra).
+  if (acao === "acesso") {
+    const porEspaco = await Promise.all(
+      espacos.map(async (e) => ({ espaco: e, d: await noEspaco(e.id, {}) })),
+    );
+    const concessoes: Record<string, unknown>[] = [];
+    for (const { espaco, d } of porEspaco) {
+      for (const c of ((d?.concessoes as Record<string, unknown>[]) || [])) {
+        concessoes.push({ ...c, espaco: espaco.id, espaco_nome: espaco.nome });
+      }
+    }
+    return NextResponse.json({
+      escopo: "tudo",
+      org: "tudo",
+      concessoes,
+      espacos: espacos.map((e) => ({ id: e.id, nome: e.nome })),
+    });
   }
 
   // ── NOTA: o prefixo diz de que espaço ela é ──────────────────────────────
