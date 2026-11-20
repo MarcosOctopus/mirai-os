@@ -6,7 +6,6 @@ import {
   exigirConta,
   listarOrganizacoes,
   membrosDaOrg,
-  orgDoEmail,
   orgPorId,
   vincularEmail,
 } from "@/lib/orgs";
@@ -144,14 +143,10 @@ export async function PATCH(req: NextRequest) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(alvo)) {
     return NextResponse.json({ error: "e-mail inválido" }, { status: 400 });
   }
-  // Não "rouba" gente de outra empresa: vínculo é 1:1 no registro.
-  const jaEsta = orgDoEmail(alvo);
-  if (jaEsta && jaEsta !== id) {
-    return NextResponse.json(
-      { error: "esse e-mail já está em outra organização" },
-      { status: 409 },
-    );
-  }
+  // O vínculo agora é por (email, organização): a mesma pessoa pode estar em
+  // várias empresas — e é isso que o plano por número de organizações exige.
+  // O que NÃO se admite é o mesmo e-mail duas vezes na MESMA organização (é a
+  // chave primária; `vincularEmail` só atualiza o papel).
   const papel = membro.papel === "admin" ? "admin" : "membro";
   vincularEmail(alvo, id, papel);
   return NextResponse.json({ ok: true, membro: { email: alvo, papel } }, { status: 201 });

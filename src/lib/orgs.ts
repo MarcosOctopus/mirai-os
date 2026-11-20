@@ -94,15 +94,36 @@ export function orgPorId(id: string): Organizacao | null {
 
 export function orgPorEmail(email: string): Organizacao | null {
   const c = db();
+  // A pessoa pode estar em VÁRIAS organizações (chave (email, org_id)). `Conta.org`
+  // é a organização "de casa" nesta requisição: a que ela ADMINISTRA, e na falta
+  // dela a mais antiga. Ordem fixa = mesma resposta em toda chamada (antes, com
+  // mais de uma linha, quem decide é o banco — e isso variava).
   const r = c
     .prepare(
       `SELECT o.* FROM memberships m
        JOIN organizations o ON o.id = m.org_id
-       WHERE lower(m.email) = ?`,
+       WHERE lower(m.email) = ?
+       ORDER BY CASE m.papel WHEN 'dono' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, m.criada_em ASC
+       LIMIT 1`,
     )
     .get(normaliza(email)) as Organizacao | undefined;
   c.close();
   return r || null;
+}
+
+/** TODAS as organizações de um e-mail (para o "minhas organizações"). */
+export function orgsDoEmail(email: string): (Organizacao & { papel: string })[] {
+  const c = db();
+  const r = c
+    .prepare(
+      `SELECT o.*, m.papel AS papel FROM memberships m
+       JOIN organizations o ON o.id = m.org_id
+       WHERE lower(m.email) = ?
+       ORDER BY CASE m.papel WHEN 'dono' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, o.nome`,
+    )
+    .all(normaliza(email)) as (Organizacao & { papel: string })[];
+  c.close();
+  return r;
 }
 
 export function membrosDaOrg(orgId: string): { email: string; papel: string }[] {
@@ -193,11 +214,21 @@ export function atualizarOrganizacao(
   return orgPorId(id);
 }
 
+/**
+ * Vincula o e-mail a UMA organização.
+ *
+ * ATENÇÃO (20/11/2026): antes o vínculo era 1 por PESSOA (`memberships.email`
+ * era a chave primária) — criar a segunda organização APAGAVA silenciosamente o
+ * vínculo com a primeira. Com plano valendo por número de organizações
+ * (básico 1 · intermediário 3 · profissional 10 · avançado 25), isso é
+ * impossível. A chave passou a ser (email, org_id): a mesma pessoa pode estar em
+ * várias organizações, com UM papel em cada.
+ */
 export function vincularEmail(email: string, orgId: string, papel = "membro"): void {
   const c = db();
   c.prepare(
     `INSERT INTO memberships (email, org_id, papel, criada_em) VALUES (?, ?, ?, ?)
-     ON CONFLICT(email) DO UPDATE SET org_id = excluded.org_id, papel = excluded.papel`,
+     ON CONFLICT(email, org_id) DO UPDATE SET papel = excluded.papel`,
   ).run(normaliza(email), orgId, papel, new Date().toISOString());
   c.close();
 }
@@ -206,27 +237,45 @@ export function vincularEmail(email: string, orgId: string, papel = "membro"): v
  * Papel de um e-mail NA EMPRESA (organizacao): 'dono' (dono da plataforma),
  * 'admin' (dono da empresa — gerencia os funcionarios) ou 'membro' (funcionario).
  */
-export function papelNaOrg(email: string): string | null {
+export function papelNaOrg(email: string, orgId?: string | null): string | null {
   const c = db();
-  const v = c
+  if (orgId) {
+    const v = c
+      .prepare("SELECT papel FROM memberships WHERE lower(email) = ? AND org_id = ?")
+      .get(normaliza(email), orgId) as { papel: string } | undefined;
+    c.close();
+    return v?.papel ?? null;
+  }
+  // Sem organização explícita: vale o papel MAIS FORTE da pessoa (quem é admin
+  // em alguma organização não pode ser tratado como visitante em nenhuma).
+  const linhas = c
     .prepare("SELECT papel FROM memberships WHERE lower(email) = ?")
-    .get(normaliza(email)) as { papel: string } | undefined;
+    .all(normaliza(email)) as { papel: string }[];
   c.close();
-  return v?.papel ?? null;
+  const ordem = ["dono", "admin", "membro", "cliente"];
+  for (const p of ordem) if (linhas.some((l) => l.papel === p)) return p;
+  return linhas[0]?.papel ?? null;
 }
 
 /** Quem manda NA EMPRESA: o dono da plataforma ou o admin daquela organizacao. */
 export function ehAdminDaOrg(conta: Conta): boolean {
   if (conta.ehDono) return true;
-  const p = papelNaOrg(conta.email);
+  const p = papelNaOrg(conta.email, conta.org?.id ?? null);
   return p === "admin" || p === "dono";
 }
 
 /** Organizacao a que o e-mail ja pertence (para nao "roubar" gente de outra empresa). */
 export function orgDoEmail(email: string): string | null {
   const c = db();
+  // Com o vínculo agora sendo (email, org), a resposta "de qual organização é"
+  // precisa ser determinística: primeiro onde a pessoa ADMINISTRA, depois a mais
+  // antiga. É o mesmo critério de `orgPorEmail`.
   const v = c
-    .prepare("SELECT org_id FROM memberships WHERE lower(email) = ?")
+    .prepare(
+      `SELECT org_id FROM memberships WHERE lower(email) = ?
+       ORDER BY CASE papel WHEN 'dono' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, criada_em ASC
+       LIMIT 1`,
+    )
     .get(normaliza(email)) as { org_id: string } | undefined;
   c.close();
   return v?.org_id ?? null;
