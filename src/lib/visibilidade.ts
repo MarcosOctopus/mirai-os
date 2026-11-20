@@ -38,6 +38,7 @@ export const ITENS: ItemDoApp[] = [
   { href: "/projetos", label: "Projetos", grupo: "principal" },
   { href: "/dashboard/connect", label: "Synapse", grupo: "principal" },
   { href: "/dashboard/arca", label: "A Arca", grupo: "principal" },
+  { href: "/organizacoes", label: "Organizações", grupo: "principal" },
   { href: "/dashboard/acervo", label: "Acervo", grupo: "principal" },
   { href: "/dashboard/painel", label: "Painel", grupo: "principal" },
   { href: "/dashboard/cosmic-agent", label: "Cosmic Agent", grupo: "principal" },

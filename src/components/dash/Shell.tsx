@@ -80,6 +80,12 @@ const PRIMARIO: Item[] = [
   // sendo so-dono: o acervo e de quem entrou. FICA no menu principal: é o
   // acervo da pessoa, não uma ferramenta de trabalho.
   { label: "A Arca", href: "/dashboard/arca", icone: <IconeCamadas /> },
+  // ORGANIZAÇÕES NA PORTA DE TODO MUNDO (dono, 20/11/2026: "bota as organizações
+  // para aparecer também e como criar uma organização nova" — os colaboradores
+  // não tinham ONDE criar: só existia a tela do dono). Aqui é a lista "as minhas"
+  // + o botão de criar; a gestão completa (todas as empresas, credencial Saaso)
+  // continua na tela do dono, no grupo secundário.
+  { label: "Organizações", href: "/organizacoes", icone: <IconeOrganizacoes /> },
   // ORANGE BOX (dono, 18/11/2026): as ferramentas saem do menu principal e
   // passam a viver num submenu, com a ordem que ele ditou — Arquiteto,
   // Agendamentos, Reunião e Chaves de API por ÚLTIMO (é o que se mexe uma vez
@@ -108,7 +114,7 @@ const PRIMARIO: Item[] = [
 const SECUNDARIO: Item[] = [
   { label: "Intelligence Control", href: "/admin/intelligence", icone: <IconeRobo />, soDono: true, selo: "NOVO" },
   { label: "Clientes", href: "/admin/clientes", icone: <IconeUsuarios />, soDono: true },
-  { label: "Organizações", href: "/admin/organizacoes", icone: <IconeOrganizacoes />, soDono: true },
+  { label: "Organizações (gestão)", href: "/admin/organizacoes", icone: <IconeOrganizacoes />, soDono: true },
   // O CONTROLE DA VITRINE precisava de porta: a página existia e não havia
   // caminho até ela (dono, 19/11/2026: "pra mim tem que aparecer").
   { label: "Visibilidade", href: "/admin/visibilidade", icone: <IconeOlho />, soDono: true },

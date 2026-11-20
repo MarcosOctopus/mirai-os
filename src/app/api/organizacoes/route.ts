@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { exigirConta, listarOrganizacoes } from "@/lib/orgs";
+import {
+  criarOrganizacao,
+  exigirConta,
+  listarOrganizacoes,
+  membrosDaOrg,
+  orgDoEmail,
+  orgPorId,
+  vincularEmail,
+} from "@/lib/orgs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,4 +37,92 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     organizacoes: visiveis.map((o) => ({ id: o.id, nome: o.nome, slug: o.slug })),
   });
+}
+
+/**
+ * CRIAR ORGANIZAÇÃO — agora é de QUEM ENTROU, não só do dono (dono, 20/11/2026:
+ * "meus colaboradores não estão conseguindo adicionar organização nova").
+ *
+ * Antes só existia o POST do painel admin (`/api/admin/organizacoes`), que exige
+ * `exigirDono` — ou seja: a porta de criar empresa estava trancada para todo
+ * mundo menos para uma conta. Aqui a regra é a mesma do resto do produto: quem
+ * cria é dono/admin DA PRÓPRIA organização, e não vê as dos outros.
+ *
+ * Teto de 20 por conta: um laço (ou um script) não enche o registro da
+ * plataforma, e continua sendo folgado para uso real.
+ */
+export async function POST(req: NextRequest) {
+  const s = await exigirConta(req);
+  if (!s.ok) return s.resposta;
+
+  const corpo = await req.json().catch(() => null);
+  const nome = String(corpo?.nome ?? "").trim().replace(/\s+/g, " ");
+  if (nome.length < 2 || nome.length > 60) {
+    return NextResponse.json({ error: "Nome da organização precisa ter de 2 a 60 letras." }, { status: 400 });
+  }
+
+  const email = s.conta.email.toLowerCase();
+  const minhas = listarOrganizacoes().filter((o) =>
+    o.membros.some((m) => m.email.toLowerCase() === email),
+  );
+  if (minhas.length >= 20) {
+    return NextResponse.json(
+      { error: "Você já criou 20 organizações. Fale com o administrador." },
+      { status: 429 },
+    );
+  }
+
+  // `clienteEmail` = quem fundou: o vínculo entra como ADMIN da org nova.
+  const org = criarOrganizacao({ nome, clienteEmail: s.conta.email });
+  return NextResponse.json(
+    { organizacao: { id: org.id, nome: org.nome, slug: org.slug } },
+    { status: 201 },
+  );
+}
+
+/**
+ * ADICIONAR MEMBRO — pelo ADMIN DA ORGANIZAÇÃO, não só pelo dono da plataforma.
+ * A regra antiga mandava tudo para `/api/admin/organizacoes`, então o sócio que
+ * fundou a empresa não conseguia pôr o time dele dentro dela. Aqui vale:
+ * dono da plataforma OU quem é `admin`/`dono` NAQUELA organização.
+ */
+export async function PATCH(req: NextRequest) {
+  const s = await exigirConta(req);
+  if (!s.ok) return s.resposta;
+
+  const corpo = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const id = String(corpo?.id || "").trim();
+  if (!id || !orgPorId(id)) {
+    return NextResponse.json({ error: "organização não encontrada" }, { status: 404 });
+  }
+
+  const email = s.conta.email.toLowerCase();
+  const meu = membrosDaOrg(id).find((m) => m.email.toLowerCase() === email);
+  const souAdminDaOrg = s.conta.ehDono || (meu ? meu.papel === "admin" || meu.papel === "dono" : false);
+  if (!souAdminDaOrg) {
+    return NextResponse.json(
+      { error: "só quem administra esta organização pode adicionar membros" },
+      { status: 403 },
+    );
+  }
+
+  const membro = corpo?.membro as { email?: string; papel?: string } | undefined;
+  if (!membro?.email) {
+    return NextResponse.json({ error: "informe o e-mail de quem vai entrar" }, { status: 400 });
+  }
+  const alvo = String(membro.email).trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(alvo)) {
+    return NextResponse.json({ error: "e-mail inválido" }, { status: 400 });
+  }
+  // Não "rouba" gente de outra empresa: vínculo é 1:1 no registro.
+  const jaEsta = orgDoEmail(alvo);
+  if (jaEsta && jaEsta !== id) {
+    return NextResponse.json(
+      { error: "esse e-mail já está em outra organização" },
+      { status: 409 },
+    );
+  }
+  const papel = membro.papel === "admin" ? "admin" : "membro";
+  vincularEmail(alvo, id, papel);
+  return NextResponse.json({ ok: true, membro: { email: alvo, papel } }, { status: 201 });
 }
