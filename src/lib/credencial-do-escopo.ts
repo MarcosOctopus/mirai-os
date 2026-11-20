@@ -104,8 +104,43 @@ export async function credencialDoEscopo(
       cache: "no-store",
     });
     if (!r.ok) {
-      console.warn("[escopo] a Arca recusou emitir credencial da organização:", r.status);
-      return null;
+      /**
+       * A ARCA NÃO CONHECE ESTA ORGANIZAÇÃO (20/11/2026 — "não consigo apagar").
+       *
+       * Organização criada pelo app nasce só na tabela `organizations` (e no
+       * vínculo). A tenancy da Arca — banco, vault, credencial — tem de ser
+       * criada também; sem isso TODO acesso ao acervo da empresa morria com 503
+       * "a credencial da organização não está disponível" (medido: Songmetrix e
+       * Pontocom Audio, criadas hoje, nunca provisionadas).
+       *
+       * Aqui o espaço é garantido na hora e a emissão é repetida UMA vez. É
+       * idempotente: org que já existe responde 400 e segue.
+       */
+      console.warn("[escopo] organização sem espaço na Arca — provisionando:", escopo.id, r.status);
+      const ok = await garantirEspacoNaArca(escopo.id, escopo.nome, conta.email).catch(() => false);
+      if (!ok) {
+        console.warn("[escopo] não consegui provisionar o espaço da organização:", escopo.id);
+        return null;
+      }
+      const r2 = await fetch(`${API_ARCA}/org/pessoas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Arca-Token": core },
+        body: JSON.stringify({ pessoa: conta.email, papel, org: escopo.id }),
+        cache: "no-store",
+      });
+      if (!r2.ok) {
+        console.warn("[escopo] a Arca recusou emitir credencial da organização:", r2.status);
+        return null;
+      }
+      const d2 = (await r2.json()) as { token?: string; papel?: string };
+      if (!d2.token) return null;
+      gravarCofre(escopo, {
+        [chave]: cifrar(d2.token),
+        [`arca_org:${conta.email.toLowerCase()}`]: escopo.id,
+        [`arca_papel:${conta.email.toLowerCase()}`]: d2.papel || papel,
+        [`arca_em:${conta.email.toLowerCase()}`]: new Date().toISOString(),
+      });
+      return d2.token;
     }
     const d = (await r.json()) as { token?: string; papel?: string };
     if (!d.token) return null;
