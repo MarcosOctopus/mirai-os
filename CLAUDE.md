@@ -86,6 +86,9 @@ The API key is in `~/.claude/settings.json`.
 - `PATCH /api/organizacoes` adiciona membro: aceito para dono da plataforma OU `admin`/`dono` DAQUELA org (403 fora disso; 409 se o e-mail já está em outra org).
 - Escopo: a pessoa vê só as orgs dela; o dono vê todas (filtro no servidor).
 - A rota está no catálogo de visibilidade (`/admin/visibilidade`) e nasce `publico`.
+- **Teto por PLANO** (20/11/2026): `limits.organizacoes` do plano `mirai` da pessoa, lido do plano de controle (`src/lib/limite-organizacoes.ts`): básico 1 · intermediário 3 · profissional 10 · avançado 25. Dono não tem teto. Excesso = HTTP 402 com mensagem do plano.
+- `memberships` tem chave **(email, org_id)** — a mesma pessoa pode estar/administrar várias organizações (antes era 1 por e-mail e criar a 2ª APAGAVA o vínculo da 1ª).
+- O app sobe com `.env.local` exportado: o ambiente do container traz `MIRAI_ADMIN_SECRET` velho e `process.env` vence o arquivo (foi o que deixou o limite "sem plano").
 
 ## Task
 Redesign and rebuild the MIRAI OS from scratch. Use Three.js for the orb. Make it feel alive, cinematic, intelligent. The user should feel they're operating a real AI, not using a web app.

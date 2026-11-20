@@ -62,6 +62,10 @@ const ACOES = ["stats", "grafo", "listar", "buscar", "query", "backlinks", "link
 /** Escrita: as três primeiras são da camada; as duas últimas nasceram antes dela. */
 const ACOES_ESCRITA = ["criar-pasta", "criar-nota", "mover-nota", "editar-pasta", "editar-tag",
   "apagar-pasta", "podar-pastas",
+  // apagar NOTA (20/11/2026): existia apagar pasta e não existia apagar arquivo —
+  // o colaborador não tinha como tirar uma nota. A Arca já sabia (DELETE
+  // /acervo/nota, que manda para a LIXEIRA e é reversível); o app só não chamava.
+  "apagar-nota",
   // compartilhamento (F3, 11/11/2026): a verdade é da Arca, o app só veste
   "compartilhar", "descompartilhar", "link-convidado", "atender-pedido", "visto", "visto-tudo"] as const;
 const SLUG_OK = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
@@ -1548,6 +1552,26 @@ export async function POST(req: NextRequest) {
       const r = await pedirCamada(tok, "PATCH", "/acervo/nota", payload);
       // 404 = rota ausente (processo antigo): a ponte preserva o nome do arquivo.
       if (r.status === 404) return responder(await moverNotaNoArquivo(org, payload));
+      return responder(r);
+    }
+
+    if (acao === "apagar-nota") {
+      const caminho = String(corpo.path || "").trim().replace(/^\/+/, "");
+      if (!caminho) return erro(400, "diga qual nota apagar");
+      // Confirmação obrigatória, no mesmo padrão da poda de pasta: o caminho
+      // repetido é o que separa "cliquei errado" de "quero apagar".
+      const confirmar = String(corpo.confirmar || "").trim().replace(/^\/+/, "");
+      if (confirmar !== caminho) {
+        return erro(400, `para apagar, repita o caminho exato em confirmar\ncaminho: ${caminho}`);
+      }
+      const r = await pedirCamada(
+        tok, "DELETE",
+        `/acervo/nota?path=${encodeURIComponent(caminho)}&confirmar=${encodeURIComponent(confirmar)}`,
+      );
+      // 404 = processo antigo (rota ausente) — dizer a verdade em vez de "não achei".
+      if (r.status === 404) {
+        return erro(503, "a Arca no ar ainda não sabe apagar nota — o serviço precisa ser reiniciado (rota nova, processo antigo).");
+      }
       return responder(r);
     }
 

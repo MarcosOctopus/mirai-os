@@ -88,8 +88,12 @@ type CtxEditor = {
   /** APAGAR pasta: confirmação em duas etapas na própria linha. `temConteudo`
    *  decide se o pedido vai como recursivo — e a camada ainda exige o nome
    *  repetido, então a tela nunca apaga conteúdo por um clique solto. */
-  apagando: { caminho: string; nome: string; temConteudo: boolean } | null;
+  apagando: { caminho: string; nome: string; temConteudo: boolean; tipo: "nota" | "pasta" } | null;
   pedirApagarPasta: (caminho: string, nome: string, temConteudo: boolean) => void;
+  /** APAGAR NOTA: mesmo rito da pasta (confirma na própria linha). A Arca manda
+   *  para a LIXEIRA do vault, então é recuperável — mas quem clica não sabe
+   *  disso, e o caminho repetido é o que separa engano de decisão. */
+  pedirApagarNota: (caminho: string, nome: string) => void;
   cancelarApagar: () => void;
   confirmarApagar: () => void;
   salvandoApagar: boolean;
@@ -1029,13 +1033,19 @@ export default function ArcaPage() {
      Duas etapas na própria linha: o 🗑 pede confirmação e só o segundo clique
      apaga. Pasta com conteúdo vai como `recursivo` + `confirmar` = o caminho —
      a camada recusa sem isso, então não existe apagar-por-engano. */
-  const [apagando, setApagando] = useState<{ caminho: string; nome: string; temConteudo: boolean } | null>(null);
+  const [apagando, setApagando] = useState<{ caminho: string; nome: string; temConteudo: boolean; tipo: "nota" | "pasta" } | null>(null);
   const [salvandoApagar, setSalvandoApagar] = useState(false);
 
   const pedirApagarPasta = useCallback((caminho: string, nome: string, temConteudo: boolean) => {
     setErro(null);
     setEditor(null);
-    setApagando({ caminho, nome, temConteudo });
+    setApagando({ caminho, nome, temConteudo, tipo: "pasta" });
+  }, []);
+
+  const pedirApagarNota = useCallback((caminho: string, nome: string) => {
+    setErro(null);
+    setEditor(null);
+    setApagando({ caminho, nome, temConteudo: false, tipo: "nota" });
   }, []);
 
   const cancelarApagar = useCallback(() => setApagando(null), []);
@@ -1049,12 +1059,16 @@ export default function ArcaPage() {
       const r = await fetch(API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          acao: "apagar-pasta",
-          caminho: alvo.caminho,
-          recursivo: alvo.temConteudo,
-          confirmar: alvo.temConteudo ? alvo.caminho : "",
-        }),
+        body: JSON.stringify(
+          alvo.tipo === "nota"
+            ? { acao: "apagar-nota", path: alvo.caminho, confirmar: alvo.caminho }
+            : {
+                acao: "apagar-pasta",
+                caminho: alvo.caminho,
+                recursivo: alvo.temConteudo,
+                confirmar: alvo.temConteudo ? alvo.caminho : "",
+              },
+        ),
       });
       const d = (await r.json().catch(() => ({}))) as Record<string, unknown>;
       if (!r.ok || d?.ok === false) {
@@ -1062,6 +1076,13 @@ export default function ArcaPage() {
         const motivo =
           typeof det === "string" ? det : String((det?.motivo as string) || (d?.error as string) || "");
         throw new Error(motivo || "a Arca não apagou a pasta");
+      }
+      if (alvo.tipo === "nota") {
+        setAviso(`nota “${alvo.nome.replace(/\.md$/i, "")}” apagada — foi para a lixeira do acervo, dá para recuperar.`);
+        setApagando(null);
+        if (nota?.path === alvo.caminho) setNota(null);
+        await carregarArvore();
+        return;
       }
       const apagados = Array.isArray(d?.apagados) ? (d.apagados as string[]) : [];
       setAviso(
@@ -1071,7 +1092,13 @@ export default function ArcaPage() {
       if (nota?.path && nota.path.startsWith(`${alvo.caminho}/`)) setNota(null);
       await carregarArvore();
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "não consegui apagar a pasta");
+      setErro(
+        e instanceof Error
+          ? e.message
+          : alvo.tipo === "nota"
+            ? "não consegui apagar a nota"
+            : "não consegui apagar a pasta",
+      );
     } finally {
       setSalvandoApagar(false);
     }
@@ -1093,6 +1120,7 @@ export default function ArcaPage() {
         cancelarEdicao,
         apagando,
         pedirApagarPasta,
+        pedirApagarNota,
         cancelarApagar,
         confirmarApagar: () => void confirmarApagar(),
         salvandoApagar,
@@ -1926,9 +1954,10 @@ function LinhaNota({
   const soLeitura = useContext(ContextoRecebido);
   const editando = ed.editor?.tipo === "nota" && ed.editor.caminho === caminho;
   return (
-    /* A LINHA é um contêiner (a alcinha é IRMÃ do botão, não filha): botão dentro
+    <>
+    {/* A LINHA é um contêiner (a alcinha é IRMÃ do botão, não filha): botão dentro
        de botão é HTML inválido e o React reclama no console. A área de drop é
-       esta div — o mesmo `data-arca-nota-drop` de antes. */
+       esta div — o mesmo `data-arca-nota-drop` de antes. */}
     <div
       data-arca-nota-drop={caminho}
       data-arca-nota-pasta={pastaPai}
@@ -1974,7 +2003,50 @@ function LinhaNota({
           aoClicar={() => ed.editarNota(caminho, nome)}
         />
       )}
+      {!editando && !soLeitura && (
+        <button
+          type="button"
+          onClick={() => ed.pedirApagarNota(caminho, nome)}
+          title={`apagar “${nome.replace(/\.md$/i, "")}”`}
+          aria-label={`apagar “${nome.replace(/\.md$/i, "")}”`}
+          data-arca-apagar-nota={caminho}
+          className="shrink-0 rounded p-1 text-dash-muted/60 opacity-0 transition hover:bg-[#ef4444]/10 hover:text-[#ef4444] focus-visible:opacity-100 group-hover:opacity-100"
+        >
+          <svg viewBox="0 0 24 24" className="h-[13px] w-[13px]" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
     </div>
+    {ed.apagando?.tipo === "nota" && ed.apagando.caminho === caminho && (
+      <div
+        data-arca-confirma-apagar-nota={caminho}
+        className="flex flex-wrap items-center gap-2 border-l-2 border-l-[#ef4444] bg-[#ef4444]/[0.07] py-1.5 pr-2"
+        style={{ paddingLeft: `${20 + nivel * 13}px` }}
+      >
+        <span className="text-[11.5px] text-dash-fg">
+          apagar “{nome.replace(/\.md$/i, "")}”? vai para a lixeira do acervo.
+        </span>
+        <button
+          type="button"
+          onClick={ed.confirmarApagar}
+          disabled={ed.salvandoApagar}
+          data-arca-apagar-nota-sim={caminho}
+          className="text-[11px] text-[#ef4444] disabled:opacity-50"
+        >
+          {ed.salvandoApagar ? "apagando…" : "apagar"}
+        </button>
+        <button
+          type="button"
+          onClick={ed.cancelarApagar}
+          data-arca-apagar-nota-nao={caminho}
+          className="text-[11px] text-dash-muted hover:text-dash-fg"
+        >
+          cancelar
+        </button>
+      </div>
+    )}
+    </>
   );
 }
 
