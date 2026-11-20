@@ -1425,7 +1425,10 @@ export async function POST(req: NextRequest) {
   // `pasta`/`nova_pasta` entram junto: criar nota dentro de uma pasta escolhida na
   // árvore de "Tudo" chegaria como `pessoal-17/<pasta>` e nasceria dentro de uma
   // pasta chamada "pessoal-17" — o mesmo defeito, outra porta.
-  for (const campo of ["path", "caminho", "pasta", "nova_pasta"] as const) {
+  // `confirmar` TAMBÉM: ele repete o caminho da nota; se só o `path` perdesse o
+  // prefixo, a comparação "confirmar === path" falharia e o apagar voltaria 400
+  // ("repita o caminho exato") — medido no primeiro teste desta correção.
+  for (const campo of ["path", "caminho", "pasta", "nova_pasta", "confirmar"] as const) {
     const cru = String(corpo[campo] || "").replace(/^\/+/, "");
     if (!cru.includes("/")) continue;
     const corte = cru.indexOf("/");
