@@ -71,6 +71,26 @@ const ACOES_ESCRITA = ["criar-pasta", "criar-nota", "mover-nota", "editar-pasta"
 const SLUG_OK = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
 
 /**
+ * NAVEGAÇÃO NÃO LÊ OCULTO — poda defensiva da árvore.
+ *
+ * A regra é da Arca, mas a árvore é o que a pessoa OLHA: em 20/11/2026 a lixeira
+ * (`.lixeira/<carimbo>/…`) apareceu na tela com as notas apagadas dentro, porque
+ * o montador da Arca só pulava `.git`. Aqui a poda é repetida de propósito: se a
+ * camada no ar ainda estiver com o montador antigo, a tela continua limpa.
+ */
+function podarOcultas(no: Record<string, unknown>): Record<string, unknown> {
+  const filtra = (lista: unknown) =>
+    Array.isArray(lista) ? lista.filter((i) => i && typeof i === "object" && !String((i as Record<string, unknown>).path || "").split("/").some((p) => p.startsWith("."))) : lista;
+  return {
+    ...no,
+    notas: filtra(no.notas),
+    subpastas: (Array.isArray(no.subpastas) ? (no.subpastas as Record<string, unknown>[]) : []).filter(
+      (s) => !String(s.path || "").split("/").some((p) => p.startsWith(".")),
+    ).map(podarOcultas),
+  };
+}
+
+/**
  * Arquivo que a Arca NÃO serve: parece credencial (mesma regra do vaultops, que
  * já exclui esses nomes do HISTÓRICO). Medido 10/11/2026: o vault do dono tem
  * `secrets/acervo-migrado/CLOUDFLARE_TOKEN.md (movido do acervo em 11/11/2026)` com o token em texto puro — a bancada de
@@ -1151,7 +1171,7 @@ async function atenderAcervo(req: NextRequest) {
         const r = await pedirCamada(tok, "GET", `/acervo/arvore?${q}`);
         diagCamada = String(r.status);
         if (r.status === 200 && r.dados && (r.dados as { arvore?: unknown }).arvore) {
-          const arv = recebido ? recortarArvore((r.dados as { arvore?: unknown }).arvore, recebido) : (r.dados as { arvore?: unknown }).arvore;
+          const arv = podarOcultas((recebido ? recortarArvore((r.dados as { arvore?: unknown }).arvore, recebido) : (r.dados as { arvore?: unknown }).arvore) as Record<string, unknown>);
           return NextResponse.json({ org, ...r.dados, arvore: arv, origem: "camada", somente_recebido: Boolean(recebido), ...(escopoAjustado ? { escopo_ajustado: escopoAjustado } : {}) });
         }
         // Camada antiga (sem /acervo/arvore): a árvore crua da Arca serve, só
@@ -1159,7 +1179,7 @@ async function atenderAcervo(req: NextRequest) {
         const rv = await lerDoVault(tok, `/vault/arvore?${q}`);
         diagVault = rv ? "200" : "falhou";
         if (rv && (rv as { arvore?: unknown }).arvore) {
-          const arv = recebido ? recortarArvore((rv as { arvore?: unknown }).arvore, recebido) : (rv as { arvore?: unknown }).arvore;
+          const arv = podarOcultas((recebido ? recortarArvore((rv as { arvore?: unknown }).arvore, recebido) : (rv as { arvore?: unknown }).arvore) as Record<string, unknown>);
           return NextResponse.json({ org, arvore: arv, tags: [], origem: "arca", somente_recebido: Boolean(recebido) });
         }
       }
@@ -1180,7 +1200,7 @@ async function atenderAcervo(req: NextRequest) {
       }
       return NextResponse.json({
         org,
-        arvore: recebido ? recortarArvore(arvoreDisco, recebido) : arvoreDisco,
+        arvore: podarOcultas((recebido ? recortarArvore(arvoreDisco, recebido) : arvoreDisco) as Record<string, unknown>),
         tags: [],
         origem: "disco",
         somente_recebido: Boolean(recebido),

@@ -90,5 +90,12 @@ The API key is in `~/.claude/settings.json`.
 - `memberships` tem chave **(email, org_id)** — a mesma pessoa pode estar/administrar várias organizações (antes era 1 por e-mail e criar a 2ª APAGAVA o vínculo da 1ª).
 - O app sobe com `.env.local` exportado: o ambiente do container traz `MIRAI_ADMIN_SECRET` velho e `process.env` vence o arquivo (foi o que deixou o limite "sem plano").
 
+## Apagar nota (20/11/2026)
+- `POST /api/acervo` `{acao:"apagar-nota", path, confirmar:path}` → `DELETE /acervo/nota` da Arca.
+- Vai para a **LIXEIRA** (`<vault>/.lixeira/<carimbo>/<caminho>`), nunca some: `restauravel:true`, e o commit do vault registra o motivo.
+- `confirmar` tem de repetir o caminho exato (sem isso = 400). Um clique nunca apaga.
+- Nunca apaga arquivo protegido (credencial) — a Arca responde 403.
+- UI: botão de lixeira na linha da nota (aparece no hover), confirmação em duas etapas na própria linha.
+
 ## Task
 Redesign and rebuild the MIRAI OS from scratch. Use Three.js for the orb. Make it feel alive, cinematic, intelligent. The user should feel they're operating a real AI, not using a web app.
