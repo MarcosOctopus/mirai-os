@@ -452,6 +452,31 @@ export default function Youniverse({
         }}
       />
 
+      {/* ── CÉU AINDA VAZIO (23/11/2026) ────────────────────────────────────
+          Quando o acervo ainda não tem estrela (nota recém-subida, palácio sendo
+          minerado, ou espaço novo), a tela ficava preta e muda — o dono viu isso
+          na conta de um colaborador e pediu a mensagem: "quando não tivesse nada,
+          alguma mensagem: Gerando seu Youniverse". É um estado, não um erro: o
+          mapa se desenha sozinho quando a memória termina de ser minerada. */}
+      {dados && (dados.nodes || []).length === 0 && (
+        <div
+          data-youniverse-vazio="sim"
+          className="pointer-events-none absolute inset-0 z-30 grid place-items-center"
+        >
+          <div className="flex max-w-[330px] flex-col items-center gap-3 px-6 text-center">
+            <span
+              aria-hidden
+              className="h-9 w-9 animate-spin rounded-full border-2 border-white/10 border-t-dash-brand"
+            />
+            <p className="text-[13.5px] text-dash-fg/85">Gerando seu Youniverse…</p>
+            <p className="text-[11.5px] leading-relaxed text-dash-muted">
+              a Mirai está lendo as suas notas e minerando a memória de cada uma. cada
+              estrela aparece aqui assim que nasce — costuma levar poucos minutos.
+            </p>
+          </div>
+        </div>
+      )}
+
       {dados && temWebgl !== false && (
         <div ref={caixa} className="absolute inset-0">
           <Ceu
