@@ -362,7 +362,11 @@ export const CATALOGO: Integracao[] = [
        o resultado era um DISCO BRANCO VAZIO. Agora é o glifo da marca, branco,
        sobre o roxo da Canva (6.2:1). O `cor` também estava em turquesa, que não é
        a cor da marca. */
-    logo: "/integracoes/canva.svg",
+    /* NOME NOVO, de propósito: `public/` é servido com `cache-control: max-age=14400`,
+       então trocar o CONTEÚDO de um arquivo de mesmo nome não chega ao navegador
+       que já o viu — o dono seguiu vendo o disco branco depois da correção
+       (23/11/2026). Arte que muda, arquivo que muda de nome. */
+    logo: "/integracoes/canva-marca.svg",
     cor: "#7d2ae8",
     site: "https://www.canva.com",
     destaque: true,

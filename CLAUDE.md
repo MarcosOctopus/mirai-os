@@ -108,6 +108,7 @@ The API key is in `~/.claude/settings.json`.
 ## Synapse: a fotinha do produto (23/11/2026)
 - A tabela das integrações ligadas e os "Destaques" desenhavam arte genérica do template (`6d39f.svg`, avatar `4a796.svg`) — todos os produtos com a MESMA figura vazia. Agora usam `Figura` do catálogo (`components/dash/integracao-cards`): logo real, branca sobre `i.cor`.
 - Toda logo do catálogo tem de EXISTIR em `public/integracoes/`: `whatsapp.svg` estava referenciada e dava 404 (card vazio). Conferir arquivo por arquivo antes de fechar o catálogo.
+- **A logo tem de ser o GLIFO da marca, e não a arte colorida dela.** O card aplica `brightness(0) invert(1)`: qualquer traço colorido vira silhueta branca. O ícone antigo da Canva (disco roxo + palavra branca) virava **disco branco vazio**; o Gmail usava `/integracoes/google.svg`, que é o glifo do **Gemini** — marca de outro produto. Regra: glifo branco (`fill="#ffffff"`), com os vazados em transparência, e `cor` = fundo onde ele lê 3:1.
 
 ## Publicação: o SELO é o que atualiza a aba (20/11/2026)
 - `publica-zero.sh` agora grava `.build-no-ar` (`AAMMDDHHMMSS-<hash>`) ANTES do build, nos dois diretórios. O hash vem de `git -C /opt/data/mirai-app` — o espelho é symlink e NÃO é repositório (ali `git rev-parse` falhava e o selo saía sem hash). Sem isso o selo ficou cravado em `261119190515` por um dia inteiro e o navegador do dono seguiu rodando o JS velho, ignorando toda correção publicada ("mesmo erro").
