@@ -105,8 +105,12 @@ The API key is in `~/.claude/settings.json`.
 - Leitura em "tudo" só serve ações da lista `LEITURA` do `servirTudo`; ação de leitura nova precisa ser adicionada lá (foi o 400 de `acesso`).
 - Organização criada no app existe só em `organizations`/`memberships`: a tenancy na Arca (banco, vault, credencial) é **provisionada no primeiro acesso** (`garantirEspacoNaArca` dentro de `credencialDoEscopo`). Antes a org nascia sem espaço e todo acesso dava 503.
 
+## Synapse: a fotinha do produto (23/11/2026)
+- A tabela das integrações ligadas e os "Destaques" desenhavam arte genérica do template (`6d39f.svg`, avatar `4a796.svg`) — todos os produtos com a MESMA figura vazia. Agora usam `Figura` do catálogo (`components/dash/integracao-cards`): logo real, branca sobre `i.cor`.
+- Toda logo do catálogo tem de EXISTIR em `public/integracoes/`: `whatsapp.svg` estava referenciada e dava 404 (card vazio). Conferir arquivo por arquivo antes de fechar o catálogo.
+
 ## Publicação: o SELO é o que atualiza a aba (20/11/2026)
-- `publica-zero.sh` agora grava `.build-no-ar` (`AAMMDDHHMMSS-<hash>`) ANTES do build, nos dois diretórios. Sem isso o selo ficou cravado em `261119190515` por um dia inteiro e o navegador do dono seguiu rodando o JS velho, ignorando toda correção publicada ("mesmo erro").
+- `publica-zero.sh` agora grava `.build-no-ar` (`AAMMDDHHMMSS-<hash>`) ANTES do build, nos dois diretórios. O hash vem de `git -C /opt/data/mirai-app` — o espelho é symlink e NÃO é repositório (ali `git rev-parse` falhava e o selo saía sem hash). Sem isso o selo ficou cravado em `261119190515` por um dia inteiro e o navegador do dono seguiu rodando o JS velho, ignorando toda correção publicada ("mesmo erro").
 - `/version` e o `meta x-build` leem o mesmo arquivo (`lib/build-no-ar`); o `AtualizadorAutomatico` só recarrega quando o servidor está ADIANTE. Selo parado = aba eternamente velha.
 
 ## Ícones de ação: nunca só no hover (20/11/2026)

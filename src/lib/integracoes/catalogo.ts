@@ -160,7 +160,11 @@ export const CATALOGO: Integracao[] = [
     explicacao: "Sua caixa de entrada, lida pela Mirai.",
     tipo: "api",
     categoria: "essenciais",
-    logo: "/integracoes/google.svg",
+    /* A MARCA DO GMAIL (23/11/2026). Aqui estava `/integracoes/google.svg`, que
+       é o glifo do GEMINI (estrela) — o card do e-mail mostrava a marca de outro
+       produto do Google. O dono viu na hora: "Gmail está errado a marca". */
+    logo: "/integracoes/gmail.svg",
+    /* vermelho da marca (#ea4335): a logo branca lê a 3.5:1 sobre ele */
     cor: "#ea4335",
     // OAuth de INTEGRAÇÃO (gmail.readonly + gmail.send), não o login do app:
     // /api/auth/google só prova identidade e não dá acesso à caixa.
@@ -353,9 +357,13 @@ export const CATALOGO: Integracao[] = [
     explicacao: "Design e templates, por MCP.",
     tipo: "mcp",
     categoria: "media",
+    /* A MARCA DA CANVA (23/11/2026). O arquivo era o ícone em CÍRCULO ROXO com
+       gradiente — e como o card pinta a logo de branco (brightness(0) invert(1)),
+       o resultado era um DISCO BRANCO VAZIO. Agora é o glifo da marca, branco,
+       sobre o roxo da Canva (6.2:1). O `cor` também estava em turquesa, que não é
+       a cor da marca. */
     logo: "/integracoes/canva.svg",
-    /* dominante #08bace escurecido (fator .884) p/ a logo branca ler a 3:1 */
-    cor: "#07a4b6",
+    cor: "#7d2ae8",
     site: "https://www.canva.com",
     destaque: true,
   },
