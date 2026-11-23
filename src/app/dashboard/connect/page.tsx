@@ -337,8 +337,15 @@ function Destaques({
           const p = pronta(i);
           return (
             <div key={i.id} className="grid grid-cols-[43px_1fr_auto] items-center gap-[9px]">
-              {/* o avatar do template (4a796.svg) */}
-              <img src={`${A}/4a796.svg`} alt="" className="h-[43px] w-[43px]" />
+              {/* a fotinha do produto (22/11/2026) — era o avatar genérico do
+                  template (4a796.svg) repetido nas quatro linhas, o que não
+                  identificava produto nenhum. */}
+              <span
+                className="grid h-[43px] w-[43px] shrink-0 place-items-center overflow-hidden rounded-[10px]"
+                style={{ background: i.cor || COR_PADRAO_CARD }}
+              >
+                <Figura item={i} tamanho={22} />
+              </span>
               <div className="min-w-0">
                 <p className="truncate text-[12px]">{i.nome}</p>
                 <p className="truncate text-[10px] text-dash-dim">{i.empresa}</p>
@@ -420,10 +427,17 @@ function TabelaIntegracoes({
             key={i.id}
             className={`${grade} items-center gap-8 px-[30px] py-[17px] text-[12px] text-dash-muted`}
           >
-            {/* a moldura do "Object" da referência, com a arte do zip (6d39f.svg) */}
-            <div className="h-14 w-14 overflow-hidden rounded-[10px] bg-[#c4c4c4]">
-              <img src={`${A}/6d39f.svg`} alt="" className="h-full w-full" />
-            </div>
+            {/* A FOTINHA DO PRODUTO (22/11/2026). Aqui era a arte genérica do
+                zip (6d39f.svg) numa moldura cinza: a tabela das ligadas não
+                dizia DE QUEM era cada linha antes de ler o nome — e no dono isso
+                virou "as fotinhas dos produtos não aparecem". Agora é a logo do
+                catálogo, branca sobre a cor da marca (mesma régua do card). */}
+            <span
+              className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[10px]"
+              style={{ background: i.cor || COR_PADRAO_CARD }}
+            >
+              <Figura item={i} tamanho={28} />
+            </span>
             <span className="truncate text-dash-fg">{i.nome}</span>
             <span className="truncate">{i.empresa}</span>
             <span className="uppercase">{i.tipo}</span>

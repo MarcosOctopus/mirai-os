@@ -105,5 +105,13 @@ The API key is in `~/.claude/settings.json`.
 - Leitura em "tudo" só serve ações da lista `LEITURA` do `servirTudo`; ação de leitura nova precisa ser adicionada lá (foi o 400 de `acesso`).
 - Organização criada no app existe só em `organizations`/`memberships`: a tenancy na Arca (banco, vault, credencial) é **provisionada no primeiro acesso** (`garantirEspacoNaArca` dentro de `credencialDoEscopo`). Antes a org nascia sem espaço e todo acesso dava 503.
 
+## Publicação: o SELO é o que atualiza a aba (20/11/2026)
+- `publica-zero.sh` agora grava `.build-no-ar` (`AAMMDDHHMMSS-<hash>`) ANTES do build, nos dois diretórios. Sem isso o selo ficou cravado em `261119190515` por um dia inteiro e o navegador do dono seguiu rodando o JS velho, ignorando toda correção publicada ("mesmo erro").
+- `/version` e o `meta x-build` leem o mesmo arquivo (`lib/build-no-ar`); o `AtualizadorAutomatico` só recarrega quando o servidor está ADIANTE. Selo parado = aba eternamente velha.
+
+## Ícones de ação: nunca só no hover (20/11/2026)
+- A lixeira da NOTA nasceu `opacity-0 group-hover:opacity-100`: no toque/trackpad ela não existia, e o dono concluiu "não dá pra apagar" enquanto clicava no ✎ ao lado. Ação destrutiva/útil tem de estar sempre visível (opacidade baixa), com o hover só reforçando.
+- Espaço (pessoal/organização) desenhado como pasta na árvore de "Tudo" carrega `espaco` no nó e NÃO ganha 🗑 ✎ ⠿ — senão a pessoa apaga "a pasta Meu espaço".
+
 ## Task
 Redesign and rebuild the MIRAI OS from scratch. Use Three.js for the orb. Make it feel alive, cinematic, intelligent. The user should feel they're operating a real AI, not using a web app.
