@@ -23,7 +23,39 @@
  */
 import type { Conta } from "@/lib/orgs";
 import { lerVinculo } from "@/lib/vinculo-conta-mirai";
-import { capacidadesDoTenant } from "@/lib/plano-controle";
+import { capacidadesDoTenant, chamarPlanoDeControle } from "@/lib/plano-controle";
+
+/**
+ * SEM VÍNCULO GRAVADO, PERGUNTA PELO E-MAIL.
+ *
+ * Medido em 24/11/2026: 13 contas no app, 11 com o vínculo gravado e 2 sem
+ * (`platform_config.mirai`). As duas sem vínculo também não têm plano nenhum no
+ * plano de controle — então fechar está certo para elas. Mas a regra do dono é
+ * não derrubar quem TEM plano, e vínculo local é coisa que pode falhar de ser
+ * criada (o cadastro segue funcionando quando o plano de controle pisca). Por
+ * isso: antes de fechar por falta de vínculo, pergunta pelo e-mail. Achou plano
+ * do produto `mirai`? Usa aquele tenant. Não achou? Aí sim é conta sem plano.
+ */
+export async function tenantPorEmail(email: string): Promise<string | null> {
+  if (!email) return null;
+  try {
+    const r = await chamarPlanoDeControle("/v1/admin/usuarios", { method: "GET" });
+    if (r.status !== 200) return null;
+    const lista = (((r.corpo as { usuarios?: unknown[] })?.usuarios || []) as Array<
+      Record<string, unknown>
+    >);
+    const alvo = email.trim().toLowerCase();
+    const achado = lista.find(
+      (u) =>
+        String(u.email || "").toLowerCase() === alvo &&
+        (!u.product_id || String(u.product_id) === "mirai"),
+    );
+    const tid = achado && (achado.tenant_id || achado.tenant);
+    return typeof tid === "string" && tid ? tid : null;
+  } catch {
+    return null;
+  }
+}
 
 export type MotivoPlano =
   | "dono"                  // dono da plataforma: entra sempre
@@ -68,21 +100,25 @@ function doCache(tenantId: string): DecisaoPlano | null {
 export async function decidirAcessoPlano(conta: Conta): Promise<DecisaoPlano> {
   if (conta.ehDono) return { permitido: true, motivo: "dono" };
 
-  const vinculo = lerVinculo(conta.id);
-  if (!vinculo?.tenant_id) {
-    // Sem vínculo não há a quem perguntar: é uma conta nova, sem plano. Fecha.
+  let tenantId = lerVinculo(conta.id)?.tenant_id || "";
+  if (!tenantId) {
+    // O vínculo local é conveniência; a verdade está no plano de controle.
+    tenantId = (await tenantPorEmail(conta.email)) || "";
+  }
+  if (!tenantId) {
+    // Resposta de verdade: esta conta não tem plano nenhum do OS. Fecha.
     return {
       permitido: false,
       motivo: "sem_vinculo",
-      detalhe: "conta sem vínculo no plano de controle",
+      detalhe: "conta sem vínculo e sem plano no plano de controle",
     };
   }
 
-  const guardado = doCache(vinculo.tenant_id);
+  const guardado = doCache(tenantId);
   if (guardado) return guardado;
 
   try {
-    const r = await capacidadesDoTenant(vinculo.tenant_id);
+    const r = await capacidadesDoTenant(tenantId);
     if (!r.ok) {
       /* DUAS COISAS DIFERENTES caem aqui e não podem ter o mesmo destino:
          (a) o plano de controle RESPONDEU que esta organização não existe — é
@@ -100,7 +136,7 @@ export async function decidirAcessoPlano(conta: Conta): Promise<DecisaoPlano> {
         motivo: "sem_plano",
         detalhe: r.erro,
       };
-      cache.set(vinculo.tenant_id, { em: Date.now(), d: fechado });
+      cache.set(tenantId, { em: Date.now(), d: fechado });
       return fechado;
     }
     const libera = capacidadesLiberam(r.capacidades);
@@ -109,7 +145,7 @@ export async function decidirAcessoPlano(conta: Conta): Promise<DecisaoPlano> {
       motivo: libera ? "plano" : "sem_plano",
       capacidades: r.capacidades,
     };
-    cache.set(vinculo.tenant_id, { em: Date.now(), d });
+    cache.set(tenantId, { em: Date.now(), d });
     return d;
   } catch (e) {
     console.warn(
