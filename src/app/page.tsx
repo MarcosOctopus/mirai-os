@@ -81,20 +81,23 @@ export default function Page() {
     <Shell titulo="Mirai" usuario={conta} recolhidaInicial cheio>
       {/* tela cheia: `.tela-cheia` prende a tela no miolo do menu (mesma ideia
           do antigo orb-cheio), sem cartão e sem margem nas laterais */}
-      <div className="tela-cheia flex flex-col overflow-hidden bg-dash-bg">
+      <div className="tela-cheia relative flex flex-col overflow-hidden bg-dash-bg">
         {/* topo: o seletor Chat/Orb — a única moldura da tela. Na tela de
             início a linha de baixo some (nada de moldura no palco limpo) e o
-            seletor ganha corpo. */}
+            seletor ganha corpo.
+
+            NO MODO ORB O TOPO SAI DO FLUXO (dono, 24/11/2026: "tira a barra
+            escura atrás do toogle"). Enquanto ele era `relative`, o palco
+            começava em y=51 e a faixa de cima mostrava o `bg-dash-bg` da
+            moldura — uma barra chapada cortando o céu. Absoluto, o palco ocupa
+            a tela inteira e o toggle flutua SOBRE o céu. */}
         <div
-          className={`relative z-30 flex shrink-0 items-center justify-center border-b px-4 transition-all ${
-            seletorGrande
-              ? "border-transparent py-4"
-              : modo === "orb"
-                ? // NO MODO ORB NÃO EXISTE MOLDURA (dono, 24/11/2026: "tira essa
-                  // barra que fica atrás do toggle no topo"). O orb é a tela; a
-                  // linha do topo era a única coisa cortando o céu.
-                  "border-transparent py-3"
-                : "border-dash-hair/[0.07] py-2.5"
+          className={`z-30 flex items-center justify-center border-b px-4 transition-all ${
+            modo === "orb"
+              ? "absolute inset-x-0 top-0 border-transparent py-3"
+              : seletorGrande
+                ? "relative shrink-0 border-transparent py-4"
+                : "relative shrink-0 border-dash-hair/[0.07] py-2.5"
           }`}
         >
           <SeletorModo

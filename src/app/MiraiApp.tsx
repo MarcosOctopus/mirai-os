@@ -422,6 +422,19 @@ function MiraiAppCore() {
     setThinking(false);
   }, []);
 
+  // UM TOQUE NO ORB = UMA AÇÃO (dono, 24/11/2026): *"quando eu clicar ela também
+  // parar de ouvir. Hoje eu clico, ela ouve, e depois não tem como fazer ela
+  // parar de ouvir"*. Então o toque agora ALTERNA: acorda e ouve / para de ouvir.
+  // O guarda de 350 ms existe porque o mesmo toque dispara `pointerup`, `touchend`
+  // e `click` — sem ele, o segundo evento desfaria o primeiro na hora.
+  const ultimoToqueNoOrb = useRef(0);
+  const aoTocarNoOrb = useCallback(() => {
+    const agora = Date.now();
+    if (agora - ultimoToqueNoOrb.current < 350) return;
+    ultimoToqueNoOrb.current = agora;
+    void handleMic();
+  }, [handleMic]);
+
   const handleToggleMode = useCallback(() => {
     const newMode = chatMode === "conversa" ? "arquiteto" : "conversa";
     voiceRef.current.stopListening();
@@ -488,24 +501,26 @@ function MiraiAppCore() {
           className="mirai-orb-button"
           role="button"
           tabIndex={0}
-          onClick={() => void awaken()}
-          onPointerUp={() => void awaken()}
+          onClick={aoTocarNoOrb}
+          onPointerUp={aoTocarNoOrb}
           onTouchEnd={(event) => {
             event.preventDefault();
-            void awaken();
+            aoTocarNoOrb();
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
-              void awaken();
+              aoTocarNoOrb();
             }
           }}
-          aria-label="Despertar Mirai"
+          aria-label={voice.status === "listening" ? "Parar de ouvir" : "Despertar Mirai"}
         >
           <OrbVivo status={status} audioLevel={voice.audioLevel} awake={awake} />
         </div>
         <p className="mt-6 text-center text-[13px] leading-relaxed text-dash-fg/60">
-          Para falar, é só clicar no orb ou dizer: “Hey Mirai”
+          {voice.status === "listening"
+            ? "Ouvindo. Toque no orb de novo para ela parar de ouvir."
+            : "Para falar, toque no orb ou diga: “Hey Mirai”"}
         </p>
       </section>
     </main>
