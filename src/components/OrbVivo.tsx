@@ -59,9 +59,13 @@ const FUNDO_ORB: [number, number, number] = [18, 20, 22];
 //   referência dele →  220 px  = 32% do menor lado
 //   app com 1,2×    →  550 px  = 80% do menor lado   (2,5× maior que a referência)
 // Alvo: 32% do menor lado → 220 px. Como a área acesa anda junto com a caixa,
-// 1,2 × (220/550) = 0,48. Medido de novo depois da troca (prints no acervo).
+// 1,2 × (220/550) = 0,48 — MEDIDO: deu 274 px (39,7%), ainda 1,25× a referência.
+// O perfil do nosso motor é mais "gordo" que o do pacote (núcleo mais largo,
+// borda parecida), então o corte de 20% puxa para cima. Correção final:
+// 0,48 × (220/274) = 0,385. Aqui a borda fica um pouco menor que a referência e
+// o corpo bate — preferido, porque o que ele apontou foi "mto grande".
 // O motor NÃO foi tocado: quem mudou foi a CAIXA onde ele desenha.
-const CANVAS_POR_TELA = 0.48;
+const CANVAS_POR_TELA = 0.385;
 
 export default function OrbVivo({
   status = "idle",
