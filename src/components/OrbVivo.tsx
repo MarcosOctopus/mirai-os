@@ -117,10 +117,13 @@ export default function OrbVivo({
   // forma absoluta no centro — `left/top 50% + translate` é o que centra de
   // verdade (grid com filho maior alinha no INÍCIO e a esfera sai de quadro).
   const canvas = Math.round(tela * CANVAS_POR_TELA * (awake ? 1.04 : 1));
-  // A casca (área de clique e caixa do layout) fica menor que o canvas: o
-  // "toque para despertar" cobre o miolo aceso, e a poeira pode passar das
-  // bordas da caixa sem empurrar o resto da tela.
-  const esfera = Math.round(canvas * 0.62);
+  // A casca é a ÁREA DE CLIQUE e a caixa do layout. Ela precisa cobrir a parte
+  // ACESA, não a caixa do motor: com 0,62 o diâmetro aceso (0,81 da caixa) ficava
+  // MAIOR que a área de clique e clicar na borda visível do orb não acordava nada
+  // (medido 24/11/2026: a 100 px do centro o clique caía em `.mirai-presence`).
+  // 0,85 cobre a área acesa com uma folga fina. A poeira continua podendo passar
+  // das bordas da caixa sem empurrar o resto da tela.
+  const esfera = Math.round(canvas * 0.85);
 
   return (
     <div className="mirai-orb-shell" style={{ width: esfera, height: esfera }}>
