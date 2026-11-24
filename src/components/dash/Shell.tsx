@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import GuardaDePlano from "@/components/dash/GuardaDePlano";
 import {
   apagarConversaCliente,
   carregarLista,
@@ -428,6 +429,10 @@ export default function Shell({
 
   return (
     <div className="dash-root min-h-dvh bg-dash-bg text-dash-fg">
+      {/* A PORTEIRA DE PLANO NA TELA (dono, 24/11/2026): quem não tem plano do OS
+          é levado à página de planos. A trava real é do servidor (chat e rotas
+          de uso); isto evita a pessoa bater num 402 no meio de uma conversa. */}
+      <GuardaDePlano />
       {/* O BOTÃO DE MENU EM TELA CHEIA (dono, 10/10/2026). Em `cheio` o CSS
           esconde o cabeçalho do Shell — onde mora o botão de menu — e a tela
           ficava SEM MENU no celular. O botão tem de viver AQUI (dentro do Shell),

@@ -1107,6 +1107,35 @@ export async function POST(req: NextRequest) {
       console.error("CRM da conta:", e instanceof Error ? e.message : e);
     }
 
+    /* ── A PORTEIRA DE PLANO (dono, 24/11/2026) ──────────────────────────────
+       *"todos os planos o cara só consiga usar qualquer coisa depois que ele
+       pagar"*. Esta é a rota mais caro de deixar passar: é ela que gasta as
+       chaves de modelo. Sem plano do OS, resposta 402 com o recado e a lista de
+       planos — a tela oferece a saída em vez de mostrar erro seco. O dono passa
+       pela porteira (ehDono), e o plano de controle fora do ar não tranca quem
+       paga: quem decide isso é `decidirAcessoPlano`. */
+    if (conta) {
+      const { decidirAcessoPlano, recadoDoBloqueio } = await import("@/lib/acesso-plano");
+      const { PLANOS_DO_OS } = await import("@/lib/planos-do-os");
+      const acesso = await decidirAcessoPlano(conta);
+      if (!acesso.permitido) {
+        return Response.json(
+          {
+            erro: "sem-plano",
+            mensagem: recadoDoBloqueio(acesso.motivo),
+            motivo: acesso.motivo,
+            planos: PLANOS_DO_OS.map((p) => ({
+              id: p.id,
+              nome: p.nome,
+              valorCentavos: p.valorCentavos,
+              link: p.link,
+            })),
+          },
+          { status: 402 },
+        );
+      }
+    }
+
     // ── O CONTEXTO DA PESSOA (resolutor único) ──
     // Quem decide o que esta pessoa pode — conectores, ferramentas e memória —
     // é um lugar só (@/lib/contexto-da-pessoa), usado por todas as portas.
