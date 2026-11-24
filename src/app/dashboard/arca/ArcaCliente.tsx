@@ -129,6 +129,12 @@ function useMarcar(): CtxMarcar {
   return c;
 }
 
+/** O tique da caixinha marcada — desenho próprio, e não o do navegador: é o que
+ *  permite a caixinha ser LARANJA nos dois estados (vazia e marcada). Medido: só
+ *  `accent-color` deixava a caixinha vazia com a cara cinza do sistema, e o dono
+ *  pediu "o nosso laranja" — a cor da marca tem de estar visível ANTES do clique. */
+const TIQUE = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2 6.3 4.7 9 10 3.3' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/></svg>\")";
+
 /** A caixinha de marcar — uma só para pasta e nota, para as duas nunca divergirem. */
 function CaixinhaApagar({
   caminho,
@@ -142,10 +148,11 @@ function CaixinhaApagar({
   const { ativo, marcado, alternar } = useMarcar();
   // FORA do modo apagar não existe caixinha: a árvore fica como sempre foi.
   if (!ativo) return null;
+  const ligada = marcado(caminho);
   return (
     <input
       type="checkbox"
-      checked={marcado(caminho)}
+      checked={ligada}
       // O clique é quem decide: `onChange` vazio evita o aviso do React de input
       // controlado sem handler, e o estado vem do Set (fonte única).
       onChange={() => {}}
@@ -156,7 +163,12 @@ function CaixinhaApagar({
       aria-label={`marcar ${rotulo} para apagar`}
       title="marcar para apagar (segure SHIFT para marcar uma sequência)"
       {...{ [atributo]: caminho }}
-      className="ml-0.5 h-[13px] w-[13px] shrink-0 cursor-pointer accent-dash-brandHi"
+      className="ml-[3px] h-[12px] w-[12px] shrink-0 cursor-pointer appearance-none rounded-[3px] border border-dash-brandHi/55 bg-transparent transition hover:border-dash-brandHi checked:border-dash-brandHi checked:bg-dash-brandHi"
+      style={
+        ligada
+          ? { backgroundImage: TIQUE, backgroundSize: "9px 9px", backgroundPosition: "center", backgroundRepeat: "no-repeat" }
+          : undefined
+      }
     />
   );
 }
