@@ -85,18 +85,8 @@ type CtxEditor = {
   editarPasta: (caminho: string, nome: string, cor?: string) => void;
   salvarEdicao: () => void;
   cancelarEdicao: () => void;
-  /** APAGAR pasta: confirmação em duas etapas na própria linha. `temConteudo`
-   *  decide se o pedido vai como recursivo — e a camada ainda exige o nome
-   *  repetido, então a tela nunca apaga conteúdo por um clique solto. */
-  apagando: { caminho: string; nome: string; temConteudo: boolean; tipo: "nota" | "pasta" } | null;
-  pedirApagarPasta: (caminho: string, nome: string, temConteudo: boolean) => void;
-  /** APAGAR NOTA: mesmo rito da pasta (confirma na própria linha). A Arca manda
-   *  para a LIXEIRA do vault, então é recuperável — mas quem clica não sabe
-   *  disso, e o caminho repetido é o que separa engano de decisão. */
-  pedirApagarNota: (caminho: string, nome: string) => void;
-  cancelarApagar: () => void;
-  confirmarApagar: () => void;
-  salvandoApagar: boolean;
+  /** APAGAR: desde 24/11/2026 o 🗑 da linha LIGA o modo apagar (ver `CtxMarcar`)
+   *  e quem confirma é a barra do lote — não existe mais confirmação por linha. */
 };
 
 /** Contexto, e não props: `Ramo` é recursivo (pasta dentro de pasta) e o lápis
@@ -121,8 +111,14 @@ function useEditorArca(): CtxEditor {
  * uma costura a mais para furar na próxima mudança.
  */
 type CtxMarcar = {
+  /** MODO APAGAR ligado? A caixinha SÓ existe quando está. Dono, 24/11/2026:
+   *  *"só preciso que … só aparece o checkbox quando eu clicar no ícone da
+   *  lixeira"* — árvore limpa por padrão, caixinha quando o apagar é a intenção. */
+  ativo: boolean;
   marcado: (caminho: string) => boolean;
   alternar: (caminho: string, comShift: boolean) => void;
+  /** A LIXEIRA da linha liga o modo e já marca o que ela manda apagar. */
+  entrar: (caminho: string) => void;
 };
 
 const CtxSelecao = createContext<CtxMarcar | null>(null);
@@ -143,7 +139,9 @@ function CaixinhaApagar({
   rotulo: string;
   atributo: "data-arca-marcar-nota" | "data-arca-marcar-pasta";
 }) {
-  const { marcado, alternar } = useMarcar();
+  const { ativo, marcado, alternar } = useMarcar();
+  // FORA do modo apagar não existe caixinha: a árvore fica como sempre foi.
+  if (!ativo) return null;
   return (
     <input
       type="checkbox"
@@ -158,7 +156,7 @@ function CaixinhaApagar({
       aria-label={`marcar ${rotulo} para apagar`}
       title="marcar para apagar (segure SHIFT para marcar uma sequência)"
       {...{ [atributo]: caminho }}
-      className="ml-0.5 h-[13px] w-[13px] shrink-0 cursor-pointer accent-[#ef4444]"
+      className="ml-0.5 h-[13px] w-[13px] shrink-0 cursor-pointer accent-dash-brandHi"
     />
   );
 }
@@ -1087,80 +1085,15 @@ export default function ArcaPage() {
     }
   }, [editor, rascunho, corEscolhida, nota?.path, abrir, carregarArvore]);
 
-  /* ── APAGAR PASTA (dono, 10/11/2026) ─────────────────────────────────────
-     Duas etapas na própria linha: o 🗑 pede confirmação e só o segundo clique
-     apaga. Pasta com conteúdo vai como `recursivo` + `confirmar` = o caminho —
-     a camada recusa sem isso, então não existe apagar-por-engano. */
-  const [apagando, setApagando] = useState<{ caminho: string; nome: string; temConteudo: boolean; tipo: "nota" | "pasta" } | null>(null);
-  const [salvandoApagar, setSalvandoApagar] = useState(false);
+  /* ── APAGAR — agora pelo MODO APAGAR (dono, 24/11/2026) ─────────────────
+     Antes: o 🗑 de cada linha abria uma confirmação na PRÓPRIA linha e o segundo
+     clique apagava só aquele item. O dono pediu outra coisa: *"só aparece o
+     checkbox quando eu clicar no ícone da lixeira"* — o 🗑 passou a LIGAR o modo
+     apagar e já marcar o alvo dele; quem apaga é a barra do lote, com as MESMAS
+     travas da Arca (`confirmar` = caminho; pasta com conteúdo vai como `recursivo`).
+     A confirmação em duas etapas não sumiu: ela vive na barra — e acima de 5 notas
+     exige a palavra "Apagar" (ver `apagarLote`, logo abaixo). */
 
-  const pedirApagarPasta = useCallback((caminho: string, nome: string, temConteudo: boolean) => {
-    setErro(null);
-    setEditor(null);
-    setApagando({ caminho, nome, temConteudo, tipo: "pasta" });
-  }, []);
-
-  const pedirApagarNota = useCallback((caminho: string, nome: string) => {
-    setErro(null);
-    setEditor(null);
-    setApagando({ caminho, nome, temConteudo: false, tipo: "nota" });
-  }, []);
-
-  const cancelarApagar = useCallback(() => setApagando(null), []);
-
-  const confirmarApagar = useCallback(async () => {
-    const alvo = apagando;
-    if (!alvo) return;
-    setSalvandoApagar(true);
-    setErro(null);
-    try {
-      const r = await fetch(API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          alvo.tipo === "nota"
-            ? { acao: "apagar-nota", path: alvo.caminho, confirmar: alvo.caminho }
-            : {
-                acao: "apagar-pasta",
-                caminho: alvo.caminho,
-                recursivo: alvo.temConteudo,
-                confirmar: alvo.temConteudo ? alvo.caminho : "",
-              },
-        ),
-      });
-      const d = (await r.json().catch(() => ({}))) as Record<string, unknown>;
-      if (!r.ok || d?.ok === false) {
-        const det = d?.detail as Record<string, unknown> | string | undefined;
-        const motivo =
-          typeof det === "string" ? det : String((det?.motivo as string) || (d?.error as string) || "");
-        throw new Error(motivo || "a Arca não apagou a pasta");
-      }
-      if (alvo.tipo === "nota") {
-        setAviso(`nota “${alvo.nome.replace(/\.md$/i, "")}” apagada — foi para a lixeira do acervo, dá para recuperar.`);
-        setApagando(null);
-        if (nota?.path === alvo.caminho) setNota(null);
-        await carregarArvore();
-        return;
-      }
-      const apagados = Array.isArray(d?.apagados) ? (d.apagados as string[]) : [];
-      setAviso(
-        `pasta “${alvo.nome}” apagada${apagados.length ? ` com ${apagados.length} item(ns)` : " (estava vazia)"} — o histórico do acervo guardou o momento.`,
-      );
-      setApagando(null);
-      if (nota?.path && nota.path.startsWith(`${alvo.caminho}/`)) setNota(null);
-      await carregarArvore();
-    } catch (e) {
-      setErro(
-        e instanceof Error
-          ? e.message
-          : alvo.tipo === "nota"
-            ? "não consegui apagar a nota"
-            : "não consegui apagar a pasta",
-      );
-    } finally {
-      setSalvandoApagar(false);
-    }
-  }, [apagando, nota?.path, carregarArvore]);
 
   /* ── APAGAR EM MASSA: marcar, SHIFT e a palavra de segurança ──────────────
      Pedido do dono (24/11/2026): *"quero que a pessoa possa marcar qualquer
@@ -1183,6 +1116,8 @@ export default function ArcaPage() {
   const [loteAberto, setLoteAberto] = useState(false);
   const [palavraLote, setPalavraLote] = useState("");
   const [apagandoLote, setApagandoLote] = useState(false);
+  /** MODO APAGAR: desligado, a árvore não tem caixinha nenhuma. */
+  const [modoApagar, setModoApagar] = useState(false);
 
   /** A ORDEM QUE A PESSOA VÊ — só o que está aberto entra. */
   const ordemVisivel = useMemo(() => {
@@ -1237,6 +1172,22 @@ export default function ArcaPage() {
     setPalavraLote("");
   }, []);
 
+  /** A LIXEIRA da linha é quem abre o modo apagar — e já marca o alvo dela, para
+   *  quem quer apagar UMA coisa não ter de clicar duas vezes. */
+  const entrarNoApagar = useCallback((caminho: string) => {
+    setModoApagar(true);
+    setSelecao((atual) => new Set(atual).add(caminho));
+    setAncoraSel(caminho);
+    setLoteAberto(false);
+    setPalavraLote("");
+  }, []);
+
+  /** SAIR do modo apagar limpa tudo: marcas, confirmação e a palavra. */
+  const sairDoApagar = useCallback(() => {
+    setModoApagar(false);
+    limparSelecao();
+  }, [limparSelecao]);
+
   /** O que os cliques querem dizer em NOTAS — pasta engole o que está dentro. */
   const resumoSelecao = useMemo(() => {
     const escolhidos = ordemVisivel.filter((x) => selecao.has(x.caminho));
@@ -1281,7 +1232,8 @@ export default function ArcaPage() {
           : `${apagados} item(ns) apagados — foi tudo para a lixeira do acervo, dá para recuperar.`,
       );
       const alvos = resumoSelecao.efetivos.map((x) => x.caminho);
-      limparSelecao();
+      // Terminado o apagar, o modo sai de cena: a árvore volta a ficar limpa.
+      sairDoApagar();
       if (nota?.path && alvos.some((a) => nota.path === a || nota.path.startsWith(`${a}/`))) setNota(null);
       await carregarArvore();
     } catch (e) {
@@ -1289,7 +1241,7 @@ export default function ArcaPage() {
     } finally {
       setApagandoLote(false);
     }
-  }, [resumoSelecao, exigePalavra, palavraOk, limparSelecao, nota?.path, carregarArvore]);
+  }, [resumoSelecao, exigePalavra, palavraOk, sairDoApagar, nota?.path, carregarArvore]);
 
   return (
     <ProvedorAcesso>
@@ -1305,12 +1257,6 @@ export default function ArcaPage() {
         editarPasta,
         salvarEdicao: () => void salvarEdicao(),
         cancelarEdicao,
-        apagando,
-        pedirApagarPasta,
-        pedirApagarNota,
-        cancelarApagar,
-        confirmarApagar: () => void confirmarApagar(),
-        salvandoApagar,
       }}
     >
     <Shell
@@ -1772,7 +1718,27 @@ export default function ArcaPage() {
               </section>
             ) : arvore ? (
               <ContextoRecebido.Provider value={Boolean(recebidoAtivo)}>
-              <CtxSelecao.Provider value={{ marcado, alternar: alternarMarcado }}>
+              <CtxSelecao.Provider value={{ ativo: modoApagar, marcado, alternar: alternarMarcado, entrar: entrarNoApagar }}>
+              {/* A FAIXA DO MODO — nasce junto com a primeira caixinha e é por onde
+                  se SAI. Sem ela, o modo ficaria sem porta de saída visível. */}
+              {modoApagar && (
+                <div
+                  data-arca-modo-apagar="sim"
+                  className="mt-2 flex items-center gap-2 rounded-lg border border-dash-brandHi/30 bg-dash-brandHi/[0.07] px-2 py-1.5"
+                >
+                  <span className="text-[11px] leading-tight text-dash-fg">
+                    modo apagar — marque as pastas e notas que vão para a lixeira.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={sairDoApagar}
+                    data-arca-modo-sair="sim"
+                    className="ml-auto shrink-0 rounded bg-dash-brandHi/15 px-2 py-[2px] text-[11px] text-dash-brandHi hover:bg-dash-brandHi/25"
+                  >
+                    sair
+                  </button>
+                </div>
+              )}
               <nav className="mt-2" data-arca-arvore="sim">
                 {arvore.notas.map((n) => (
                   <div key={n.path}>
@@ -1835,7 +1801,7 @@ export default function ArcaPage() {
                           setPalavraLote("");
                           setLoteAberto(true);
                         }}
-                        className="ml-auto rounded bg-[#ef4444]/15 px-2 py-[3px] text-[11px] text-[#ef4444] hover:bg-[#ef4444]/25"
+                        className="ml-auto rounded bg-dash-brandHi/15 px-2 py-[3px] text-[11px] text-dash-brandHi hover:bg-dash-brandHi/25"
                       >
                         apagar marcados
                       </button>
@@ -1863,7 +1829,7 @@ export default function ArcaPage() {
                             onChange={(e) => setPalavraLote(e.target.value)}
                             data-arca-lote-palavra="sim"
                             placeholder="Apagar"
-                            className="mt-1 w-full rounded border border-white/10 bg-transparent px-2 py-1 text-[12px] text-dash-fg outline-none focus:border-[#ef4444]/60"
+                            className="mt-1 w-full rounded border border-white/10 bg-transparent px-2 py-1 text-[12px] text-dash-fg outline-none focus:border-dash-brandHi/60"
                           />
                         </label>
                       )}
@@ -1873,7 +1839,7 @@ export default function ArcaPage() {
                           data-arca-lote-confirmar="sim"
                           onClick={() => void apagarLote()}
                           disabled={apagandoLote || (exigePalavra && !palavraOk)}
-                          className="rounded bg-[#ef4444] px-2.5 py-[3px] text-[11px] font-medium text-white disabled:opacity-40"
+                          className="rounded bg-dash-brand px-2.5 py-[3px] text-[11px] font-medium text-white hover:bg-dash-brandHi disabled:opacity-40"
                         >
                           {apagandoLote ? "apagando…" : "apagar agora"}
                         </button>
@@ -2218,6 +2184,7 @@ function LinhaNota({
 }) {
   const selecionada = aberta === caminho;
   const ed = useEditorArca();
+  const marcar = useMarcar();
   const soLeitura = useContext(ContextoRecebido);
   const editando = ed.editor?.tipo === "nota" && ed.editor.caminho === caminho;
   return (
@@ -2280,7 +2247,7 @@ function LinhaNota({
       {!editando && !soLeitura && (
         <button
           type="button"
-          onClick={() => ed.pedirApagarNota(caminho, nome)}
+          onClick={() => marcar.entrar(caminho)}
           title={`apagar “${nome.replace(/\.md$/i, "")}”`}
           aria-label={`apagar “${nome.replace(/\.md$/i, "")}”`}
           data-arca-apagar-nota={caminho}
@@ -2296,34 +2263,6 @@ function LinhaNota({
         </button>
       )}
     </div>
-    {ed.apagando?.tipo === "nota" && ed.apagando.caminho === caminho && (
-      <div
-        data-arca-confirma-apagar-nota={caminho}
-        className="flex flex-wrap items-center gap-2 border-l-2 border-l-[#ef4444] bg-[#ef4444]/[0.07] py-1.5 pr-2"
-        style={{ paddingLeft: `${20 + nivel * 13}px` }}
-      >
-        <span className="text-[11.5px] text-dash-fg">
-          apagar “{nome.replace(/\.md$/i, "")}”? vai para a lixeira do acervo.
-        </span>
-        <button
-          type="button"
-          onClick={ed.confirmarApagar}
-          disabled={ed.salvandoApagar}
-          data-arca-apagar-nota-sim={caminho}
-          className="text-[11px] text-[#ef4444] disabled:opacity-50"
-        >
-          {ed.salvandoApagar ? "apagando…" : "apagar"}
-        </button>
-        <button
-          type="button"
-          onClick={ed.cancelarApagar}
-          data-arca-apagar-nota-nao={caminho}
-          className="text-[11px] text-dash-muted hover:text-dash-fg"
-        >
-          cancelar
-        </button>
-      </div>
-    )}
     </>
   );
 }
@@ -2414,6 +2353,7 @@ function Ramo({
   const aberta = abertas.has(no.path);
   const selecionada = pasta === no.path;
   const ed = useEditorArca();
+  const marcar = useMarcar();
   const soLeitura = useContext(ContextoRecebido);
   const editando = ed.editor?.tipo === "pasta" && ed.editor.caminho === no.path;
   /** Espaço (pessoal/organização) pendurado na raiz de "Tudo": linha de pasta na
@@ -2480,7 +2420,7 @@ function Ramo({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                ed.pedirApagarPasta(no.path, no.nome, no.total_notas > 0 || no.subpastas.length > 0);
+                marcar.entrar(no.path);
               }}
               aria-label={`apagar a pasta “${no.nome}”`}
               title={`apagar a pasta “${no.nome}”`}
@@ -2501,37 +2441,6 @@ function Ramo({
           </>
         )}
       </div>
-      {ed.apagando?.caminho === no.path && (
-        <div
-          data-arca-confirma-apagar={no.path}
-          className="flex flex-wrap items-center gap-2 border-l-2 border-l-[#ef4444] bg-[#ef4444]/[0.07] py-1.5 pr-2"
-          style={{ paddingLeft: `${20 + nivel * 13}px` }}
-        >
-          <span className="text-[11.5px] text-dash-fg">
-            apagar “{no.nome}”
-            {ed.apagando.temConteudo
-              ? ` e o conteúdo (${no.total_notas} nota(s)${no.subpastas.length ? `, ${no.subpastas.length} subpasta(s)` : ""})?`
-              : " (vazia)?"}
-          </span>
-          <button
-            type="button"
-            onClick={ed.confirmarApagar}
-            disabled={ed.salvandoApagar}
-            data-arca-apagar-sim={no.path}
-            className="text-[11px] text-[#ef4444] disabled:opacity-50"
-          >
-            {ed.salvandoApagar ? "apagando…" : "apagar"}
-          </button>
-          <button
-            type="button"
-            onClick={ed.cancelarApagar}
-            data-arca-apagar-nao={no.path}
-            className="text-[11px] text-dash-muted hover:text-dash-fg"
-          >
-            cancelar
-          </button>
-        </div>
-      )}
       {aberta && (
         <div>
           {no.notas.map((n) => (
