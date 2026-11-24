@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 
 import { exigirConta } from "@/lib/orgs";
+import { exigirFerramenta } from "@/lib/porteira-ferramenta";
 import { obterUpload } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -14,6 +15,11 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const auth = await exigirConta(req);
   if (!auth.ok) return auth.resposta;
+  // O plano manda: sem "documentos" marcado no plano, a rota não atende.
+  {
+    const barrado = await exigirFerramenta(req, "documentos");
+    if (barrado) return barrado;
+  }
 
   const { id } = await ctx.params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) {

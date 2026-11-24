@@ -24,6 +24,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { erroDeCredencial } from "@/lib/arca-cliente";
 import { exigirConta } from "@/lib/orgs";
+import { exigirFerramenta } from "@/lib/porteira-ferramenta";
 
 const execFileP = promisify(execFile);
 
@@ -101,6 +102,11 @@ async function arca(caminho: string, token: string, metodo = "GET", corpo?: unkn
 export async function GET(req: NextRequest) {
   const auth = await exigirConta(req);
   if (!auth.ok) return auth.resposta;
+  // O plano manda: sem "telegram" marcado no plano, a rota não atende.
+  {
+    const barrado = await exigirFerramenta(req, "telegram");
+    if (barrado) return barrado;
+  }
   const conta = auth.conta;
 
   const email = (conta.email || "").trim().toLowerCase();

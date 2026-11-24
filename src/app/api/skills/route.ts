@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { exigirConta } from "@/lib/orgs";
+import { exigirFerramenta } from "@/lib/porteira-ferramenta";
 import { listarSkills } from "@/lib/skills-lista";
 import { temaDaSkill } from "@/lib/skills-temas";
 import { ehSkillOculta } from "@/lib/skills-ocultas";
@@ -37,7 +38,12 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: NextRequest) {
   const g = await exigirConta(req);
-  if (!g.ok) return g.resposta; // 401 sem sessão
+  if (!g.ok) return g.resposta;
+  // O plano manda: sem "agentes" marcado no plano, a rota não atende.
+  {
+    const barrado = await exigirFerramenta(req, "agentes");
+    if (barrado) return barrado;
+  } // 401 sem sessão
 
   const { skills } = await listarSkills();
   // Cada skill ganha o TEMA (a organização por tema pedida pelo dono): derivado

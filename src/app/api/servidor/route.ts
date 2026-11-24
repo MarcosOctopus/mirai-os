@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { exigirConta } from "@/lib/orgs";
+import { exigirFerramenta } from "@/lib/porteira-ferramenta";
 import { cifrar } from "@/lib/segredo-guardado";
 import {
   criarIntegracao,
@@ -49,6 +50,11 @@ function meuServidor(contaId: number): Integracao | null {
 export async function GET(req: NextRequest) {
   const r = await exigirConta(req);
   if (!r.ok) return r.resposta;
+  // O plano manda: sem "infra" marcado no plano, a rota não atende.
+  {
+    const barrado = await exigirFerramenta(req, "infra");
+    if (barrado) return barrado;
+  }
   const { conta } = r;
 
   const srv = meuServidor(conta.id);

@@ -21,6 +21,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { exigirConta } from "@/lib/orgs";
+import { exigirFerramenta } from "@/lib/porteira-ferramenta";
 import { decifrar } from "@/lib/segredo-guardado";
 import { integracoesDaPessoa } from "@/lib/integracoes";
 import { TIPO_SERVIDOR, lerAlvo, listar, lerArquivo, gravarArquivo } from "@/lib/servidor-cliente";
@@ -45,6 +46,11 @@ function preparar(contaId: number) {
 export async function GET(req: NextRequest) {
   const r = await exigirConta(req);
   if (!r.ok) return r.resposta;
+  // O plano manda: sem "infra" marcado no plano, a rota não atende.
+  {
+    const barrado = await exigirFerramenta(req, "infra");
+    if (barrado) return barrado;
+  }
 
   const p = preparar(r.conta.id);
   if ("erro" in p) return NextResponse.json({ ok: false, erro: p.erro }, { status: p.status });

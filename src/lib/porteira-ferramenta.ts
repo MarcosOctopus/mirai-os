@@ -22,14 +22,39 @@ import { exigirConta, type Conta } from "@/lib/orgs";
 import { capacidadesDaConta } from "@/lib/acesso-plano";
 import { FERRAMENTAS_OS } from "@/lib/ferramentas-os";
 
-/** Rota → ferramenta do painel. Prefixo mais específico primeiro. */
+/** Rota → ferramenta do painel. Prefixo mais específico primeiro.
+ *
+ * Regra do dono (24/11/2026): ele controla no painel, o app obedece. Ficam de
+ * FORA, de propósito: autenticação, perfil, organizações, convite, admin (menos
+ * o acervo), Chaves de API (ferramenta de gestão, `semCapacidade`) e as rotas de
+ * infraestrutura da própria casa (agendador, stt, tts, config).
+ */
 const ROTAS: Array<{ prefixo: string; ferramenta: string }> = [
+  // A Arca
   { prefixo: "/api/admin/acervo", ferramenta: "arca" },
   { prefixo: "/api/acervo", ferramenta: "arca" },
   { prefixo: "/api/arca", ferramenta: "arca" },
+  { prefixo: "/api/integracoes/arca", ferramenta: "arca" },
+  // Synapse
+  { prefixo: "/api/integracoes/cofres", ferramenta: "synapse" },
+  { prefixo: "/api/integracoes/saaso", ferramenta: "synapse" },
   { prefixo: "/api/integracoes", ferramenta: "synapse" },
+  { prefixo: "/api/ponte", ferramenta: "synapse" },
+  { prefixo: "/api/gmail", ferramenta: "synapse" },
+  // Reunião
   { prefixo: "/api/reuniao", ferramenta: "reuniao" },
+  // Documentos
+  { prefixo: "/api/arquivo", ferramenta: "documentos" },
+  // Agentes
   { prefixo: "/api/skills", ferramenta: "agentes" },
+  { prefixo: "/api/pipeline", ferramenta: "agentes" },
+  // Infraestrutura
+  { prefixo: "/api/servidor", ferramenta: "infra" },
+  { prefixo: "/api/system", ferramenta: "infra" },
+  // Telegram
+  { prefixo: "/api/canais", ferramenta: "telegram" },
+  // Análise de negócio
+  { prefixo: "/api/media-factory", ferramenta: "negocio" },
 ];
 
 export function ferramentaDaRota(caminho: string): string | null {
