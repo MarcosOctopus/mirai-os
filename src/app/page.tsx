@@ -87,12 +87,20 @@ export default function Page() {
             seletor ganha corpo. */}
         <div
           className={`relative z-30 flex shrink-0 items-center justify-center border-b px-4 transition-all ${
-            seletorGrande ? "border-transparent py-4" : "border-dash-hair/[0.07] py-2.5"
+            seletorGrande
+              ? "border-transparent py-4"
+              : modo === "orb"
+                ? // NO MODO ORB NÃO EXISTE MOLDURA (dono, 24/11/2026: "tira essa
+                  // barra que fica atrás do toggle no topo"). O orb é a tela; a
+                  // linha do topo era a única coisa cortando o céu.
+                  "border-transparent py-3"
+                : "border-dash-hair/[0.07] py-2.5"
           }`}
         >
           <SeletorModo
             rotuloAria="Modo de conversa"
             grande={seletorGrande}
+            semFundo={modo === "orb"}
             ativo={modo}
             onTrocar={(m) => trocar(m as Modo)}
             opcoes={[

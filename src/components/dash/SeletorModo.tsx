@@ -24,21 +24,26 @@ export default function SeletorModo({
   ativo,
   onTrocar,
   grande = false,
+  semFundo = false,
   rotuloAria,
 }: {
   opcoes: OpcaoModo[];
   ativo: string;
   onTrocar: (id: string) => void;
   grande?: boolean;
+  /** Tira a PÍLULA de trás (borda + fundo), deixando só os botões. Pedido do
+   *  dono (24/11/2026) para o modo Orb: "tira essa barra que fica atrás do
+   *  toggle no topo". Só onde ele pediu — Arca e Synapse seguem com a pílula. */
+  semFundo?: boolean;
   rotuloAria: string;
 }) {
   return (
     <div
       role="tablist"
       aria-label={rotuloAria}
-      className={`flex items-center gap-1 rounded-full border border-dash-hair/10 bg-dash-card transition-all ${
-        grande ? "p-1" : "p-[3px]"
-      }`}
+      className={`flex items-center gap-1 rounded-full transition-all ${
+        semFundo ? "" : "border border-dash-hair/10 bg-dash-card"
+      } ${grande ? "p-1" : "p-[3px]"}`}
     >
       {opcoes.map((o) => (
         <button
