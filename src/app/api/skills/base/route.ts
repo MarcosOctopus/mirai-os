@@ -28,12 +28,12 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: NextRequest) {
   const g = await exigirConta(req);
-  if (!g.ok) return g.resposta;
+  if (!g.ok) return g.resposta; // 401 sem sessão
   // O plano manda: sem "agentes" marcado no plano, a rota não atende.
   {
     const barrado = await exigirFerramenta(req, "agentes");
     if (barrado) return barrado;
-  } // 401 sem sessão
+  }
 
   let nome = "";
   try {
