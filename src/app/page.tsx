@@ -94,7 +94,15 @@ export default function Page() {
         <div
           className={`z-30 flex items-center justify-center border-b px-4 transition-all ${
             modo === "orb"
-              ? "absolute inset-x-0 top-0 border-transparent py-3"
+              ? // NO MODO ORB: o topo é FIXO na janela (não na moldura), e isso
+                // resolve os dois pedidos do dono (24/11/2026):
+                //  "deixa o toggle centralizado com a orb" — o orb vive num
+                //     `.mirai-presence` fixo na janela (centro em 50vw); preso à
+                //     moldura, o toggle centrava 42 px à direita dele;
+                //  "abaixe a altura dele pra seguir a linha da foto de perfil" —
+                //     mesma altura (top-5 / lg:top-8) e mesma caixa de 34 px do
+                //     botão de perfil, então o toggle entra na MESMA linha dele.
+                "fixed left-0 top-5 h-[34px] w-full border-transparent lg:top-8"
               : seletorGrande
                 ? "relative shrink-0 border-transparent py-4"
                 : "relative shrink-0 border-dash-hair/[0.07] py-2.5"
