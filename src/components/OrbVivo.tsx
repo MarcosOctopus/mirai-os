@@ -66,7 +66,7 @@ const FUNDO_ORB: [number, number, number] = [18, 20, 22];
 // 3ª passada (24/11/2026, noite): o dono olhou o Stage e pediu *"dobra o tamanho
 // dela, ficou mto pequena"* — 0,385 × 2 = 0,77. Medido depois: ver print no acervo.
 // O motor NÃO foi tocado: quem mudou foi a CAIXA onde ele desenha.
-const CANVAS_POR_TELA = 0.77;
+const CANVAS_POR_TELA = 0.8;
 
 export default function OrbVivo({
   status = "idle",
