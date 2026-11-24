@@ -1240,8 +1240,8 @@ export default function ArcaPage() {
       const falhas = Array.isArray(d?.falhas) ? (d.falhas as { caminho: string; motivo: string }[]) : [];
       setAviso(
         falhas.length
-          ? `${apagados} item(ns) foram para a lixeira; ${falhas.length} não deu — ${falhas[0]?.caminho}: ${falhas[0]?.motivo}`
-          : `${apagados} item(ns) apagados — foi tudo para a lixeira do acervo, dá para recuperar.`,
+          ? `${apagados} item(ns) foram para a lixeira. ${falhas.length} não deu: ${falhas[0]?.caminho} (${falhas[0]?.motivo}).`
+          : `Apagados ${apagados} item(ns). Foi tudo para a lixeira do acervo, dá para recuperar.`,
       );
       const alvos = resumoSelecao.efetivos.map((x) => x.caminho);
       // Terminado o apagar, o modo sai de cena: a árvore volta a ficar limpa.
@@ -1249,7 +1249,7 @@ export default function ArcaPage() {
       if (nota?.path && alvos.some((a) => nota.path === a || nota.path.startsWith(`${a}/`))) setNota(null);
       await carregarArvore();
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "não consegui apagar o que foi marcado");
+      setErro(e instanceof Error ? e.message : "Não consegui apagar o que foi marcado.");
     } finally {
       setApagandoLote(false);
     }
@@ -1739,7 +1739,7 @@ export default function ArcaPage() {
                   className="mt-2 flex items-center gap-2 rounded-lg border border-dash-brandHi/30 bg-dash-brandHi/[0.07] px-2 py-1.5"
                 >
                   <span className="text-[11px] leading-tight text-dash-fg">
-                    modo apagar — marque as pastas e notas que vão para a lixeira.
+                    Modo apagar. Marque as pastas e notas que vão para a lixeira.
                   </span>
                   <button
                     type="button"
@@ -1747,7 +1747,7 @@ export default function ArcaPage() {
                     data-arca-modo-sair="sim"
                     className="ml-auto shrink-0 rounded bg-dash-brandHi/15 px-2 py-[2px] text-[11px] text-dash-brandHi hover:bg-dash-brandHi/25"
                   >
-                    sair
+                    Sair
                   </button>
                 </div>
               )}
@@ -1815,25 +1815,25 @@ export default function ArcaPage() {
                         }}
                         className="ml-auto rounded bg-dash-brandHi/15 px-2 py-[3px] text-[11px] text-dash-brandHi hover:bg-dash-brandHi/25"
                       >
-                        apagar marcados
+                        Apagar marcados
                       </button>
                       <button
                         type="button"
                         onClick={limparSelecao}
                         className="text-[11px] text-dash-muted hover:text-dash-fg"
                       >
-                        limpar
+                        Limpar
                       </button>
                     </div>
                   ) : (
                     <div className="space-y-1.5">
                       <p className="text-[11.5px] leading-relaxed text-dash-fg">
-                        apagar {resumoSelecao.itens} item(ns) — {fmt(resumoSelecao.notas)} nota(s) no total? vai
+                        Apagar {resumoSelecao.itens} item(ns) · {fmt(resumoSelecao.notas)} nota(s) no total? Vai
                         para a lixeira do acervo.
                       </p>
                       {exigePalavra && (
                         <label className="block text-[11px] text-dash-muted">
-                          são mais de {LIMITE_SEM_PALAVRA} notas. escreva{" "}
+                          São mais de {LIMITE_SEM_PALAVRA} notas. Escreva{" "}
                           <strong className="text-dash-fg">Apagar</strong> para liberar:
                           <input
                             autoFocus
@@ -1853,7 +1853,7 @@ export default function ArcaPage() {
                           disabled={apagandoLote || (exigePalavra && !palavraOk)}
                           className="rounded bg-dash-brand px-2.5 py-[3px] text-[11px] font-medium text-white hover:bg-dash-brandHi disabled:opacity-40"
                         >
-                          {apagandoLote ? "apagando…" : "apagar agora"}
+                          {apagandoLote ? "Apagando…" : "Apagar agora"}
                         </button>
                         <button
                           type="button"
@@ -1863,7 +1863,7 @@ export default function ArcaPage() {
                           }}
                           className="text-[11px] text-dash-muted hover:text-dash-fg"
                         >
-                          cancelar
+                          Cancelar
                         </button>
                       </div>
                     </div>
