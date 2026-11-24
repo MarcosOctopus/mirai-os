@@ -22,6 +22,14 @@ const PUBLIC_PATHS = [
   // esta linha, o middleware fecharia a rota antes do segredo — a ponte nunca
   // funcionaria. Só ESTA rota é aberta; `/api/integracoes` segue fechada.
   '/api/integracoes/ponte',
+  // SERVIÇO → APP (dono, 23/11/2026): a ARCA pergunta aqui, server-to-server, qual
+  // é a credencial de provedor (GitHub) DO DONO DO ESPAÇO — é o que faz o GitHub
+  // conectado por OAuth virar memória no acervo, em vez de morrer na porta do app.
+  // Sem sessão de navegador: a porta é o SEGREDO de serviço (`x-arca-servico` vs
+  // `ARCA_SERVICO_CREDENCIAL`), conferido DENTRO da rota em tempo constante, com
+  // falha fechada (503) se a env não existir. Só ESTA rota é aberta; o resto de
+  // `/api/integracoes` segue fechado.
+  '/api/integracoes/servico',
   // AGENDADOR (13/11/2026): o cron do host não tem sessão de usuário. Esta
   // rota se protege sozinha com `x-agendador-segredo` — abrir no middleware é
   // necessário só para o pulso passar; sem o segredo ela devolve 401.

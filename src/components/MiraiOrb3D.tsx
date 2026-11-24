@@ -17,12 +17,18 @@ const MEMORY_TRAIL_COUNT = 800;
 const ORBITAL_PARTICLE_COUNT = 400;
 const RADIUS = 1.55;
 
+// PALETA DO ORB (dono, 23/11/2026: "no lugar de azul quero o circulo laranja").
+// O miolo em repouso era ciano #0aefff — agora é o laranja da marca. "thinking"
+// era roxo #b026ff e "executing" #ff6b35: os dois ficariam indistinguíveis do
+// repouso laranja, então viram âmbar (mesma família, degrau diferente).
+// Ficam funcionais (não decorativos): "listening" verde = captando, "speaking"
+// rosa = falando, "done" branco = flash de conclusão.
 const COLORS: Record<OrbStatus, string> = {
-  idle: "#0aefff",
+  idle: "#ff7520",
   listening: "#00ff87",
-  thinking: "#b026ff",
+  thinking: "#ffaa3c",
   speaking: "#ff2d78",
-  executing: "#ff6b35",
+  executing: "#ffb020",
   done: "#ffffff",
 };
 
@@ -51,9 +57,11 @@ function CoreEnergy({ color, status, awake }: { color: string; status: OrbStatus
   const geo = useMemo(() => new THREE.SphereGeometry(RADIUS * 0.42, 64, 64), []);
   const auraGeo = useMemo(() => new THREE.SphereGeometry(RADIUS * 0.8, 64, 64), []);
   const innerGeo = useMemo(() => new THREE.SphereGeometry(RADIUS * 0.2, 32, 32), []);
-  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }), [color]);
-  const auraMat = useMemo(() => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide }), [color]);
-  const innerMat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }), []);
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }), [color]);
+  const auraMat = useMemo(() => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide }), [color]);
+  // o miolo branco caiu de 0.6 para 0.34: em blend aditivo ele empurrava o núcleo
+  // para o branco e matava a saturação do laranja — neon quer cor, não clarão
+  const innerMat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false }), []);
 
   useEffect(() => { mat.color.set(color); auraMat.color.set(color); }, [color, mat, auraMat]);
 
@@ -536,6 +544,10 @@ export default function MiraiOrb3D(props: Orb3DProps) {
 
   return (
     <div className="mirai-orb-shell" style={{ width: size, height: size }}>
+      {/* neon em CSS: luz quente (halo) + o tubo aceso (anel). As duas camadas
+          existem antes do WebGL pintar — o orb nunca aparece "apagado". */}
+      <div className="mirai-orb-halo" aria-hidden />
+      <div className="mirai-orb-neon" aria-hidden />
       <Canvas camera={{ position: [0, 0, 5.8], fov: 52 }} dpr={[1, 1.6]} gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }} style={{ pointerEvents: "none" }}>
         <OrbScene {...props} />
       </Canvas>

@@ -57,7 +57,7 @@ export default function ConsoleInput({
   const hasText = text.trim().length > 0;
   const showStop = true;
 
-  const modeColor = chatMode === "conversa" ? "#0aefff" : "#ffb347";
+  const modeColor = chatMode === "conversa" ? "#ff7520" : "#ffb347";
   const modeLabel = chatMode === "conversa" ? "Conversa" : "Arquiteto";
   const modeIcon = chatMode === "conversa"
     ? "💬"
@@ -98,7 +98,7 @@ export default function ConsoleInput({
     <div
       className="fixed bottom-0 left-0 right-0 z-50 input-glow"
       style={{
-        borderTop: "1px solid rgba(10,239,255,0.08)",
+        borderTop: "1px solid rgba(255,117,31,0.08)",
         background: "rgba(4,5,16,0.92)",
         backdropFilter: "blur(12px)",
       }}
@@ -167,9 +167,9 @@ export default function ConsoleInput({
           disabled={disabled}
           className="mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all duration-200"
           style={{
-            background: disabled ? "rgba(255,255,255,0.03)" : "rgba(10,239,255,0.06)",
-            color: disabled ? "rgba(255,255,255,0.15)" : "rgba(10,239,255,0.5)",
-            border: disabled ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(10,239,255,0.1)",
+            background: disabled ? "rgba(255,255,255,0.03)" : "rgba(255,117,31,0.06)",
+            color: disabled ? "rgba(255,255,255,0.15)" : "rgba(255,117,31,0.5)",
+            border: disabled ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(255,117,31,0.1)",
           }}
           aria-label="Microfone"
         >
@@ -186,9 +186,9 @@ export default function ConsoleInput({
           disabled={disabled}
           className="mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all duration-200"
           style={{
-            background: disabled ? "rgba(255,255,255,0.03)" : "rgba(176,38,255,0.06)",
-            color: disabled ? "rgba(255,255,255,0.15)" : "rgba(176,38,255,0.5)",
-            border: disabled ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(176,38,255,0.1)",
+            background: disabled ? "rgba(255,255,255,0.03)" : "rgba(255,170,60,0.06)",
+            color: disabled ? "rgba(255,255,255,0.15)" : "rgba(255,170,60,0.5)",
+            border: disabled ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(255,170,60,0.1)",
           }}
           aria-label="Anexar"
         >
@@ -201,8 +201,8 @@ export default function ConsoleInput({
         <div
           className="flex-1 overflow-hidden rounded-xl transition-all duration-200"
           style={{
-            border: hasText ? "1px solid rgba(10,239,255,0.2)" : "1px solid rgba(255,255,255,0.06)",
-            background: "rgba(10,239,255,0.03)",
+            border: hasText ? "1px solid rgba(255,117,31,0.2)" : "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(255,117,31,0.03)",
           }}
         >
           <textarea
@@ -216,7 +216,7 @@ export default function ConsoleInput({
             rows={1}
             className="block w-full resize-none bg-transparent px-4 py-2.5 text-sm leading-6 outline-none"
             style={{
-              color: "#c8d6e5",
+              color: "#d9d4cf",
               fontFamily: "'Courier New', ui-monospace, monospace",
               maxHeight: `${24 * 4}px`,
             }}
@@ -230,13 +230,13 @@ export default function ConsoleInput({
           className="mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all duration-200"
           style={{
             background: hasText && !disabled
-              ? "rgba(10,239,255,0.12)"
+              ? "rgba(255,117,31,0.12)"
               : "rgba(255,255,255,0.03)",
-            color: hasText && !disabled ? "#0aefff" : "rgba(255,255,255,0.15)",
+            color: hasText && !disabled ? "#ff7520" : "rgba(255,255,255,0.15)",
             border: hasText && !disabled
-              ? "1px solid rgba(10,239,255,0.25)"
+              ? "1px solid rgba(255,117,31,0.25)"
               : "1px solid rgba(255,255,255,0.05)",
-            boxShadow: hasText && !disabled ? "0 0 15px rgba(10,239,255,0.1)" : "none",
+            boxShadow: hasText && !disabled ? "0 0 15px rgba(255,117,31,0.1)" : "none",
           }}
           aria-label="Enviar"
         >

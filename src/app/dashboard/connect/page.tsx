@@ -61,6 +61,7 @@ import Link from "next/link";
 
 import Shell from "@/components/dash/Shell";
 import SeletorModo from "@/components/dash/SeletorModo";
+import BarraDeAbas from "@/components/dash/BarraDeAbas";
 import SkillsEspelho from "@/components/dash/SkillsEspelho";
 import CosmicAgent from "@/components/dash/CosmicAgent";
 // DRIVE (18/11/2026): a MESMA peça que a aba Fontes da Arca monta — ligar aqui já aparece lá.
@@ -1620,6 +1621,16 @@ export default function IntegracoesPage() {
     void carregarSaaso();
   }, [carregarIntegracoes, carregarSaaso]);
 
+  /* MESMO destino para a pílula (desktop) e a barra (celular): "Dashboard" é
+     OUTRA página (a cópia congelada); os outros três trocam de aba aqui mesmo. */
+  const trocarAba = useCallback((id: string) => {
+    if (id === "dashboard") {
+      window.location.href = "/dashboard";
+      return;
+    }
+    setAba(id as SynapseAba);
+  }, []);
+
   return (
     <Shell
       titulo="Synapse"
@@ -1627,28 +1638,26 @@ export default function IntegracoesPage() {
       /* à DIREITA do cabeçalho, o MESMO seletor da primeira tela (SeletorModo:
          o Chat/Orb de `/`, extraído e reusado aqui) trocando as duas seções. */
       cabecalhoDireita={
-        <SeletorModo
-          rotuloAria="Alternar entre Dashboard, Cosmic Agent, Integrações e Skills"
-          ativo={aba}
-          /* O botão DASHBOARD (dono, 11/11/2026: "coloca um botão a mais no toggle
-             chamado Dashboard que resolve isso") NAVEGA para a cópia congelada, em
-             vez de trocar de estado: o Dashboard é outra página, com arquivos
-             próprios — é o que mantém as duas telas separadas. Os outros três
-             trocam de aba aqui mesmo. */
-          onTrocar={(id) => {
-            if (id === "dashboard") {
-              window.location.href = "/dashboard";
-              return;
-            }
-            setAba(id as SynapseAba);
-          }}
-          opcoes={[
-            { id: "dashboard", rotulo: "Dashboard" },
-            { id: "cosmic", rotulo: "Cosmic Agent" },
-            { id: "integracoes", rotulo: "Integrações" },
-            { id: "skills", rotulo: "Skills" },
-          ]}
-        />
+        /* No CELULAR este menu sai do cabeçalho (dono, 23/11/2026: "menu lá em
+           cima tá horrível, móbile um em cima do outro") e desce para a
+           BarraDeAbas do rodapé, abaixo de lg. */
+        <div className="hidden lg:flex">
+          <SeletorModo
+            rotuloAria="Alternar entre Dashboard, Cosmic Agent, Integrações e Skills"
+            ativo={aba}
+            /* O botão DASHBOARD (dono, 11/11/2026: "coloca um botão a mais no toggle
+               chamado Dashboard que resolve isso") NAVEGA para a cópia congelada, em
+               vez de trocar de estado: o Dashboard é outra página, com arquivos
+               próprios — é o que mantém as duas telas separadas. */
+            onTrocar={trocarAba}
+            opcoes={[
+              { id: "dashboard", rotulo: "Dashboard" },
+              { id: "cosmic", rotulo: "Cosmic Agent" },
+              { id: "integracoes", rotulo: "Integrações" },
+              { id: "skills", rotulo: "Skills" },
+            ]}
+          />
+        </div>
       }
     >
       {aba === "cosmic" ? (
@@ -1848,6 +1857,20 @@ export default function IntegracoesPage() {
            ("em breve") — nada inventado. */
         <SkillsEspelho />
       )}
+
+      {/* o menu de 4 abas no RODAPÉ, só no celular */}
+      <div aria-hidden className="h-6 lg:hidden" />
+      <BarraDeAbas
+        rotuloAria="Alternar entre Dashboard, Cosmic Agent, Integrações e Skills"
+        ativo={aba}
+        onTrocar={trocarAba}
+        opcoes={[
+          { id: "dashboard", rotulo: "Dashboard" },
+          { id: "cosmic", rotulo: "Cosmic Agent" },
+          { id: "integracoes", rotulo: "Integrações" },
+          { id: "skills", rotulo: "Skills" },
+        ]}
+      />
     </Shell>
   );
 }

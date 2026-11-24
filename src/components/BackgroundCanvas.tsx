@@ -19,11 +19,11 @@ interface Star {
 }
 
 const STATUS_GLOW: Record<OrbStatus, string> = {
-  idle: "rgba(10,239,255,",
+  idle: "rgba(255,117,31,",
   listening: "rgba(0,255,135,",
-  thinking: "rgba(176,38,255,",
+  thinking: "rgba(255,170,60,",
   speaking: "rgba(255,45,120,",
-  executing: "rgba(255,107,53,",
+  executing: "rgba(255,176,32,",
   done: "rgba(255,255,255,",
 };
 
@@ -133,8 +133,8 @@ export default function BackgroundCanvas({ status = "idle" }: { status?: OrbStat
     delay: Math.random() * 18,
     duration: 28 + Math.random() * 26,
     color: i % 3 === 0
-      ? "rgba(176,38,255,0.045)"
-      : "rgba(10,239,255,0.055)",
+      ? "rgba(255,170,60,0.045)"
+      : "rgba(255,117,31,0.055)",
     glyphs: Array.from({ length: 44 }, () => GLYPHS[Math.floor(Math.random() * GLYPHS.length)]),
   })), []);
 

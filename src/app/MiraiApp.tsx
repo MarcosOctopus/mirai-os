@@ -24,7 +24,11 @@ const ConsoleInput = dynamic(() => import("@/components/ConsoleInput"), {
   loading: () => <LoadingPresence label="Carregando console..." />,
 });
 
-const MiraiOrb3D = dynamic(() => import("@/components/MiraiOrb3D"), {
+// MOTOR NOVO (23/11/2026): o pacote `mirai-orb.zip` do dono substituiu o orb
+// WebGL (`MiraiOrb3D`) por um motor de canvas 2D sem dependências. A casca, o
+// neon em CSS e as medidas ficaram em `OrbVivo`. O antigo segue no repositório,
+// sem uso, para rollback a quente.
+const OrbVivo = dynamic(() => import("@/components/OrbVivo"), {
   ssr: false,
   loading: () => <LoadingPresence label="Materializando núcleo..." />,
 });
@@ -498,7 +502,7 @@ function MiraiAppCore() {
           }}
           aria-label="Despertar Mirai"
         >
-          <MiraiOrb3D status={status} audioLevel={voice.audioLevel} awake={awake} />
+          <OrbVivo status={status} audioLevel={voice.audioLevel} awake={awake} />
         </div>
         <p className="mt-6 text-center text-[13px] leading-relaxed text-dash-fg/60">
           Para falar, é só clicar no orb ou dizer: “Hey Mirai”

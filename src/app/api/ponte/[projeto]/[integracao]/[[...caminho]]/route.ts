@@ -37,6 +37,16 @@ import { donoDoProjeto, integracoesDoProjeto } from "@/lib/arquiteto-projetos";
 import { decifrar } from "@/lib/segredo-guardado";
 import { conferirTokenPonte } from "@/lib/ponte-token";
 import { provedorDaPonte, semBarraFinal } from "@/lib/ponte-provedores";
+// O OAuth DA CONTA como fonte da ponte (23/11/2026). Ordem do dono: "colocar o
+// GitHub em OAuth e não por token". O consentimento já gravava o token no cofre
+// da conta (`github-conta.ts` → `users.platform_config`), mas a ponte só olhava a
+// tabela `integracoes` — onde só entra token COLADO à mão. Resultado medido: quem
+// conectava GitHub por OAuth levava 409 "sem credencial" na ponte, e o único
+// caminho que funcionava era colar um PAT. Aqui a ponte passa a aceitar as duas
+// portas, com precedência para o que a conta conectou.
+import { tokenGithubDaConta } from "@/lib/github-conta";
+import { tokenCanvaDaConta } from "@/lib/canva-conta";
+import { tokenArcaDaConta } from "@/lib/arca-conta";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -86,16 +96,45 @@ function acharIntegracao(lista: Integracao[], integracao: string): Integracao | 
 }
 
 /**
+ * A credencial que a CONTA conectou por OAuth (cofre `users.platform_config`).
+ *
+ * Existe porque o consentimento e a ponte olhavam para lugares diferentes: o
+ * `volta` do OAuth grava no cofre da conta; a ponte procurava só na tabela
+ * `integracoes`. Para GitHub isso significava 409 para quem conectou de verdade
+ * e caminho livre só para quem colou um token à mão — o oposto do que o dono
+ * pediu. Cada leitor abaixo já cuida de RENOVAR o token quando venceu
+ * (`token*DaConta`), então a ponte não precisa saber de prazo.
+ */
+async function credencialDoOauth(
+  donoId: number,
+  integracao: string,
+): Promise<{ credencial: string; config: Record<string, unknown> | null } | null> {
+  const alvo = (integracao || "").toLowerCase();
+  try {
+    const token =
+      alvo === "github" ? await tokenGithubDaConta(donoId)
+      : alvo === "canva" ? await tokenCanvaDaConta(donoId)
+      : alvo === "arca" ? await tokenArcaDaConta(donoId)
+      : null;
+    return token ? { credencial: token, config: null } : null;
+  } catch {
+    // Provedor sem leitor de cofre, ou cofre ilegível: a ponte segue para o 409
+    // honesto em vez de estourar — a pessoa precisa do recado, não de um 500.
+    return null;
+  }
+}
+
+/**
  * A credencial DA CONTA dona do projeto, na MESMA ordem do resolutor único
  * (`contexto-da-pessoa.ts`): primeiro o que é DA PESSOA; as da EMPRESA entram
  * como apoio. Devolve a credencial JÁ DECIFRADA (segredo-guardado: credencial
  * de OAuth vive cifrada; chave de API simples fica em claro e o `decifrar`
  * devolve null → usamos o valor cru). Nunca loga nem devolve o segredo.
  */
-function credencialDaConta(
+async function credencialDaConta(
   donoId: number,
   integracao: string,
-): { credencial: string; config: Record<string, unknown> | null } | null {
+): Promise<{ credencial: string; config: Record<string, unknown> | null } | null> {
   const daPessoa = acharIntegracao(integracoesDaPessoa(donoId), integracao);
   if (daPessoa?.credencial) {
     return {
@@ -115,7 +154,10 @@ function credencialDaConta(
       };
     }
   }
-  return null;
+  // Porta do OAuth DA CONTA: sem token colado, vale o que a pessoa conectou em
+  // Integrações (GitHub, Canva, Arca). É o caminho normal — o token à mão é a
+  // exceção, não a regra.
+  return await credencialDoOauth(donoId, integracao);
 }
 
 /** O corpo da chamada permitido pelo método. GET/HEAD não têm corpo. */
@@ -193,9 +235,9 @@ async function encaminharSemCors(req: NextRequest, ctx: Ctx) {
   }
 
   // ── (c) existe credencial desta integração para a conta dona? ─────────────
-  let resolvida: ReturnType<typeof credencialDaConta>;
+  let resolvida: Awaited<ReturnType<typeof credencialDaConta>>;
   try {
-    resolvida = credencialDaConta(dono, integracao);
+    resolvida = await credencialDaConta(dono, integracao);
   } catch {
     return NextResponse.json(
       { erro: "não consegui ler as integrações da sua conta agora" },

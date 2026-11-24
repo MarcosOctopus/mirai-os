@@ -19,6 +19,7 @@
 // campo que cresce ao focar. Assim que a primeira mensagem sai, cai na conversa
 // normal (a de hoje), sem mudança nenhuma no comportamento da conversa.
 import { useCallback, useEffect, useRef, useState } from "react";
+import TextoDaResposta from "@/components/dash/TextoDaResposta";
 import {
   IconeClipe,
   IconeDocumento,
@@ -903,20 +904,27 @@ export default function ChatEscrito({
                 <p className="px-1 text-[12px] text-dash-dim">Carregando conversa…</p>
               )}
 
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-[22px]">
                 {mensagens.map((m, i) => (
                   <div
                     key={i}
                     className={
                       m.role === "user"
-                        ? "ml-auto max-w-[85%] rounded-[18px] rounded-br-sm bg-dash-brand/18 px-4 py-3 text-[13px] text-dash-fg"
-                        : "mr-auto max-w-[92%] rounded-[18px] rounded-bl-sm border border-dash-hair/[0.07] bg-dash-side px-4 py-3 text-[13px] text-dash-fg/85"
+                        ? "ml-auto max-w-[85%] rounded-[18px] rounded-br-sm bg-dash-brand/18 px-4 py-3 text-[13.5px] text-dash-fg"
+                        /* RESPOSTA SEM CAIXA (dono, 23/11/2026: "tem que ser igual do
+                           GPT e do Claude"): a fala da Mirai é texto corrido no canvas,
+                           não um balão com borda e fundo. Balão atrás de cada parágrafo
+                           é o visual de "chat de suporte", não de assistente. */
+                        : "mr-auto px-1 py-0.5 text-[15.5px] text-dash-fg/[0.92]"
                     }
+                    /* MEDIDA DE LEITURA (dono, 23/11/2026): a bolha da resposta não
+                       pode atravessar a tela toda — linha de 1100px cansa. Em px (e
+                       não em `ch`): medido no navegador, `max-width: 76ch` computa
+                       `none` aqui — a unidade é DESCARTADA — enquanto `500px` aplica
+                       na hora. 640px com corpo de 13,5px dá a faixa de ~70 caracteres.
+                       No celular (92% da tela) o limite nunca chega a pegar. */
+                    style={m.role === "assistant" ? { maxWidth: "720px" } : undefined}
                   >
-                    <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-dash-dim">
-                      {m.role === "user" ? "você" : "mirai"}
-                    </span>
-
                     {!!m.anexos?.length && (
                       <div className="mb-2 flex flex-wrap gap-2">
                         {m.anexos.map((a) => (
@@ -947,23 +955,28 @@ export default function ChatEscrito({
                     )}
 
                     {m.content ? (
-                      <span className="whitespace-pre-wrap break-words">
-                        <TextoComArquivos texto={m.content} />
-                        {enviando && i === mensagens.length - 1 && (
-                          <span className="ml-0.5 inline-block h-[13px] w-[2px] animate-pulse bg-dash-brand align-middle" />
-                        )}
-                      </span>
+                      /* RESPOSTA = texto com estrutura (dono, 23/11/2026: "deixa a
+                         visualização da escrita de respostas melhor no chat"). Antes
+                         tudo saía com o mesmo peso, num span pre-wrap; agora parágrafo,
+                         lista, título e código têm forma. A fala do usuário continua
+                         crua — ela é curta e o pre-wrap preserva o que ele digitou. */
+                      m.role === "assistant" ? (
+                        <TextoDaResposta
+                          texto={m.content}
+                          cursor={enviando && i === mensagens.length - 1}
+                        />
+                      ) : (
+                        <span className="whitespace-pre-wrap break-words">
+                          <TextoComArquivos texto={m.content} />
+                        </span>
+                      )
                     ) : m.role === "assistant" ? (
-                      <span className="flex items-center gap-1.5 py-1" aria-label="Mirai está digitando">
-                        {[0, 150, 300].map((atraso) => (
-                          <span
-                            key={atraso}
-                            className="h-1.5 w-1.5 animate-bounce rounded-full bg-dash-muted"
-                            style={{ animationDelay: `${atraso}ms`, animationDuration: "1s" }}
-                          />
-                        ))}
-                        <span className="ml-1 text-[11px] text-dash-dim">pensando…</span>
-                      </span>
+                      /* UM ponto pulsando, sem texto (padrão ChatGPT/Claude). Antes eram
+                         três bolinhas saltando + "pensando…" — enfeite, não informação. */
+                      <span
+                        className="my-1.5 inline-flex h-2 w-2 animate-pulse rounded-full bg-dash-muted"
+                        aria-label="Mirai está respondendo"
+                      />
                     ) : null}
                   </div>
                 ))}

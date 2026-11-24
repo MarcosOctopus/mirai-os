@@ -118,7 +118,13 @@ void main() {
 
   float cinzaCor = dot(vCor, vec3(0.299, 0.587, 0.114));
 
-  vCor = clamp(mix(vec3(cinzaCor), vCor, 1.35), 0.0, 1.0);
+  // CORES MENOS FORTES (24/11/2026, pedido do dono: "te mto estourado, algo um
+  // pouco mais brilhante do que to enviando, mais menos do que ta"). Era 1.35
+  // de saturação + 1.25..1.75 de multiplicador no fragmento — a soma estourava.
+  // Alvo medido com o print dele como régua: mediana dos pixels acesos ~105 e
+  // estourados (>240) ~10% (antes: 138 / 24%). Saturação e multiplicador são os
+  // DOIS botões; as LINHAS ficam intactas (calibradas por ele em 17/11).
+  vCor = clamp(mix(vec3(cinzaCor), vCor, 1.12), 0.0, 1.0);
   vForte = aTwinkle;
   vec4 vista = modelViewMatrix * vec4(position, 1.0);
   float cintila = 0.72 + 0.38 * sin(uTempo * (0.6 + aTwinkle * 1.4) + aTwinkle * 37.0);
@@ -135,9 +141,9 @@ void main() {
   float r = length(d) * 2.0;
   float halo = smoothstep(0.85, 0.05, r);
   float nucleo = smoothstep(0.26, 0.0, r);
-  float a = halo * 0.42 * uBrilho + nucleo * 1.0;
+  float a = halo * 0.42 * uBrilho + nucleo * 0.86;
   if (a < 0.015) discard;
-  gl_FragColor = vec4(vCor * (1.25 + vForte * 0.5), a);
+  gl_FragColor = vec4(vCor * (0.70 + vForte * 0.29), a);
 }`;
 
 const NEB_VERT = `
