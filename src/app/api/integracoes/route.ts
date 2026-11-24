@@ -21,6 +21,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { exigirConta } from "@/lib/orgs";
+import { exigirFerramenta } from "@/lib/porteira-ferramenta";
 import {
   TIPOS_SUPORTADOS,
   consumirVinculosPendentes,
@@ -143,6 +144,11 @@ async function conferirGithubDaConta(userId: number): Promise<void> {
 export async function GET(req: NextRequest) {
   const r = await exigirConta(req);
   if (!r.ok) return r.resposta;
+  // O plano manda: sem "Synapse" marcado, a rota não atende.
+  {
+    const barrado = await exigirFerramenta(req, "synapse");
+    if (barrado) return barrado;
+  }
   const { conta } = r;
 
   /* A PONTE, consumida AQUI e não só no login (14/10/2026).
@@ -196,6 +202,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const r = await exigirConta(req);
   if (!r.ok) return r.resposta;
+  // O plano manda: sem "Synapse" marcado, a rota não atende.
+  {
+    const barrado = await exigirFerramenta(req, "synapse");
+    if (barrado) return barrado;
+  }
   const { conta } = r;
 
   let corpo: { tipo?: string; rotulo?: string; credencial?: string; config?: unknown };
@@ -268,6 +279,11 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const r = await exigirConta(req);
   if (!r.ok) return r.resposta;
+  // O plano manda: sem "Synapse" marcado, a rota não atende.
+  {
+    const barrado = await exigirFerramenta(req, "synapse");
+    if (barrado) return barrado;
+  }
   const { conta } = r;
 
   const id = Number(new URL(req.url).searchParams.get("id") || 0);

@@ -160,6 +160,34 @@ export async function decidirAcessoPlano(conta: Conta): Promise<DecisaoPlano> {
   }
 }
 
+/**
+ * AS CAPACIDADES EFETIVAS DA CONTA — uma porta só, com cache.
+ *
+ * É o que a porteira POR FERRAMENTA usa (`@/lib/porteira-ferramenta`): o painel
+ * marca o que cada plano entrega e a rota obedece. Devolve `null` quando não deu
+ * para perguntar (aí quem decide é quem chamou — para ferramenta de uso, passa).
+ */
+export async function capacidadesDaConta(conta: Conta): Promise<string[] | null> {
+  let tenantId = lerVinculo(conta.id)?.tenant_id || "";
+  if (!tenantId) tenantId = (await tenantPorEmail(conta.email)) || "";
+  if (!tenantId) return []; // resposta de verdade: conta sem plano
+  const guardado = doCache(tenantId);
+  if (guardado?.capacidades) return guardado.capacidades;
+  try {
+    const r = await capacidadesDoTenant(tenantId);
+    if (!r.ok) {
+      const semOrganizacao = /não encontrada|sem organiza/i.test(r.erro || "");
+      if (semOrganizacao) return [];
+      console.warn("[plano] capacidades indisponíveis:", r.erro);
+      return null;
+    }
+    return r.capacidades;
+  } catch (e) {
+    console.warn("[plano] falha ao ler capacidades:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 /** Texto curto para a tela, sem jargão. */
 export function recadoDoBloqueio(motivo: MotivoPlano): string {
   switch (motivo) {

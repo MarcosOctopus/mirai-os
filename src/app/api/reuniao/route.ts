@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { exigirConta } from "@/lib/orgs";
+import { exigirFerramenta } from "@/lib/porteira-ferramenta";
 import { listarReunioes, registrarReuniao, tokenDaPessoa } from "@/lib/reuniao-arca";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,11 @@ const SEM_ARCA = {
 export async function GET(req: NextRequest) {
   const g = await exigirConta(req);
   if (!g.ok) return g.resposta;
+  // O plano manda: sem "Reunião" marcada, a rota não atende.
+  {
+    const barrado = await exigirFerramenta(req, "reuniao");
+    if (barrado) return barrado;
+  }
 
   const token = await tokenDaPessoa(g.conta.id, g.conta.email);
   if (!token) return NextResponse.json(SEM_ARCA, { status: 409 });
@@ -39,6 +45,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const g = await exigirConta(req);
   if (!g.ok) return g.resposta;
+  // O plano manda: sem "Reunião" marcada, a rota não atende.
+  {
+    const barrado = await exigirFerramenta(req, "reuniao");
+    if (barrado) return barrado;
+  }
 
   const token = await tokenDaPessoa(g.conta.id, g.conta.email);
   if (!token) return NextResponse.json(SEM_ARCA, { status: 409 });

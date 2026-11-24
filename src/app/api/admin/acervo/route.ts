@@ -6,6 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { exigirConta } from "@/lib/orgs";
+import { exigirFerramenta } from "@/lib/porteira-ferramenta";
 import { basePublica } from "@/lib/base-publica";
 import { ARCA_URL, arcaDaConta, guardarArcaDaConta, pedirTokenNaArca, servicoConfigurado } from "@/lib/arca-conta";
 import { escopoDaRequisicao } from "@/lib/escopo-ativo";
@@ -861,6 +862,11 @@ async function lerDoVault(tok: string, rota: string): Promise<Record<string, unk
 async function atenderAcervo(req: NextRequest) {
   const sessao = await exigirConta(req);
   if (!sessao.ok) return sessao.resposta;
+  // A ferramenta do painel manda aqui: sem "A Arca" no plano, não passa.
+  {
+    const barrado = await exigirFerramenta(req, "arca");
+    if (barrado) return barrado;
+  }
   const conta = sessao.conta;
 
   const u = new URL(req.url);
@@ -1383,6 +1389,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const sessao = await exigirConta(req);
   if (!sessao.ok) return sessao.resposta;
+  // A ferramenta do painel manda aqui: sem "A Arca" no plano, não passa.
+  {
+    const barrado = await exigirFerramenta(req, "arca");
+    if (barrado) return barrado;
+  }
   const conta = sessao.conta;
 
   const corpo = (await req.json().catch(() => ({}))) as Record<string, unknown>;
@@ -1807,6 +1818,11 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const sessao = await exigirConta(req);
   if (!sessao.ok) return sessao.resposta;
+  // A ferramenta do painel manda aqui: sem "A Arca" no plano, não passa.
+  {
+    const barrado = await exigirFerramenta(req, "arca");
+    if (barrado) return barrado;
+  }
   const conta = sessao.conta;
 
   const corpo = (await req.json().catch(() => ({}))) as Record<string, unknown>;
