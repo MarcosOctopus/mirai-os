@@ -49,18 +49,19 @@ const ESTADO: Record<EstadoOrb, EstadoMotor> = {
 const FUNDO_ORB: [number, number, number] = [18, 20, 22];
 
 // TAMANHO — calibrado CONTRA A REFERÊNCIA, não por impressão.
-// (dono, 24/11/2026: "olha como ele fica grandão no meio e lindo. vc mando ele
-// pequeno dentro de um circulo")
 //
-// Como calibrei — pelo CALOR DA COR (vermelho menos azul), que isola o laranja
-// do fundo sem depender de limiar de brilho. O critério é "área acesa": o
-// diâmetro onde o calor cai a 20% do máximo.
-//   sua referência  → área acesa = 70% do menor lado
-//   canvas 1,00×    → área acesa = 58%   (aparecia pequeno dentro do brilho)
-//   canvas 1,20×    → área acesa ≈ 70%   ← é o que vale
-// O motor NÃO foi tocado: quem mudou de tamanho foi a CAIXA onde ele desenha,
-// escolha de instalação. O raio da esfera continua nos 27% do pacote.
-const CANVAS_POR_TELA = 1.2;
+// 1ª calibração (24/11/2026, manhã): o dono mandou o print do orb do pacote
+// ("olha como ele fica grandão no meio") e o alvo foi ~70% do menor lado —
+// `CANVAS_POR_TELA = 1.2`.
+// 2ª calibração (mesmo dia, à tarde): o dono mandou OUTRO print e disse que no
+// app está *"mto grande"*. Medido com o MESMO critério nos dois lados — "área
+// acesa" = diâmetro onde a luminância cai a 20% do pico, na janela 1280×691:
+//   referência dele →  220 px  = 32% do menor lado
+//   app com 1,2×    →  550 px  = 80% do menor lado   (2,5× maior que a referência)
+// Alvo: 32% do menor lado → 220 px. Como a área acesa anda junto com a caixa,
+// 1,2 × (220/550) = 0,48. Medido de novo depois da troca (prints no acervo).
+// O motor NÃO foi tocado: quem mudou foi a CAIXA onde ele desenha.
+const CANVAS_POR_TELA = 0.48;
 
 export default function OrbVivo({
   status = "idle",
