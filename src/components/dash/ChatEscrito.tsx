@@ -895,9 +895,16 @@ export default function ChatEscrito({
         {/* ── CONVERSA EM ANDAMENTO — nada mudou em relação ao de antes ── */}
         {!mostrarInicio && (
           <>
-            <div className="flex items-center gap-3 border-b border-dash-hair/[0.07] px-5 py-3.5">
-              <p className="truncate text-[13px] text-dash-muted">{tituloAberto}</p>
-            </div>
+            {/* TÍTULO DA CONVERSA: só fora da tela inicial cheia. O dono pediu
+                (24/11/2026) "tira essas linhas e nome do chat aí" — na tela `/`
+                ele só repetia a primeira frase do usuário e a linha de baixo
+                cortava o canvas. Na página própria do chat (`/chat`) ele FICA:
+                lá é o único lugar que diz em que conversa você está. */}
+            {!cheio && (
+              <div className="flex items-center gap-3 border-b border-dash-hair/[0.07] px-5 py-3.5">
+                <p className="truncate text-[13px] text-dash-muted">{tituloAberto}</p>
+              </div>
+            )}
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
               {carregandoConversa && mensagens.length === 0 && (

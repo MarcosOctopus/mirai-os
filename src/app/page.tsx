@@ -84,29 +84,18 @@ export default function Page() {
       <div className="tela-cheia relative flex flex-col overflow-hidden bg-dash-bg">
         {/* topo: o seletor Chat/Orb — a única moldura da tela. Na tela de
             início a linha de baixo some (nada de moldura no palco limpo) e o
-            seletor ganha corpo.
-
-            NO MODO ORB O TOPO SAI DO FLUXO (dono, 24/11/2026: "tira a barra
-            escura atrás do toogle"). Enquanto ele era `relative`, o palco
-            começava em y=51 e a faixa de cima mostrava o `bg-dash-bg` da
-            moldura — uma barra chapada cortando o céu. Absoluto, o palco ocupa
-            a tela inteira e o toggle flutua SOBRE o céu. */}
+            seletor ganha corpo — ver `seletorGrande` abaixo, que hoje só muda o
+            CORPO do seletor (o topo já não tem moldura nenhuma). */}
         <div
-          className={`z-30 flex items-center justify-center border-b px-4 transition-all ${
-            modo === "orb"
-              ? // NO MODO ORB: o topo é FIXO na janela (não na moldura), e isso
-                // resolve os dois pedidos do dono (24/11/2026):
-                //  "deixa o toggle centralizado com a orb" — o orb vive num
-                //     `.mirai-presence` fixo na janela (centro em 50vw); preso à
-                //     moldura, o toggle centrava 42 px à direita dele;
-                //  "abaixe a altura dele pra seguir a linha da foto de perfil" —
-                //     mesma altura (top-5 / lg:top-8) e mesma caixa de 34 px do
-                //     botão de perfil, então o toggle entra na MESMA linha dele.
-                "fixed left-0 top-5 h-[34px] w-full border-transparent lg:top-8"
-              : seletorGrande
-                ? "relative shrink-0 border-transparent py-4"
-                : "relative shrink-0 border-dash-hair/[0.07] py-2.5"
-          }`}
+          className={
+            // O TOPO SAI DO FLUXO NAS DUAS TELAS e não tem moldura nenhuma.
+            // Nasceu no modo Orb (dono, 24/11/2026: "tira essa barra escura
+            // atrás do toogle") e o chat veio atrás ("olha aqui no chat mesma
+            // altura do orb e tira essas linhas e nome do chat aí"). Fixo na
+            // JANELA, na mesma linha do botão de perfil (top-5 / lg:top-8,
+            // caixa de 34px): mesma altura nos dois modos e no celular.
+            "fixed left-0 top-5 z-30 flex h-[34px] w-full items-center justify-center px-4 transition-all lg:top-8"
+          }
         >
           <SeletorModo
             rotuloAria="Modo de conversa"
@@ -123,9 +112,11 @@ export default function Page() {
 
         {/* palco: as duas camadas ficam uma sobre a outra e fazem cross-fade */}
         <div className="relative min-h-0 flex-1">
-          {/* camada Chat (escrita) */}
+          {/* camada Chat (escrita). O `pt` reserva a faixa do seletor, que agora
+              é fixo e flutua sobre a tela nos dois modos: sem ele a primeira
+              mensagem nasceria embaixo do seletor. */}
           <div
-            className={`absolute inset-0 z-10 bg-dash-bg transition-opacity duration-300 ease-out ${
+            className={`absolute inset-0 z-10 bg-dash-bg pt-[62px] transition-opacity duration-300 ease-out lg:pt-[74px] ${
               modo === "chat" ? "opacity-100" : "pointer-events-none opacity-0"
             }`}
             aria-hidden={modo !== "chat"}
