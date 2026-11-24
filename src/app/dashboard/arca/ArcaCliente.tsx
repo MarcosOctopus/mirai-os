@@ -20,7 +20,7 @@
  * auditado, auto-commit no histórico. A IA escreve pelo MESMO caminho auditado.
  */
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import PillsEscopo from "./PillsEscopo";
 
 import NotaTexto from "@/components/dash/NotaTexto";
@@ -108,6 +108,59 @@ function useEditorArca(): CtxEditor {
   const c = useContext(CtxArcaEditor);
   if (!c) throw new Error("editor da Arca fora do provedor");
   return c;
+}
+
+/**
+ * MARCAR PARA APAGAR EM MASSA (dono, 24/11/2026): *"quero que a pessoa possa
+ * marcar qualquer pasta e arquivo pra deletar em massa … quero que tenha um
+ * checkbox do lado dos conteúdos e se quiser segurar SHIFT para marcar mais de
+ * uma vez eu consiga"*.
+ *
+ * Contexto, e não props, pelo mesmo motivo do editor: `Ramo` é recursivo e a
+ * caixinha nasce em TODA linha — passar seleção por sete níveis de props seria
+ * uma costura a mais para furar na próxima mudança.
+ */
+type CtxMarcar = {
+  marcado: (caminho: string) => boolean;
+  alternar: (caminho: string, comShift: boolean) => void;
+};
+
+const CtxSelecao = createContext<CtxMarcar | null>(null);
+
+function useMarcar(): CtxMarcar {
+  const c = useContext(CtxSelecao);
+  if (!c) throw new Error("seleção da Arca fora do provedor");
+  return c;
+}
+
+/** A caixinha de marcar — uma só para pasta e nota, para as duas nunca divergirem. */
+function CaixinhaApagar({
+  caminho,
+  rotulo,
+  atributo,
+}: {
+  caminho: string;
+  rotulo: string;
+  atributo: "data-arca-marcar-nota" | "data-arca-marcar-pasta";
+}) {
+  const { marcado, alternar } = useMarcar();
+  return (
+    <input
+      type="checkbox"
+      checked={marcado(caminho)}
+      // O clique é quem decide: `onChange` vazio evita o aviso do React de input
+      // controlado sem handler, e o estado vem do Set (fonte única).
+      onChange={() => {}}
+      onClick={(e) => {
+        e.stopPropagation();
+        alternar(caminho, e.shiftKey);
+      }}
+      aria-label={`marcar ${rotulo} para apagar`}
+      title="marcar para apagar (segure SHIFT para marcar uma sequência)"
+      {...{ [atributo]: caminho }}
+      className="ml-0.5 h-[13px] w-[13px] shrink-0 cursor-pointer accent-[#ef4444]"
+    />
+  );
 }
 
 type NoArvore = {
@@ -1109,6 +1162,135 @@ export default function ArcaPage() {
     }
   }, [apagando, nota?.path, carregarArvore]);
 
+  /* ── APAGAR EM MASSA: marcar, SHIFT e a palavra de segurança ──────────────
+     Pedido do dono (24/11/2026): *"quero que a pessoa possa marcar qualquer
+     pasta e arquivo pra deletar em massa … sempre que for pasta com mais de 5
+     arquivos tenha que escrever 'Apagar' … quero que tenha um checkbox do lado
+     dos conteúdos e se quiser segurar SHIFT para marcar mais de uma vez"*.
+
+     Três peças, nesta ordem:
+       1. a CAIXINHA em cada linha (pasta e nota) — `CaixinhaApagar`;
+       2. a SEQUÊNCIA pelo SHIFT — sobre a ORDEM QUE A PESSOA VÊ, não sobre a
+          árvore inteira (marcar "o que está entre os dois cliques" só faz sentido
+          com o que está aberto na tela);
+       3. a PALAVRA — a partir de mais de 5 NOTAS indo para a lixeira. A contagem
+          é a REAL (pasta conta o conteúdo), porque o que apaga de fato é a nota:
+          uma pasta de 600 notas exige a palavra mesmo sendo um clique só.
+     O lote NÃO ganha atalho na Arca: o servidor apaga item por item pelas mesmas
+     travas do apagar individual (ver `apagar-varios` em `/api/admin/acervo`). */
+  const [selecao, setSelecao] = useState<Set<string>>(() => new Set());
+  const [ancoraSel, setAncoraSel] = useState<string | null>(null);
+  const [loteAberto, setLoteAberto] = useState(false);
+  const [palavraLote, setPalavraLote] = useState("");
+  const [apagandoLote, setApagandoLote] = useState(false);
+
+  /** A ORDEM QUE A PESSOA VÊ — só o que está aberto entra. */
+  const ordemVisivel = useMemo(() => {
+    const lista: { caminho: string; tipo: "nota" | "pasta"; nome: string; notas: number; espaco?: string }[] = [];
+    const anda = (no: NoArvore) => {
+      for (const n of no.notas) lista.push({ caminho: n.path, tipo: "nota", nome: n.nome, notas: 1 });
+      for (const s of no.subpastas) {
+        lista.push({ caminho: s.path, tipo: "pasta", nome: s.nome, notas: s.total_notas, espaco: s.espaco });
+        if (!s.espaco && abertas.has(s.path)) anda(s);
+      }
+    };
+    if (arvore) anda(arvore);
+    return lista;
+  }, [arvore, abertas]);
+
+  const marcado = useCallback((caminho: string) => selecao.has(caminho), [selecao]);
+
+  const alternarMarcado = useCallback(
+    (caminho: string, comShift: boolean) => {
+      setSelecao((atual) => {
+        const novo = new Set(atual);
+        // SHIFT: marca de onde o último clique ficou até este — a sequência inteira,
+        // como em planilha. Só funciona entre linhas VISÍVEIS (as duas têm de estar
+        // na ordem); fora disso, cai no clique simples.
+        if (comShift && ancoraSel && ancoraSel !== caminho) {
+          const i1 = ordemVisivel.findIndex((x) => x.caminho === ancoraSel);
+          const i2 = ordemVisivel.findIndex((x) => x.caminho === caminho);
+          if (i1 >= 0 && i2 >= 0) {
+            const [de, ate] = i1 < i2 ? [i1, i2] : [i2, i1];
+            for (let k = de; k <= ate; k++) {
+              const item = ordemVisivel[k];
+              // Espaço (pessoal/organização) não se apaga: fica de fora do arrasto.
+              if (item && !item.espaco) novo.add(item.caminho);
+            }
+            return novo;
+          }
+        }
+        if (novo.has(caminho)) novo.delete(caminho);
+        else novo.add(caminho);
+        return novo;
+      });
+      setAncoraSel(caminho);
+      setLoteAberto(false);
+    },
+    [ancoraSel, ordemVisivel],
+  );
+
+  const limparSelecao = useCallback(() => {
+    setSelecao(new Set());
+    setAncoraSel(null);
+    setLoteAberto(false);
+    setPalavraLote("");
+  }, []);
+
+  /** O que os cliques querem dizer em NOTAS — pasta engole o que está dentro. */
+  const resumoSelecao = useMemo(() => {
+    const escolhidos = ordemVisivel.filter((x) => selecao.has(x.caminho));
+    const pastasEscolhidas = escolhidos.filter((x) => x.tipo === "pasta").map((x) => x.caminho);
+    const efetivos = escolhidos.filter(
+      (x) => x.tipo === "pasta" || !pastasEscolhidas.some((p) => x.caminho.startsWith(`${p}/`)),
+    );
+    const notas = efetivos.reduce((soma, x) => soma + (x.tipo === "pasta" ? x.notas : 1), 0);
+    return { efetivos, itens: efetivos.length, notas };
+  }, [ordemVisivel, selecao]);
+
+  const LIMITE_SEM_PALAVRA = 5;
+  const exigePalavra = resumoSelecao.notas > LIMITE_SEM_PALAVRA;
+  const palavraOk = palavraLote.trim().toLowerCase() === "apagar";
+
+  const apagarLote = useCallback(async () => {
+    if (!resumoSelecao.itens) return;
+    if (exigePalavra && !palavraOk) return;
+    setApagandoLote(true);
+    setErro(null);
+    try {
+      const r = await fetch(API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          acao: "apagar-varios",
+          itens: resumoSelecao.efetivos.map((x) => ({ caminho: x.caminho, tipo: x.tipo })),
+        }),
+      });
+      const d = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!r.ok && d?.ok !== false) {
+        const det = d?.detail;
+        throw new Error(
+          String((typeof det === "string" ? det : (d?.error as string)) || "a Arca não apagou o que foi marcado"),
+        );
+      }
+      const apagados = Array.isArray(d?.apagados) ? (d.apagados as string[]).length : 0;
+      const falhas = Array.isArray(d?.falhas) ? (d.falhas as { caminho: string; motivo: string }[]) : [];
+      setAviso(
+        falhas.length
+          ? `${apagados} item(ns) foram para a lixeira; ${falhas.length} não deu — ${falhas[0]?.caminho}: ${falhas[0]?.motivo}`
+          : `${apagados} item(ns) apagados — foi tudo para a lixeira do acervo, dá para recuperar.`,
+      );
+      const alvos = resumoSelecao.efetivos.map((x) => x.caminho);
+      limparSelecao();
+      if (nota?.path && alvos.some((a) => nota.path === a || nota.path.startsWith(`${a}/`))) setNota(null);
+      await carregarArvore();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "não consegui apagar o que foi marcado");
+    } finally {
+      setApagandoLote(false);
+    }
+  }, [resumoSelecao, exigePalavra, palavraOk, limparSelecao, nota?.path, carregarArvore]);
+
   return (
     <ProvedorAcesso>
     <CtxArcaEditor.Provider
@@ -1590,6 +1772,7 @@ export default function ArcaPage() {
               </section>
             ) : arvore ? (
               <ContextoRecebido.Provider value={Boolean(recebidoAtivo)}>
+              <CtxSelecao.Provider value={{ marcado, alternar: alternarMarcado }}>
               <nav className="mt-2" data-arca-arvore="sim">
                 {arvore.notas.map((n) => (
                   <div key={n.path}>
@@ -1631,6 +1814,85 @@ export default function ArcaPage() {
                   </p>
                 )}
               </nav>
+
+              {/* A BARRA DO LOTE — só existe quando há algo marcado. Fixa no pé da
+                  coluna (sticky) para não sumir quando a árvore é longa: marcar 40
+                  linhas e ter de rolar até o fim para achar o botão seria piada. */}
+              {selecao.size > 0 && (
+                <div
+                  data-arca-lote="sim"
+                  className="sticky bottom-0 z-20 mt-2 rounded-lg border border-white/10 bg-dash-raise/95 px-2.5 py-2 backdrop-blur"
+                >
+                  {!loteAberto ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11.5px] text-dash-fg">
+                        {resumoSelecao.itens} marcado(s) · {fmt(resumoSelecao.notas)} nota(s)
+                      </span>
+                      <button
+                        type="button"
+                        data-arca-lote-abrir="sim"
+                        onClick={() => {
+                          setPalavraLote("");
+                          setLoteAberto(true);
+                        }}
+                        className="ml-auto rounded bg-[#ef4444]/15 px-2 py-[3px] text-[11px] text-[#ef4444] hover:bg-[#ef4444]/25"
+                      >
+                        apagar marcados
+                      </button>
+                      <button
+                        type="button"
+                        onClick={limparSelecao}
+                        className="text-[11px] text-dash-muted hover:text-dash-fg"
+                      >
+                        limpar
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <p className="text-[11.5px] leading-relaxed text-dash-fg">
+                        apagar {resumoSelecao.itens} item(ns) — {fmt(resumoSelecao.notas)} nota(s) no total? vai
+                        para a lixeira do acervo.
+                      </p>
+                      {exigePalavra && (
+                        <label className="block text-[11px] text-dash-muted">
+                          são mais de {LIMITE_SEM_PALAVRA} notas. escreva{" "}
+                          <strong className="text-dash-fg">Apagar</strong> para liberar:
+                          <input
+                            autoFocus
+                            value={palavraLote}
+                            onChange={(e) => setPalavraLote(e.target.value)}
+                            data-arca-lote-palavra="sim"
+                            placeholder="Apagar"
+                            className="mt-1 w-full rounded border border-white/10 bg-transparent px-2 py-1 text-[12px] text-dash-fg outline-none focus:border-[#ef4444]/60"
+                          />
+                        </label>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          data-arca-lote-confirmar="sim"
+                          onClick={() => void apagarLote()}
+                          disabled={apagandoLote || (exigePalavra && !palavraOk)}
+                          className="rounded bg-[#ef4444] px-2.5 py-[3px] text-[11px] font-medium text-white disabled:opacity-40"
+                        >
+                          {apagandoLote ? "apagando…" : "apagar agora"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLoteAberto(false);
+                            setPalavraLote("");
+                          }}
+                          className="text-[11px] text-dash-muted hover:text-dash-fg"
+                        >
+                          cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              </CtxSelecao.Provider>
               </ContextoRecebido.Provider>
             ) : (
               <p className="mt-3 px-1.5 text-[12.5px] text-dash-muted">abrindo a estrutura…</p>
@@ -1976,6 +2238,13 @@ function LinhaNota({
       }
       style={{ paddingLeft: `${4 + nivel * 13}px` }}
     >
+      {!soLeitura && (
+        <CaixinhaApagar
+          caminho={caminho}
+          rotulo={`a nota “${nome.replace(/\.md$/i, "")}”`}
+          atributo="data-arca-marcar-nota"
+        />
+      )}
       <Pegador rotulo={`arrastar “${nome.replace(/\.md$/i, "")}”`} onIniciar={(e) => iniciarArrasto(caminho, pastaPai, e)} />
       {editando ? (
         <EditorNotaInline caminho={caminho} />
@@ -2165,6 +2434,9 @@ function Ramo({
         }
         style={{ paddingLeft: `${4 + nivel * 13}px` }}
       >
+        {!soLeitura && !ehEspaco && (
+          <CaixinhaApagar caminho={no.path} rotulo={`a pasta “${no.nome}”`} atributo="data-arca-marcar-pasta" />
+        )}
         {!ehEspaco && (
           <Pegador
             rotulo={`arrastar pasta “${no.nome}”`}

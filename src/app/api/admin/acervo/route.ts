@@ -66,6 +66,11 @@ const ACOES_ESCRITA = ["criar-pasta", "criar-nota", "mover-nota", "editar-pasta"
   // o colaborador não tinha como tirar uma nota. A Arca já sabia (DELETE
   // /acervo/nota, que manda para a LIXEIRA e é reversível); o app só não chamava.
   "apagar-nota",
+  // apagar EM LOTE (dono, 24/11/2026): a pessoa marca várias pastas/notas na
+  // árvore e apaga de uma vez. A ARCA CONTINUA APAGANDO UM POR UM — cada item
+  // passa pelas MESMAS travas do apagar individual. O lote não afrouxa nada:
+  // só evita a tela disparar centenas de requisições.
+  "apagar-varios",
   // compartilhamento (F3, 11/11/2026): a verdade é da Arca, o app só veste
   "compartilhar", "descompartilhar", "link-convidado", "atender-pedido", "visto", "visto-tudo"] as const;
 const SLUG_OK = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
@@ -1697,6 +1702,75 @@ export async function POST(req: NextRequest) {
       }
       cacheVersao = null;
       return responder(r);
+    }
+
+    if (acao === "apagar-varios") {
+      // APAGAR EM LOTE (dono, 24/11/2026). A pessoa marca o que quiser — pasta ou
+      // nota — e apaga de uma vez. O LOTE NÃO AFROUXA NENHUMA TRAVA: cada item é
+      // apagado pelo MESMO caminho do individual (`/acervo/nota` com `confirmar`
+      // igual ao caminho; `/acervo/pasta` com `recursivo` + `confirmar`), então a
+      // Arca continua recusando o que recusaria antes e mandando tudo para a
+      // LIXEIRA. O que o lote resolve é o outro lado: a tela não dispara 700
+      // requisições e o relatório diz exatamente o que passou e o que não passou.
+      const normCaminho = (v: unknown) => String(v ?? "").trim().replace(/^\/+/, "").replace(/\/+$/, "");
+      // Prefixo de ESPAÇO (modo "Tudo") é reconhecido e removido POR ITEM — o
+      // mesmo tratamento que o apagar individual dá a `path`/`caminho`.
+      const semPrefixoDeEspaco = (cru: string): string => {
+        const corte = cru.indexOf("/");
+        if (corte <= 0) return cru;
+        const achado = escoposDaPessoa.find((e) => e.id === cru.slice(0, corte) && e.tipo !== "tudo");
+        return achado ? cru.slice(corte + 1) : cru;
+      };
+      const pedidos: { caminho: string; tipo: "nota" | "pasta" }[] = [];
+      for (const it of (Array.isArray(corpo.itens) ? corpo.itens : []) as Record<string, unknown>[]) {
+        const caminho = semPrefixoDeEspaco(normCaminho(it?.caminho));
+        // Nome que começa com ponto é oculto (`.lixeira`, `.git`): nunca entra.
+        if (!caminho || caminho.split("/").some((p) => p.startsWith("."))) continue;
+        pedidos.push({ caminho, tipo: it?.tipo === "pasta" ? "pasta" : "nota" });
+      }
+      if (!pedidos.length) return erro(400, "não recebi nenhum item para apagar");
+
+      // Pasta marcada ENGOLE os filhos marcados: apagar a pasta recursivamente e
+      // depois tentar apagar a nota de dentro daria 404 no segundo passo, e o
+      // relatório acusaria falha onde não houve nenhuma.
+      const pastasMarcadas = pedidos.filter((i) => i.tipo === "pasta").map((i) => i.caminho);
+      const fila = pedidos.filter(
+        (i) => i.tipo === "pasta" || !pastasMarcadas.some((p) => i.caminho.startsWith(`${p}/`)),
+      );
+
+      const apagados: string[] = [];
+      const falhas: { caminho: string; motivo: string }[] = [];
+      for (const item of fila) {
+        const r =
+          item.tipo === "nota"
+            ? await pedirCamada(
+                tok,
+                "DELETE",
+                `/acervo/nota?path=${encodeURIComponent(item.caminho)}&confirmar=${encodeURIComponent(item.caminho)}`,
+              )
+            : await pedirCamada(
+                tok,
+                "DELETE",
+                `/acervo/pasta?caminho=${encodeURIComponent(item.caminho)}&recursivo=true&confirmar=${encodeURIComponent(item.caminho)}`,
+              );
+        if (r.status === 200) {
+          apagados.push(item.caminho);
+          continue;
+        }
+        const det = (r.dados as { detail?: unknown }).detail;
+        falhas.push({
+          caminho: item.caminho,
+          motivo: typeof det === "string" && det ? det : `a Arca respondeu HTTP ${r.status}`,
+        });
+      }
+      cacheVersao = null;
+      return NextResponse.json({
+        ok: falhas.length === 0,
+        apagados,
+        falhas,
+        total: fila.length,
+        pedidos: pedidos.length,
+      });
     }
 
     if (acao === "podar-pastas") {
