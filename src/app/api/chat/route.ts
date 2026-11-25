@@ -7,6 +7,18 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import { REGRAS_CRAFT, REGRAS_VISUAL } from "@/lib/arquiteto-craft";
 
+// O endereço público sai do AMBIENTE, nunca escrito à mão — senão a Mirai continua
+// se apresentando com o nome antigo depois de uma troca de domínio. Acesso por
+// COLCHETE de propósito: `process.env.X` congela no build, `process.env["X"]` é
+// lido em execução.
+const ORIGEM_PUBLICA = (() => {
+  try {
+    return new URL(process.env["MIRAI_OIDC_REDIRECT"] || "https://app.miraiassistant.com").origin;
+  } catch {
+    return "https://app.miraiassistant.com";
+  }
+})();
+
 // ─── Carregar chaves dos providers ──────────────────────────────
 function loadEnv(name: string): string {
   try {
@@ -325,7 +337,7 @@ Você alcança a internet AGORA, com as ferramentas buscar_na_web e ler_pagina.
 - Seu nome é Mirai (ミライ = "futuro" em japonês)
 - Você foi criada pelo time do ecossistema MIRAI
 - Você faz parte do ecossistema MIRAI
-- Você é a inteligência central do Mirai OS (app.miraitohope.com)
+- Você é a inteligência central do Mirai OS (${ORIGEM_PUBLICA})
 
 ## ECOSSISTEMA MIRAI
 - Time do Futuro: holding do grupo, dona de todas as empresas do ecossistema
@@ -340,7 +352,7 @@ Você alcança a internet AGORA, com as ferramentas buscar_na_web e ler_pagina.
 - Pipeline: notícias → roteiro → thumbnail → música Suno → vídeo Kling → edição → YouTube
 
 ## MIRAI OS
-- app.miraitohope.com
+- ${ORIGEM_PUBLICA}
 - Chat com resposta em tempo real (streaming), voz e anexos
 - STT: reconhecimento de voz por wake word "Hey Mirai"
 - Se a pessoa pedir uma resposta mais profunda, capriche no detalhe e na clareza
@@ -404,7 +416,7 @@ const ARQUITETO_PROMPT = `Você é Mirai, uma assistente inteligente do ecossist
 - Seu nome é Mirai (ミライ = "futuro" em japonês)
 - Você foi criada pelo time do ecossistema MIRAI
 - Você faz parte do ecossistema MIRAI
-- Você é a inteligência central do Mirai OS (app.miraitohope.com)
+- Você é a inteligência central do Mirai OS (${ORIGEM_PUBLICA})
 
 ## ECOSSISTEMA MIRAI
 - Time do Futuro: holding do grupo, dona de todas as empresas do ecossistema
@@ -419,7 +431,7 @@ const ARQUITETO_PROMPT = `Você é Mirai, uma assistente inteligente do ecossist
 - Pipeline: notícias → roteiro → thumbnail → música Suno → vídeo Kling → edição → YouTube
 
 ## MIRAI OS
-- app.miraitohope.com
+- ${ORIGEM_PUBLICA}
 - Chat com resposta em tempo real (streaming), voz e anexos
 - STT: reconhecimento de voz por wake word "Hey Mirai"
 - Se a pessoa pedir uma resposta mais profunda, capriche no detalhe e na clareza
@@ -884,7 +896,7 @@ async function conversarComFerramentas(opts: {
           Authorization: `Bearer ${apoio.byok.chave}`,
           // A OpenRouter pede estes dois para atribuir o uso ao app certo;
           // ignorados pelos provedores que não os conhecem.
-          "HTTP-Referer": "https://app.miraitohope.com",
+          "HTTP-Referer": ORIGEM_PUBLICA,
           "X-Title": "MIRAI OS",
         },
         body: JSON.stringify({ ...corpo, model: apoio.byok.modelo }),
@@ -1477,7 +1489,7 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
       ? {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apoio.byok.chave}`,
-          "HTTP-Referer": "https://app.miraitohope.com",
+          "HTTP-Referer": ORIGEM_PUBLICA,
           "X-Title": "MIRAI OS",
         }
       : { "Content-Type": "application/json", Authorization: `Bearer ${CHAT_KEY}` };

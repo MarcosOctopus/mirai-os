@@ -19,6 +19,15 @@ export const HOSTS_DO_APP = new Set([
   "miraitohope.com",
   "www.miraitohope.com",
   "app.miraitohope.com",
+  // Domínio canônico (25/11/2026): app.miraiassistant.com passou a ser o nome
+  // oficial e o .com.br é o nativo do Brasil. Sem estas linhas o middleware lê
+  // "app" como SLUG DE PROJETO e reescreve para /d/app (404).
+  "miraiassistant.com",
+  "www.miraiassistant.com",
+  "app.miraiassistant.com",
+  "miraiassistant.com.br",
+  "www.miraiassistant.com.br",
+  "app.miraiassistant.com.br",
   "arca.miraitohope.com",
   "id.miraitohope.com",
   "mediafactory.miraitohope.com",

@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
     // ── Services ──
     if (type === "services" || type === "all") {
       const services = [
-        { name: "Mirai OS", endpoint: "app.miraitohope.com:3333", online: await checkPort(3333), type: "webapp" },
+        { name: "Mirai OS", endpoint: "app.miraiassistant.com:3333", online: await checkPort(3333), type: "webapp" },
         { name: "Arca API", endpoint: "arca.miraitohope.com:8080", online: await checkPort(8080), type: "api" },
         { name: "PostgreSQL", endpoint: "127.0.0.1:5433", online: await checkPort(5433), type: "database" },
         { name: "Whisper STT", endpoint: "127.0.0.1:8765", online: await checkPort(8765), type: "service" },

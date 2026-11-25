@@ -1,5 +1,7 @@
 "use client";
 
+import { useOrigemPublica } from "@/lib/use-origem";
+
 /* /dashboard/connect — a aba INTEGRAÇÕES do MIRAI OS.
  *
  * PORTE FIEL do template ArtDash. O markup é o de
@@ -727,6 +729,7 @@ function ModalCrm({ onClose, onConectado }: { onClose: () => void; onConectado: 
    chat: vão daqui, CIFRADAS, direto ao servidor (`/api/admin/github-app`), que
    só aceita a escrita do dono. */
 function BlocoChavesGithub({ pronta }: { pronta: boolean }) {
+  const origem = useOrigemPublica();
   const [id, setId] = useState("");
   const [segredo, setSegredo] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -782,10 +785,10 @@ function BlocoChavesGithub({ pronta }: { pronta: boolean }) {
           · <strong>Application name</strong>: Mirai OS
         </li>
         <li>
-          · <strong>Homepage URL</strong>: https://app.miraitohope.com
+          · <strong>Homepage URL</strong>: {origem}
         </li>
         <li className="break-all">
-          · <strong>Authorization callback URL</strong>: https://app.miraitohope.com/api/oauth/github/volta
+          · <strong>Authorization callback URL</strong>: {origem}/api/oauth/github/volta
         </li>
       </ul>
 

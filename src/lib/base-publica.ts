@@ -15,7 +15,7 @@
 // Nunca devolve localhost/127.0.0.1: endereço local nunca é o do visitante.
 import { origemPublica } from "./mirai-oidc";
 
-export const PUBLICO_PADRAO = "https://app.miraitohope.com";
+export const PUBLICO_PADRAO = "https://app.miraiassistant.com";
 
 const LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[::1\]|::1)/i;
 

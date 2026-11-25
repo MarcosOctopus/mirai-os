@@ -74,7 +74,7 @@ export function servicoConfigurado(): boolean {
 }
 
 /** O que o app diz de si para a Arca (Cloudflare da borda rejeita cliente anônimo). */
-const UA_APP = "mirai-os/1.0 (+https://app.miraitohope.com)";
+const UA_APP = "mirai-os/1.0 (+https://app.miraiassistant.com)";
 
 function cabecalhoServico(): Record<string, string> {
   const s = (process.env.ARCA_SERVICO_CREDENCIAL || "").trim();
