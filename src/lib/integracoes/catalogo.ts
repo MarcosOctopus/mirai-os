@@ -248,12 +248,19 @@ export const CATALOGO: Integracao[] = [
     id: "instagram",
     nome: "Instagram",
     empresa: "Meta",
-    subtitulo: "Conta do Instagram — publicações e métricas do perfil",
-    explicacao: "Sua conta do Instagram.",
+    subtitulo: "Conta do Instagram — leitura do perfil e do alcance",
+    explicacao: "Sua conta profissional do Instagram.",
     tipo: "api",
     categoria: "essenciais",
     logo: "/integracoes/instagram.svg",
     cor: "#ff0069",
+    /* CONECTAR DE VERDADE (25/11/2026): antes este card só aceitava COLAR um
+       token. Agora tem fluxo OAuth pelo Login do Facebook do app Mirai, que já
+       tem estas permissões concedidas. Cada pessoa autoriza a PRÓPRIA conta e o
+       token vai para o cofre do escopo dela.
+       O campo de token continua existindo como alternativa para quem já tem um
+       token de longa duração em mãos. */
+    oauthPath: "/api/oauth/instagram/iniciar",
     campos: [
       { chave: "token", rotulo: "Token de acesso", tipo: "senha", dica: "token de longa duração da conta" },
     ],

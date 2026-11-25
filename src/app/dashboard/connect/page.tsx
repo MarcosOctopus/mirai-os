@@ -1488,7 +1488,24 @@ export default function IntegracoesPage() {
             : "A conexão com o Google não foi concluída. Tente de novo.",
       );
     }
-    if (a || id || gh || cv || go) window.history.replaceState(null, "", window.location.pathname);
+    /* Voltando do consentimento do INSTAGRAM (25/11/2026): o callback devolve
+       `?instagram=conectado|recusado|falhou|sem_conta`. O caso `sem_conta` é o
+       que mais importa: sem dizer isso, a pessoa cuja conta é PESSOAL (não
+       comercial) só veria "não deu", sem entender que o problema é o tipo de
+       conta, não a autorização. */
+    const ig = q.get("instagram");
+    if (ig) {
+      setAviso(
+        ig === "conectado"
+          ? "Conta do Instagram conectada nesta conta. Cada pessoa conecta a própria conta, e nada é compartilhado."
+          : ig === "sem_conta"
+            ? "Nenhuma conta profissional do Instagram foi encontrada. O Instagram precisa ser conta comercial ou de criador e estar ligada a uma página."
+            : ig === "recusado"
+              ? "Você não autorizou o Instagram. Nada foi alterado."
+              : "A conexão com o Instagram não foi concluída. Tente de novo.",
+      );
+    }
+    if (a || id || gh || cv || go || ig) window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
   /* categoria + busca + filtro: a grade da referência (mesma faixa que rola na

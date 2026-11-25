@@ -119,6 +119,29 @@ const google = fixo("google", "https://generativelanguage.googleapis.com", (cred
   "x-goog-api-key": credencial,
 }));
 
+/**
+ * Telegram — o token do bot FAZ PARTE DO CAMINHO (`/bot<token>/metodo`), então o
+ * `base` já sai com ele dentro; não há cabeçalho a montar. A credencial é a única
+ * coisa que identifica o bot, e a prova é `/getMe`, que devolve o próprio bot.
+ * Telegram não tem OAuth para bot: a credencial é o token do @BotFather.
+ */
+const telegram: ProvedorPonte = {
+  id: "telegram",
+  comoMontar(credencial) {
+    const token = (credencial || "").trim();
+    if (!token) return null;
+    return { base: `https://api.telegram.org/bot${token}`, cabecalhos: {} };
+  },
+};
+
+/**
+ * Instagram — API de Login do Instagram. Cabeçalho `Bearer`; `/me` prova a
+ * credencial e devolve o @ da conta. Cada pessoa autoriza a PRÓPRIA conta.
+ */
+const instagram = fixo("instagram", "https://graph.instagram.com", (credencial) => ({
+  authorization: `Bearer ${credencial}`,
+}));
+
 /** O mapa ID → provedor. É a ÚNICA lista que a rota consulta. */
 export const PROVEDORES: Record<string, ProvedorPonte> = {
   supabase,
@@ -127,6 +150,8 @@ export const PROVEDORES: Record<string, ProvedorPonte> = {
   groq,
   openrouter,
   google,
+  telegram,
+  instagram,
 };
 
 /**

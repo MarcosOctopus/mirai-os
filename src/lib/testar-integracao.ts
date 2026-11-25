@@ -34,7 +34,9 @@ const TIMEOUT_MS = 12000;
  *   - groq       → /openai/v1/models
  *   - openrouter → /v1/models
  *   - google     → /v1beta/models (Gemini);
- *   - supabase   → /rest/v1/       (raiz da API REST do projeto).
+ *   - supabase   → /rest/v1/       (raiz da API REST do projeto);
+ *   - telegram   → /getMe          (devolve o próprio bot — sem número da pessoa);
+ *   - instagram  → /me?fields=id,username (prova a credencial e diz de quem é).
  */
 const CAMINHO_DE_TESTE: Record<string, string> = {
   github: "/user",
@@ -43,6 +45,8 @@ const CAMINHO_DE_TESTE: Record<string, string> = {
   openrouter: "/v1/models",
   google: "/v1beta/models",
   supabase: "/rest/v1/",
+  telegram: "/getMe",
+  instagram: "/me?fields=id,username",
 };
 
 /**

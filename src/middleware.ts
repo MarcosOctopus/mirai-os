@@ -69,6 +69,20 @@ const PUBLIC_PATHS = [
   // Sem esta linha o retorno toma 401 e a conexão nunca se completa — defeito já medido no Canva
   // (19/10/2026). Público só AQUI; a validação é lá dentro.
   '/api/oauth/gdrive',
+  // CONSENTIMENTO DO INSTAGRAM (25/11/2026 — "conectar de verdade", Login do
+  // Facebook do app Mirai): mesmo desenho do Canva e do Drive. `/iniciar` exige
+  // sessão (a própria rota chama `exigirConta`), mas `/volta` é o FACEBOOK que
+  // chama, sem cookie de sessão: quem autoriza é o BILHETE assinado
+  // (`instagram-oauth.ts`) conferido DENTRO da rota. Sem esta linha o retorno toma
+  // 401 e a conexão nunca se completa — defeito já medido no Canva (19/10/2026).
+  '/api/oauth/instagram',
+  // CONSENTIMENTO DO GOOGLE/EMAIL (corrigido 25/11/2026 — DEFEITO MEDIDO):
+  // `/api/oauth/google/volta` NUNCA esteve nesta lista, então o retorno do Gmail
+  // tomava 401 no middleware e a conexão morria no meio, com a tela seguindo
+  // "não conectada" e o fluxo PARECENDO pronto. A validação é a mesma dos outros:
+  // BILHETE assinado (`google-oauth.ts`) conferido DENTRO da rota. Público só
+  // AQUI. OBS: `/api/auth/*` (login/registro/YouTube) já era público acima.
+  '/api/oauth/google',
   // SINCRONIZADOR DO DRIVE DE TODOS (18/11/2026): o agendador chama esta rota sem sessão, com a
   // chave interna `MIRAI_FONTE_SECRET` no header — conferida DENTRO da rota, junto com a
   // exigência de sessão para quem vem do botão. "Pública" só no middleware; sem chave devolve 401.
