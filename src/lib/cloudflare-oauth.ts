@@ -24,8 +24,12 @@ export const CF_AUTORIZAR = "https://dash.cloudflare.com/oauth2/auth";
 export const CF_TOKEN = "https://dash.cloudflare.com/oauth2/token";
 export const CF_API = "https://api.cloudflare.com/client/v4";
 
-/** Onde o Cloudflare devolve o cliente. Precisa bater EXATAMENTE com o cadastro. */
-export const CF_VOLTA = "https://app.miraitohope.com/api/oauth/cloudflare/volta";
+/** Onde o Cloudflare devolve o cliente. Precisa bater EXATAMENTE com o cadastro.
+ *  25/11/2026: era uma string fixa em app.miraitohope.com e não acompanhava a troca
+ *  de domínio (todo o resto do app segue MIRAI_OIDC_REDIRECT). Agora vem do ambiente,
+ *  por COLCHETE para não congelar no build. */
+export const CF_VOLTA = process.env["CLOUDFLARE_REDIRECT_URI"] ||
+  "https://app.miraitohope.com/api/oauth/cloudflare/volta";
 
 /** O client id do nosso app no Cloudflare (não é segredo). */
 export function clientId(): string {
