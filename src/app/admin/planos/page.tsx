@@ -103,7 +103,7 @@ function franquiasDoPlano(p: Plano): [string, string][] {
     ["tokens/mês", L.tokens_mes ? `${L.tokens_mes}M` : undefined],
     ["Arca", L.storage_gb ? `${L.storage_gb} GB` : undefined],
     ["reuniões", L.reuniao_horas ? `${L.reuniao_horas} h` : undefined],
-    ["voz", L.voz_trocas ? `${L.voz_trocas} trocas` : undefined],
+    ["voz", L.voz_minutos ? `${L.voz_minutos} min` : undefined],
     ["execuções", L.execucoes_mes ? String(L.execucoes_mes) : undefined],
   ];
   return itens.filter((x) => x[1] !== undefined) as [string, string][];

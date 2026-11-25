@@ -55,7 +55,7 @@ const FRANQUIAS: { chave: string; rotulo: string }[] = [
   { chave: "tokens_mes", rotulo: "Tokens de IA / mês (milhões)" },
   { chave: "storage_gb", rotulo: "Espaço na Arca (GB)" },
   { chave: "reuniao_horas", rotulo: "Reuniões (horas / mês)" },
-  { chave: "voz_trocas", rotulo: "Voz do Orb (trocas / mês)" },
+  { chave: "voz_minutos", rotulo: "Voz do Orb (minutos / mês)" },
   { chave: "execucoes_mes", rotulo: "Execuções de agendamento / mês" },
 ];
 
@@ -63,7 +63,7 @@ const FRANQUIAS: { chave: string; rotulo: string }[] = [
 const EXCEDENTES: { chave: string; rotulo: string }[] = [
   { chave: "excedente_token_reais", rotulo: "1M de tokens (R$)" },
   { chave: "excedente_reuniao_reais", rotulo: "Hora de reunião (R$)" },
-  { chave: "excedente_voz_reais", rotulo: "Troca de voz (R$)" },
+  { chave: "excedente_voz_reais", rotulo: "Minuto de voz (R$)" },
   { chave: "excedente_gb_reais", rotulo: "GB de Arca (R$)" },
   { chave: "excedente_execucao_reais", rotulo: "Execução (R$)" },
 ];
