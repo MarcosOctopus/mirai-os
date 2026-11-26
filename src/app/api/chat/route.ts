@@ -1527,11 +1527,27 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
         abrirCircuitoDoGateway(apoio?.ctxPessoa?.identidade?.contaId ?? 0);
       }
       console.error("Gateway da conta recusou:", r.status, erro.slice(0, 200));
+      if (!apoio.byok) {
+        // Sem escada: sem chave própria não existe provedor direto para onde
+        // cair. A recusa sobe com o motivo real (inclusive 402 de teto).
+        return recusaDaConta(r.status, erro);
+      }
     } catch (e) {
       console.error("Gateway da conta — rede:", e instanceof Error ? e.message : e);
+      if (!apoio.byok) {
+        return Response.json(
+          { error: "não consegui falar com a inteligência da sua conta agora — tente de novo em instantes." },
+          { status: 502 },
+        );
+      }
     }
-  } else if (gw) {
-    console.log(`Conta ${gw.tenant}: gateway fora do circuito, indo direto ao provedor`);
+  } else if (gw && !apoio.byok) {
+    // Circuito aberto por recusa recente: dizemos o motivo em vez de gastar a
+    // chave da casa escondido.
+    return Response.json(
+      { error: "a inteligência da sua conta recusou os últimos pedidos (integração ou chave). Confira as conexões e tente de novo." },
+      { status: 502 },
+    );
   }
 
   // Não chegando aqui com porta da conta e sem chave própria, não existe para
