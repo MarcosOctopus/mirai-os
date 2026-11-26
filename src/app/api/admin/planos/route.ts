@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
  * abaixo (whitelist). Nada de proxy aberto / SSRF.
  */
 
-type Metodo = "GET" | "POST" | "PATCH" | "PUT";
+type Metodo = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
 // Whitelist de leitura: acao -> caminho no plano de controle.
 const LEITURA: Record<string, (p: URLSearchParams) => string> = {
@@ -129,6 +129,15 @@ function despachar(
         caminho: `/v1/admin/organizacoes/${encodeURIComponent(tenantId)}/capacidades`,
         body: { capability_id: corpo.capability_id, conceder: corpo.conceder !== false },
       };
+    case "apagar_plano":
+      // 26/11/2026 — o X do cartão. O plano de controle recusa (409) quando existe
+      // assinatura usando o plano, mesmo antiga; aqui não há contorno.
+      if (!planId) return { error: "informe plan_id" };
+      return {
+        method: "DELETE",
+        caminho: `/v1/admin/plans/${encodeURIComponent(planId)}`,
+        body: undefined,
+      };
     default:
       return { error: `acao de escrita desconhecida: ${acao}` };
   }
@@ -164,4 +173,9 @@ export async function PATCH(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   return tratarEscrita(req, "PUT");
+}
+
+// 26/11/2026 — apagar plano (o X do cartão). Mesma trava de e-mail autorizado.
+export async function DELETE(req: NextRequest) {
+  return tratarEscrita(req, "DELETE");
 }

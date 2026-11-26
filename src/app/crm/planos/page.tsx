@@ -272,6 +272,25 @@ export default function PlanosPage() {
     }
   }
 
+  async function apagarPlano(pl: Plano) {
+    const ciente = window.confirm(
+      `Apagar o plano ${pl.nome} (${pl.plan_id})?\n\n` +
+        "É definitivo. Se qualquer assinatura — mesmo antiga — usar este plano, o plano de controle recusa e o caminho é DESATIVAR, não apagar.",
+    );
+    if (!ciente) return;
+    try {
+      await apiJson("/api/admin/planos", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ acao: "apagar_plano", plan_id: pl.plan_id }),
+      });
+      setErro("");
+      await carregar();
+    } catch (e) {
+      setErro((e as Error).message);
+    }
+  }
+
   async function trocarPlanoDaOrg(u: Usuario, planId: string) {
     if (planId === u.plan_id) return;
     try {
@@ -349,7 +368,18 @@ export default function PlanosPage() {
                 <Painel key={p.plan_id} className="flex flex-col gap-5 p-7">
                   <div className="flex items-start justify-between gap-3">
                     <Rotulo>PLANO {String(i + 1).padStart(2, "0")}</Rotulo>
-                    <Pilula tracejada cor={p.ativo === false ? "#F87171" : "#A7A7A7"}>{p.ativo === false ? "INATIVO" : "ATIVO"}</Pilula>
+                    <div className="flex items-center gap-2">
+                      <Pilula tracejada cor={p.ativo === false ? "#F87171" : "#A7A7A7"}>{p.ativo === false ? "INATIVO" : "ATIVO"}</Pilula>
+                      <button
+                        type="button"
+                        onClick={() => void apagarPlano(p)}
+                        title={`Apagar ${p.nome}`}
+                        aria-label={`Apagar plano ${p.nome}`}
+                        className="grid h-7 w-7 place-items-center rounded-[8px] border border-[#333] text-[12px] text-[#646464] transition hover:border-[#F87171] hover:text-[#F87171]"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex flex-col gap-2">
