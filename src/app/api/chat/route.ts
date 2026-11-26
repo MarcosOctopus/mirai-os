@@ -45,7 +45,8 @@ const AIAPIFLOW_KEY   = loadEnv("AIAPIFLOW_API_KEY");
 // latencia media; o kpalabz respondeu 60/60 na mesma carga.
 const CHAT_PROV_KEY   = loadEnv("AIBEE_API_KEY");
 
-import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
+import { gatewayDaConta, MODELO_DA_CONTA, type GatewayDaConta } from "@/lib/gateway-da-conta";
+import { vincularContaMirai } from "@/lib/vinculo-conta-mirai";
 import { arcaConfigurada, headersDaArca } from "@/lib/arca-cliente";
 import { pedirTokenNaArca, tokenArcaDaConta } from "@/lib/arca-conta";
 import { regraDoModo, modoDaMensagem, type ModoId } from "@/lib/modos-do-chat";
@@ -69,6 +70,61 @@ function abrirCircuitoDoGateway(contaId: number): void {
 }
 function fecharCircuitoDoGateway(contaId: number): void {
   CIRCUITOS.delete(`gw-cb:${contaId}`);
+}
+
+// ─── A PORTA DA CONTA (26/11/2026) ──────────────────────────────────────────
+// A escada de provedores morreu aqui. Antes: gateway → Verboo → reserva Verboo
+// → Gemini → aiapiflow. Isso escondia a falha, não media nada e deixava o chat
+// gastar a chave da casa sem aparecer em lugar nenhum.
+//
+// Agora a regra é uma só: **a conta responde pela porta dela** (`Supernova`, via
+// /v1/ai), e é ali que o consumo é medido e descontado do teto do plano. Chave
+// própria (BYOK) continua sendo caminho legítimo — não é escada, é a conta da
+// pessoa.
+async function garantirGateway(apoio: ApoioConta): Promise<GatewayDaConta | null> {
+  const id = apoio?.ctxPessoa?.identidade?.contaId ?? 0;
+  if (!id || apoio.byok) return null;
+
+  let gw = gatewayDaConta(id);
+  if (gw) return gw;
+
+  // Entrou antes deste vínculo existir: vincula agora (idempotente) e relê.
+  try {
+    await Promise.race([
+      vincularContaMirai({
+        userId: id,
+        email: apoio?.ctxPessoa?.identidade?.email ?? "",
+        nome: apoio?.ctxPessoa?.identidade?.nome ?? "",
+      }),
+      new Promise((r) => setTimeout(r, 8000)),
+    ]);
+  } catch {
+    /* não é fatal: abaixo dizemos que a porta não abriu */
+  }
+  return gatewayDaConta(id);
+}
+
+/** A recusa do gateway, com o motivo REAL (inclusive 402 de teto de tokens). */
+function recusaDaConta(status: number, texto: string): Response {
+  let detalhe = (texto || "").slice(0, 400);
+  try {
+    const j = JSON.parse(texto);
+    detalhe = String(j.detail || j.error || detalhe);
+  } catch {
+    /* texto cru serve */
+  }
+  const codigo = status === 402 ? 402 : 502;
+  return Response.json({ error: detalhe || "a inteligência da sua conta não respondeu" }, { status: codigo });
+}
+
+async function textoDaRecusa(r: Response): Promise<string> {
+  try {
+    const bruto = await r.clone().text();
+    const j = JSON.parse(bruto);
+    return String(j.detail || j.error || bruto).slice(0, 400);
+  } catch {
+    return "";
+  }
 }
 
 // BASE E CHAVE PODEM VIR DO AMBIENTE (teste A/B sem rebuild, 23/10/2026):
@@ -866,7 +922,7 @@ async function conversarComFerramentas(opts: {
   // BYOK (13/11/2026): com chave própria cadastrada o gateway NÃO entra. O
   // gateway é a infraestrutura de faturamento do app — quem traz a própria
   // chave paga no provedor dele, então faturar aqui seria cobrar duas vezes.
-  const gw = apoio.byok ? null : gatewayDaConta(apoio?.ctxPessoa?.identidade?.contaId ?? 0);
+  const gw = await garantirGateway(apoio);
   const corpoDe = (comFerramentas: boolean) => ({
     model: modelo,
     messages: msgs,
@@ -946,7 +1002,8 @@ async function conversarComFerramentas(opts: {
         // "recusa", nunca "pedido malformado"; e um pedido malformado cair no
         // provedor direto é o comportamento certo de qualquer forma.
         if (r.status === 400 || r.status === 401 || r.status === 403) abrirCircuito();
-        console.error("Laço: gateway da conta recusou, indo pelo provedor direto:", r.status);
+        ultimaRecusa = { status: r.status, texto: await textoDaRecusa(r) };
+        console.error("Laço: gateway da conta recusou:", r.status, ultimaRecusa.texto.slice(0, 160));
       } catch (e) {
         console.error(
           "Laço: gateway da conta fora do ar, indo pelo provedor direto:",
@@ -954,10 +1011,22 @@ async function conversarComFerramentas(opts: {
         );
       }
     }
+    // Sem escada: quem não tem chave própria NÃO cai em provedor direto.
+    if (!apoio.byok) {
+      return Response.json(
+        {
+          error:
+            ultimaRecusa?.texto ||
+            "a inteligência da sua conta não respondeu agora — tente de novo em instantes.",
+        },
+        { status: ultimaRecusa?.status === 402 ? 402 : 502 },
+      );
+    }
     return chamarDireto(comFerramentas);
   };
 
   let ultimoTexto = "";
+  let ultimaRecusa: { status: number; texto: string } | null = null;
   for (let rodada = 0; rodada < MAX_RODADAS_DE_FERRAMENTA; rodada++) {
     let resp: Response;
     try {
@@ -1357,27 +1426,13 @@ export async function POST(req: NextRequest) {
          `callVerboo` porque ele já é OpenAI-compatível: mesmo laço de
          ferramentas, mesmo system prompt, mesmo filtro de saída. */
       resposta = await callVerboo(messages, lastMsg, chatMode, byok.modelo, apoio, ehDono, escalada.modo);
-    } else if (useClaude || wantsClaude(lastMsg)) {
-      // Tenta aiapiflow Claude primeiro
-      if (AIAPIFLOW_KEY) {
-        resposta = await callAiapiflow(messages, lastMsg, chatMode, apoio, ehDono);
-      } else if (GOOGLE_API_KEY) {
-        // Fallback: Gemini
-        resposta = await callGemini(messages, lastMsg, chatMode, apoio, ehDono);
-      } else {
-        return Response.json({ error: "Nenhum provider configurado" }, { status: 500 });
-      }
-    } else if (CHAT_PROV_KEY) {
-      // Padrão: Claude Opus 5.5 no kpalabz -> Claude Sonnet 5 (mesmo provedor,
-      // modelo diferente) -> Gemini -> aiapiflow
-      resposta = await callVerboo(messages, lastMsg, chatMode, CHAT_MODEL_PRINCIPAL, apoio, ehDono, escalada.modo);
-    } else if (GOOGLE_API_KEY) {
-      resposta = await callGemini(messages, lastMsg, chatMode, apoio, ehDono);
-    } else if (AIAPIFLOW_KEY) {
-      // Fallback: aiapiflow
-      resposta = await callAiapiflow(messages, lastMsg, chatMode, apoio, ehDono);
     } else {
-      return Response.json({ error: "Nenhum provider configurado" }, { status: 500 });
+      /* SEM ESCADA (26/11/2026 — decisão do dono). Antes daqui saíam quatro
+         caminhos (aiapiflow Claude, Gemini, Verboo principal, aiapiflow de
+         novo) e o consumo não era medido em lugar nenhum. Agora a conta
+         responde pela porta dela — a Supernova — e o gasto é abatido do teto
+         do plano, no mesmo lugar para chat, ORB e Arquiteto. */
+      resposta = await callVerboo(messages, lastMsg, chatMode, MODELO_DA_CONTA, apoio, ehDono, escalada.modo);
     }
 
     // ── HISTÓRICO: a pergunta e a resposta viram uma conversa de verdade. ──
@@ -1439,7 +1494,7 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
   // stream (o gateway devolve SSE igual ao provedor, então o resto do chat não
   // muda). Se ele recusar ou cair, o caminho de sempre assume logo abaixo.
   // BYOK: chave própria = sem gateway (faturamento é do provedor da pessoa).
-  const gw = apoio.byok ? null : gatewayDaConta(apoio?.ctxPessoa?.identidade?.contaId ?? 0);
+  const gw = await garantirGateway(apoio);
   // O CIRCUITO É COMPARTILHADO COM O LAÇO DE FERRAMENTAS (correção 23/10/2026).
   //
   // Antes, este bloco — que é o caminho do pedido SIMPLES, sem ferramentas —
@@ -1477,6 +1532,18 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
     }
   } else if (gw) {
     console.log(`Conta ${gw.tenant}: gateway fora do circuito, indo direto ao provedor`);
+  }
+
+  // Não chegando aqui com porta da conta e sem chave própria, não existe para
+  // onde cair: dizemos o motivo em vez de gastar a chave da casa escondido.
+  if (!apoio.byok && !gw) {
+    return Response.json(
+      {
+        error:
+          "sua conta ainda não concluiu o vínculo que dá acesso à Supernova. Saia e entre de novo para concluir.",
+      },
+      { status: 503 },
+    );
   }
 
   let resp: Response;
@@ -1528,13 +1595,9 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
         { status: 502 },
       );
     }
-    if (modelo === CHAT_MODEL_PRINCIPAL) {
-      console.log("Principal caiu — indo para a reserva...");
-      return await callVerboo(messages, lastMsg, chatMode, CHAT_MODEL_RESERVA, apoio, ehDono);
-    }
-    if (GOOGLE_API_KEY) return await callGemini(messages, lastMsg, chatMode, apoio, ehDono);
-    if (AIAPIFLOW_KEY) return await callAiapiflow(messages, lastMsg, chatMode, apoio, ehDono);
-    return Response.json({ error: `Erro do provedor: ${resp.status}`, details: err }, { status: 502 });
+    // SEM ESCADA: nada de reserva Verboo, Gemini ou aiapiflow. A recusa sobe
+    // com o motivo real — inclusive 402 quando o teto de tokens estourou.
+    return recusaDaConta(resp.status, err);
   }
 
   console.log(`Verboo respondeu OK com o modelo: ${modelo}`);
