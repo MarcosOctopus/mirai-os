@@ -133,7 +133,7 @@ export default function ClientesPage() {
           </p>
           <a
               href="/admin/clientes"
-              className="inline-flex h-12 items-center gap-2.5 rounded-[14px] bg-[#E85002] px-5 text-[15px] font-semibold text-black"
+              className="inline-flex h-12 items-center gap-2.5 rounded-[14px] bg-[#E85002] px-5 text-[15px] font-semibold text-white"
             >
               <span aria-hidden>+</span> Adicionar cliente
             </a>

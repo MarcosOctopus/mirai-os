@@ -551,7 +551,7 @@ export default function FinanceiroPage() {
                 type="button"
                 onClick={() => void cadastrarConta()}
                 disabled={salvando}
-                className="h-[52px] rounded-[14px] bg-[#E85002] text-[15px] font-semibold text-black disabled:opacity-50"
+                className="h-[52px] rounded-[14px] bg-[#E85002] text-[15px] font-semibold text-white disabled:opacity-50"
               >
                 {salvando ? "Cadastrando" : tipo === "saida" ? "Cadastrar conta a pagar" : "Cadastrar conta a receber"}
               </button>
