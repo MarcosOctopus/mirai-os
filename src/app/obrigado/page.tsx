@@ -11,11 +11,22 @@
  * (src/lib/vidro.ts), texto com inicial maiúscula e sem travessão.
  */
 import Link from "next/link";
-import { VIDRO } from "@/lib/vidro";
 
 export const metadata = { title: "Pagamento confirmado — MIRAI OS" };
 
 const FONTE = "var(--fonte-poppins), Poppins, system-ui, sans-serif";
+
+// Painel de fumaça: o vidro do login (src/lib/vidro.ts) é branco translúcido porque
+// fica sobre FOTO; sobre fundo escuro ele embacia e vira leite. Aqui a lâmina é escura,
+// com aresta de luz no topo e sombra funda embaixo.
+const PAINEL = {
+  background:
+    "linear-gradient(180deg, rgba(255,255,255,0.058) 0%, rgba(255,255,255,0.022) 46%, rgba(255,255,255,0.032) 100%)",
+  backdropFilter: "blur(18px) saturate(125%)",
+  WebkitBackdropFilter: "blur(18px) saturate(125%)",
+  boxShadow:
+    "inset 0 1px 0 rgba(255,255,255,0.10), inset 0 0 0 1px rgba(255,255,255,0.045), 0 30px 80px rgba(0,0,0,0.55)",
+} as const;
 
 const PASSOS = [
   {
@@ -65,26 +76,26 @@ export default function ObrigadoPage() {
         }}
       />
 
-      <section className="relative w-full max-w-[560px]">
+      <section className="relative w-full max-w-[520px]">
         <div
-          className="rounded-[24px] border border-dash-hair/[0.13] px-6 py-9 sm:px-10 sm:py-11"
-          style={VIDRO}
+          className="rounded-[22px] px-6 py-8 sm:px-9 sm:py-10"
+          style={PAINEL}
         >
           {/* selo: anel de luz + check */}
-          <div className="relative mx-auto grid h-[74px] w-[74px] place-items-center">
+          <div className="relative mx-auto grid h-[68px] w-[68px] place-items-center">
             <span
               aria-hidden
               className="absolute inset-0 rounded-full"
               style={{
                 background:
-                  "radial-gradient(circle, rgba(255,117,31,0.55) 0%, rgba(255,117,31,0.10) 58%, transparent 72%)",
-                filter: "blur(6px)",
+                  "radial-gradient(circle, rgba(255,117,31,0.34) 0%, rgba(255,117,31,0.07) 52%, transparent 70%)",
+                filter: "blur(10px)",
               }}
             />
-            <span className="relative grid h-[58px] w-[58px] place-items-center rounded-full border border-dash-brand/45 bg-dash-brand/15">
+            <span className="relative grid h-[52px] w-[52px] place-items-center rounded-full border border-dash-brand/40 bg-dash-brand/[0.12]">
               <svg
                 viewBox="0 0 24 24"
-                className="h-[26px] w-[26px] text-dash-brand"
+                className="h-[23px] w-[23px] text-dash-brand"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2.6"
@@ -118,7 +129,7 @@ export default function ObrigadoPage() {
                   <p className="text-[13.5px] font-semibold leading-snug text-dash-fg">
                     {p.titulo}
                   </p>
-                  <p className="mt-0.5 text-[12.5px] leading-relaxed text-dash-dim">
+                  <p className="mt-0.5 text-[12.5px] leading-relaxed text-dash-muted/85">
                     {p.texto}
                   </p>
                 </div>
@@ -135,13 +146,13 @@ export default function ObrigadoPage() {
             </Link>
             <Link
               href="/login"
-              className="inline-flex flex-1 items-center justify-center rounded-[11px] border border-dash-hair/[0.20] bg-dash-hair/[0.06] px-6 py-3 text-[13.5px] font-semibold text-dash-fg transition-all hover:bg-dash-hair/[0.12]"
+              className="inline-flex flex-1 items-center justify-center rounded-[11px] border border-dash-hair/[0.24] bg-dash-hair/[0.07] px-6 py-3 text-[13.5px] font-semibold text-dash-fg transition-all hover:bg-dash-hair/[0.12]"
             >
               Já tenho conta
             </Link>
           </div>
 
-          <p className="mt-7 text-center text-[12px] leading-relaxed text-dash-dim">
+          <p className="mt-7 text-center text-[12px] leading-relaxed text-dash-muted/75">
             Pagou com outro e-mail?{" "}
             <a
               href="mailto:contato@miraitohope.com?subject=Plano%20pago%20com%20outro%20e-mail"
@@ -153,7 +164,7 @@ export default function ObrigadoPage() {
           </p>
         </div>
 
-        <p className="mt-6 text-center text-[11px] text-dash-dim/80">
+        <p className="mt-6 text-center text-[11px] tracking-[0.08em] text-dash-dim">
           MIRAI OS · o seu sistema operacional cognitivo
         </p>
       </section>
