@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { exigirDono } from "@/lib/orgs";
-import { basePlanoDeControle, cabecalhosPlanoDeControle } from "@/lib/plano-controle";
+import { cabecalhosPlanoDeControle } from "@/lib/plano-controle";
 import {
   CAMBIO_USD_BRL,
   apagarSaida,
@@ -34,7 +34,15 @@ type Corpo = {
 };
 
 async function entradasDoGateway(limite = 200) {
-  const base = basePlanoDeControle();
+  // ATENÇÃO: o billing vive na BORDA (id.miraitohope.com), não no hostname interno do
+  // plano de controle. Em Stage `MIRAI_CONTROL_URL` aponta para `http://identity-service:8080`,
+  // que não resolve fora da rede do control plane — usar ele aqui dava `fetch failed`
+  // (EAI_AGAIN) e a tela abria sem entrada nenhuma, como se não houvesse venda.
+  const base = (
+    process.env.MIRAI_BILLING_URL ||
+    process.env.MIRAI_OIDC_ISSUER ||
+    "https://id.miraitohope.com"
+  ).replace(/\/+$/, "");
   const url = `${base}/v1/billing/movimentos?limite=${limite}`;
   try {
     const r = await fetch(url, { headers: cabecalhosPlanoDeControle(), cache: "no-store" });
