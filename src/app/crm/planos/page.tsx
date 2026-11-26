@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Shell from "@/components/dash/Shell";
+import { agruparEmModulos, idsDoModulo } from "@/lib/modulos-plano";
 import {
   CAMPO,
   MONO,
@@ -144,6 +145,9 @@ export default function PlanosPage() {
   }, [carregar]);
 
   const ordenados = useMemo(() => [...planos].sort((a, b) => (a.preco_centavos || 0) - (b.preco_centavos || 0)), [planos]);
+
+  // O plano fala a língua do produto (ORB, Arquiteto, Synapse…), não a lista miúda de ações.
+  const modulos = useMemo(() => agruparEmModulos(ferramentas), [ferramentas]);
 
   const assinantes = useMemo(() => {
     const mapa: Record<string, number> = {};
@@ -283,10 +287,15 @@ export default function PlanosPage() {
   }
 
   const grupos = useMemo(() => {
-    const porProduto: Record<string, Ferramenta[]> = {};
-    for (const f of ferramentasFiltradas) (porProduto[f.product_id] ||= []).push(f);
-    return Object.entries(porProduto).sort((a, b) => b[1].length - a[1].length);
-  }, [ferramentasFiltradas]);
+    const t = busca.trim().toLowerCase();
+    return modulos
+      .map((m) => ({
+        modulo: m,
+        acoes: m.capacidades.filter((c) => !t || `${c.nome} ${c.capability_id} ${c.area || ""}`.toLowerCase().includes(t)),
+      }))
+      .filter((g) => g.acoes.length > 0)
+      .sort((a, b) => b.acoes.length - a.acoes.length);
+  }, [modulos, busca]);
 
   return (
     <Shell titulo="Planos" usuario={{ nome: conta?.nome, email: conta?.email, ehDono: true }}>
@@ -333,7 +342,8 @@ export default function PlanosPage() {
         ) : aba === "planos" ? (
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {ordenados.map((p, i) => {
-              const quantas = (p.capacidades?.length ?? capacidades[p.plan_id]?.length) || 0;
+              const ligadas = capacidades[p.plan_id] || p.capacidades || [];
+              const quantas = modulos.filter((m) => idsDoModulo(m).some((id) => ligadas.includes(id))).length;
               const quantos = assinantes[p.plan_id] || 0;
               return (
                 <Painel key={p.plan_id} className="flex flex-col gap-5 p-7">
@@ -407,11 +417,14 @@ export default function PlanosPage() {
             {grupos.length === 0 ? (
               <p className="text-[14px] text-[#A7A7A7]">Nenhuma ferramenta com esse filtro.</p>
             ) : (
-              grupos.map(([produto, lista]) => (
-                <Painel key={produto} className="overflow-hidden">
-                  <div className="flex items-center justify-between gap-3 px-5 py-4">
-                    <h2 className="m-0 text-[16px] font-semibold text-[#F9F9F9]">{produto}</h2>
-                    <Rotulo>{lista.length} FERRAMENTA{lista.length === 1 ? "" : "S"}</Rotulo>
+              grupos.map(({ modulo, acoes }) => (
+                <Painel key={modulo.chave} className="overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                    <div className="flex flex-col gap-0.5">
+                      <h2 className="m-0 text-[16px] font-semibold text-[#F9F9F9]">{modulo.nome}</h2>
+                      <span className="text-[13px] text-[#A7A7A7]">{modulo.descricao}</span>
+                    </div>
+                    <Rotulo>{acoes.length} AÇÃ{acoes.length === 1 ? "O" : "ES"} · {modulo.produto.toUpperCase()}</Rotulo>
                   </div>
 
                   <div
@@ -426,7 +439,7 @@ export default function PlanosPage() {
                   </div>
 
                   <ul className="m-0 list-none p-0">
-                    {lista.map((f) => {
+                    {acoes.map((f) => {
                       const emQuantos = planos.filter((pl) => (capacidades[pl.plan_id] || []).includes(f.capability_id)).length;
                       return (
                         <li key={f.capability_id} className="grid items-center gap-4 border-t border-[#1c1c1c] px-5 py-3.5" style={{ gridTemplateColumns: GRADE_FERRAMENTAS }}>
@@ -579,37 +592,52 @@ export default function PlanosPage() {
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between gap-3">
                 <Rotulo>Ferramentas do plano</Rotulo>
-                <span className="text-[12px] text-[#A7A7A7]">{fCapacidades.length} ligadas</span>
+                <span className="text-[12px] text-[#A7A7A7]">
+                  {modulos.filter((m) => m.produto === fProduto && idsDoModulo(m).some((id) => fCapacidades.includes(id))).length} de{" "}
+                  {modulos.filter((m) => m.produto === fProduto).length} ligados
+                </span>
               </div>
-              <div className="flex max-h-[240px] flex-col gap-1 overflow-y-auto rounded-[14px] border border-[#333] p-2">
-                {ferramentas
-                  .filter((f) => f.product_id === fProduto)
-                  .map((f) => {
-                    const ligada = fCapacidades.includes(f.capability_id);
+              <div className="flex max-h-[260px] flex-col gap-1 overflow-y-auto rounded-[14px] border border-[#333] p-2">
+                {modulos
+                  .filter((m) => m.produto === fProduto)
+                  .map((m) => {
+                    const ids = idsDoModulo(m);
+                    const ligadas = ids.filter((id) => fCapacidades.includes(id));
+                    const tudoOuNada = ligadas.length === ids.length;
+                    const parcial = ligadas.length > 0 && !tudoOuNada;
                     return (
                       <button
-                        key={f.capability_id}
+                        key={m.chave}
                         type="button"
                         onClick={() =>
                           setFCapacidades((atual) =>
-                            ligada ? atual.filter((x) => x !== f.capability_id) : [...atual, f.capability_id],
+                            tudoOuNada ? atual.filter((x) => !ids.includes(x)) : [...new Set([...atual, ...ids])],
                           )
                         }
-                        className="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left hover:bg-white/5"
+                        className="flex items-start gap-2.5 rounded-[10px] px-2.5 py-2.5 text-left hover:bg-white/5"
                       >
                         <span
-                          className="grid h-5 w-5 shrink-0 place-items-center rounded-[6px] border text-[11px]"
-                          style={{ borderColor: ligada ? "#E85002" : "#333", background: ligada ? "#E85002" : "transparent", color: ligada ? "#fff" : "#646464" }}
+                          className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-[6px] border text-[11px]"
+                          style={{
+                            borderColor: tudoOuNada || parcial ? "#E85002" : "#333",
+                            background: tudoOuNada ? "#E85002" : "transparent",
+                            color: tudoOuNada ? "#fff" : parcial ? "#E85002" : "#646464",
+                          }}
                         >
-                          {ligada ? "✓" : ""}
+                          {tudoOuNada ? "✓" : parcial ? "–" : ""}
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-[13px] text-[#F9F9F9]">{f.nome}</span>
-                        <span className="text-[11px]" style={{ fontFamily: MONO, color: "#646464" }}>{f.risk || ""}</span>
+                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className="truncate text-[13px] font-medium text-[#F9F9F9]">{m.nome}</span>
+                          <span className="truncate text-[12px] text-[#A7A7A7]">{m.descricao}</span>
+                        </span>
+                        <span className="shrink-0 text-[11px] text-[#646464]" style={{ fontFamily: MONO }}>
+                          {ids.length}
+                        </span>
                       </button>
                     );
                   })}
-                {ferramentas.filter((f) => f.product_id === fProduto).length === 0 ? (
-                  <span className="px-2.5 py-3 text-[13px] text-[#A7A7A7]">Nenhuma ferramenta desse produto.</span>
+                {modulos.filter((m) => m.produto === fProduto).length === 0 ? (
+                  <span className="px-2.5 py-3 text-[13px] text-[#A7A7A7]">Nenhum módulo desse produto.</span>
                 ) : null}
               </div>
             </div>
