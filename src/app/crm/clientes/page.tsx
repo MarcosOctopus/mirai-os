@@ -140,13 +140,13 @@ export default function ClientesPage() {
           </div>
 
           {erro ? (
-            <div className="rounded-[14px] border border-[#E85002] bg-[#0A0A0A] px-4 py-3 text-[14px] text-[#F9F9F9]">{erro}</div>
+            <div className="rounded-[14px] border border-[#E85002] bg-[#111] px-4 py-3 text-[14px] text-[#F9F9F9]">{erro}</div>
           ) : null}
           {dados?.aviso ? (
-            <div className="rounded-[14px] border border-[#E85002] bg-[#0A0A0A] px-4 py-3 text-[14px] text-[#F9F9F9]">{dados.aviso}</div>
+            <div className="rounded-[14px] border border-[#E85002] bg-[#111] px-4 py-3 text-[14px] text-[#F9F9F9]">{dados.aviso}</div>
           ) : null}
 
-          <div className="grid gap-0 overflow-hidden rounded-[24px] border border-[#333] sm:grid-cols-3" style={{ background: "#0A0A0A" }}>
+          <div className="grid gap-0 overflow-hidden rounded-[24px] border border-[#333] sm:grid-cols-3" style={{ background: "#111" }}>
             {kpis.map((k, i) => (
               <div
                 key={k.rotulo}

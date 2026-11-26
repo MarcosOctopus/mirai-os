@@ -353,15 +353,15 @@ export default function FinanceiroPage() {
           </div>
 
           {erro ? (
-            <div className="rounded-[14px] border border-[#E85002] bg-[#0A0A0A] px-4 py-3 text-[14px] text-[#F9F9F9]">{erro}</div>
+            <div className="rounded-[14px] border border-[#E85002] bg-[#111] px-4 py-3 text-[14px] text-[#F9F9F9]">{erro}</div>
           ) : null}
           {dados?.aviso ? (
-            <div className="rounded-[14px] border border-[#E85002] bg-[#0A0A0A] px-4 py-3 text-[14px] text-[#F9F9F9]">{dados.aviso}</div>
+            <div className="rounded-[14px] border border-[#E85002] bg-[#111] px-4 py-3 text-[14px] text-[#F9F9F9]">{dados.aviso}</div>
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {kpis.map((k) => (
-              <Painel key={k.rotulo} className="flex flex-col gap-3 p-7" fundo={k.destaque ? "#111" : "#0A0A0A"}>
+              <Painel key={k.rotulo} className="flex flex-col gap-3 p-7" fundo={k.destaque ? "#111" : "#111"}>
                 <span className="flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full" style={{ background: k.cor }} />
                   <Rotulo cor={k.destaque ? "#F9F9F9" : "#A7A7A7"}>{k.rotulo}</Rotulo>

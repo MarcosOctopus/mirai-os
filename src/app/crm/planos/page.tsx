@@ -79,7 +79,7 @@ export default function PlanosPage() {
           </div>
 
           {erro ? (
-            <div className="flex flex-wrap items-center gap-4 rounded-[14px] border border-[#E85002] bg-[#0A0A0A] px-5 py-3.5">
+            <div className="flex flex-wrap items-center gap-4 rounded-[14px] border border-[#E85002] bg-[#111] px-5 py-3.5">
               <div className="flex flex-col gap-0.5 text-[14px] text-[#F9F9F9]">
                 <span className="font-medium">Não conseguimos falar com o plano de controle.</span>
                 <span className="text-[#A7A7A7]">A lista abaixo pode estar incompleta.</span>

@@ -4,7 +4,7 @@
  * Peças do desenho do CRM (26/11/2026) — tokens do sistema "Mirai" que o dono
  * desenhou no Claude, para as três telas ficarem idênticas entre si:
  *
- *   fundo da página #000 · painel #0A0A0A · superfície #111 · aresta #333
+ *   fundo da página #000 · painel #111 · superfície #111 · aresta #333
  *   texto #F9F9F9 · apoio #A7A7A7 · apagado #646464 · marca #E85002
  *   positivo #34D399 · informação #60A5FA · negativo #F87171
  *   rótulo: JetBrains Mono 11px, maiúsculo, tracking .14em
@@ -78,7 +78,7 @@ export function Apoio({ children }: { children: ReactNode }) {
 export function Painel({
   children,
   className = "",
-  fundo = "#0A0A0A",
+  fundo = "#111",
 }: {
   children: ReactNode;
   className?: string;
