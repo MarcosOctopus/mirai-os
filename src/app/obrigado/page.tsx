@@ -7,12 +7,21 @@
  * chamado no dia seguinte).
  *
  * Dono, 25/11/2026: "muito feio essa de obrigado". Refazer no PADRÃO: fundo
- * escuro com luz contida, tudo enquadrado, card de vidro do próprio sistema
- * (src/lib/vidro.ts), texto com inicial maiúscula e sem travessão.
+ * escuro com luz contida, tudo enquadrado, painel de fumaça, texto com inicial
+ * maiúscula e sem travessão.
+ *
+ * Dono, 26/11/2026: os QUATRO links de pagamento são os mesmos para as duas
+ * línguas, então quem compra na página inglesa cai aqui também. A tela passa a
+ * responder em inglês quando o pedido vem com `?lang=en` ou quando o navegador
+ * pede inglês — sem duplicar página.
  */
 import Link from "next/link";
+import { headers } from "next/headers";
 
-export const metadata = { title: "Pagamento confirmado — MIRAI OS" };
+export const metadata = {
+  title: "Pagamento confirmado · Payment confirmed — MIRAI OS",
+  description: "Confirme o e-mail do pagamento para o seu plano ligar.",
+};
 
 const FONTE = "var(--fonte-poppins), Poppins, system-ui, sans-serif";
 
@@ -28,27 +37,86 @@ const PAINEL = {
     "inset 0 1px 0 rgba(255,255,255,0.10), inset 0 0 0 1px rgba(255,255,255,0.045), 0 30px 80px rgba(0,0,0,0.55)",
 } as const;
 
-const PASSOS = [
-  {
-    n: "1",
-    titulo: "Use o mesmo e-mail do pagamento",
-    texto: "É por ele que a gente reconhece o seu plano.",
-  },
-  {
-    n: "2",
-    titulo: "Crie a conta ou entre na sua",
-    texto: "Se já tem conta, basta entrar por ela.",
-  },
-  {
-    n: "3",
-    titulo: "O plano liga sozinho",
-    texto: "Sem falar com ninguém, sem esperar aprovação.",
-  },
-];
+const EMAIL = "contato@miraitohope.com";
 
-export default function ObrigadoPage() {
+const TEXTO = {
+  pt: {
+    selo: "Pagamento confirmado",
+    titulo: "Falta um passo para o seu plano ligar",
+    resumo:
+      "Sua conta é liberada pelo e-mail que você usou no pagamento. Crie a conta ou entre com ele e o plano entra junto.",
+    passos: [
+      {
+        n: "1",
+        titulo: "Use o mesmo e-mail do pagamento",
+        texto: "É por ele que a gente reconhece o seu plano.",
+      },
+      {
+        n: "2",
+        titulo: "Crie a conta ou entre na sua",
+        texto: "Se já tem conta, basta entrar por ela.",
+      },
+      {
+        n: "3",
+        titulo: "O plano liga sozinho",
+        texto: "Sem falar com ninguém, sem esperar aprovação.",
+      },
+    ],
+    criar: "Criar minha conta",
+    entrar: "Já tenho conta",
+    antesContato: "Pagou com outro e-mail?",
+    contato: "Fale com a gente",
+    depoisContato: "e ligamos o plano no seu cadastro.",
+    assunto: "Plano%20pago%20com%20outro%20e-mail",
+    rodape: "MIRAI OS · o seu sistema operacional cognitivo",
+  },
+  en: {
+    selo: "Payment confirmed",
+    titulo: "One step left and your plan switches on",
+    resumo:
+      "Your account is released by the email you used at checkout. Create the account or sign in with it and the plan comes along.",
+    passos: [
+      {
+        n: "1",
+        titulo: "Use the same email you paid with",
+        texto: "That is how we match your plan to you.",
+      },
+      {
+        n: "2",
+        titulo: "Create your account or sign in",
+        texto: "If you already have one, just sign in.",
+      },
+      {
+        n: "3",
+        titulo: "The plan switches on by itself",
+        texto: "No waiting for approval, no need to talk to anyone.",
+      },
+    ],
+    criar: "Create my account",
+    entrar: "I already have an account",
+    antesContato: "Paid with another email?",
+    contato: "Talk to us",
+    depoisContato: "and we will link the plan to your account.",
+    assunto: "Plan%20paid%20with%20another%20email",
+    rodape: "MIRAI OS · your cognitive operating system",
+  },
+} as const;
+
+export default async function ObrigadoPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const pedido = typeof params.lang === "string" ? params.lang.toLowerCase() : "";
+  const cabecalhos = await headers();
+  const idiomaNavegador = (cabecalhos.get("accept-language") || "").toLowerCase();
+  const en = pedido.startsWith("en") || (!pedido && idiomaNavegador.startsWith("en"));
+  const t = en ? TEXTO.en : TEXTO.pt;
+
   return (
     <main
+      lang={en ? "en" : "pt-BR"}
       className="relative grid min-h-[100dvh] place-items-center overflow-hidden bg-dash-bg px-5 py-12 text-dash-fg"
       style={{ fontFamily: FONTE }}
     >
@@ -77,10 +145,7 @@ export default function ObrigadoPage() {
       />
 
       <section className="relative w-full max-w-[520px]">
-        <div
-          className="rounded-[22px] px-6 py-8 sm:px-9 sm:py-10"
-          style={PAINEL}
-        >
+        <div className="rounded-[22px] px-6 py-8 sm:px-9 sm:py-10" style={PAINEL}>
           {/* selo: anel de luz + check */}
           <div className="relative mx-auto grid h-[68px] w-[68px] place-items-center">
             <span
@@ -109,18 +174,17 @@ export default function ObrigadoPage() {
           </div>
 
           <p className="mt-6 text-center text-[10.5px] font-semibold uppercase tracking-[0.22em] text-dash-brand">
-            Pagamento confirmado
+            {t.selo}
           </p>
           <h1 className="mt-2.5 text-center text-[26px] font-semibold leading-[1.2] sm:text-[30px]">
-            Falta um passo para o seu plano ligar
+            {t.titulo}
           </h1>
           <p className="mx-auto mt-3.5 max-w-[42ch] text-center text-[13.5px] leading-relaxed text-dash-muted">
-            Sua conta é liberada pelo e-mail que você usou no pagamento. Crie a
-            conta ou entre com ele e o plano entra junto.
+            {t.resumo}
           </p>
 
           <ol className="mt-8 space-y-3.5">
-            {PASSOS.map((p) => (
+            {t.passos.map((p) => (
               <li key={p.n} className="flex items-start gap-3.5">
                 <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border border-dash-hair/[0.18] bg-dash-hair/[0.07] text-[11.5px] font-semibold text-dash-brand">
                   {p.n}
@@ -142,30 +206,30 @@ export default function ObrigadoPage() {
               href="/register"
               className="inline-flex flex-1 items-center justify-center rounded-[11px] bg-dash-brand px-6 py-3 text-[13.5px] font-semibold text-white transition-all hover:bg-dash-brandHi"
             >
-              Criar minha conta
+              {t.criar}
             </Link>
             <Link
               href="/login"
               className="inline-flex flex-1 items-center justify-center rounded-[11px] border border-dash-hair/[0.24] bg-dash-hair/[0.07] px-6 py-3 text-[13.5px] font-semibold text-dash-fg transition-all hover:bg-dash-hair/[0.12]"
             >
-              Já tenho conta
+              {t.entrar}
             </Link>
           </div>
 
           <p className="mt-7 text-center text-[12px] leading-relaxed text-dash-muted/75">
-            Pagou com outro e-mail?{" "}
+            {t.antesContato}{" "}
             <a
-              href="mailto:contato@miraitohope.com?subject=Plano%20pago%20com%20outro%20e-mail"
+              href={`mailto:${EMAIL}?subject=${t.assunto}`}
               className="font-medium text-dash-fg/85 underline decoration-dash-hair/30 underline-offset-2 transition hover:text-dash-brand"
             >
-              Fale com a gente
+              {t.contato}
             </a>{" "}
-            e ligamos o plano no seu cadastro.
+            {t.depoisContato}
           </p>
         </div>
 
         <p className="mt-6 text-center text-[11px] tracking-[0.08em] text-dash-dim">
-          MIRAI OS · o seu sistema operacional cognitivo
+          {t.rodape}
         </p>
       </section>
     </main>
