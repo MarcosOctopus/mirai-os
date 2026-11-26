@@ -115,7 +115,7 @@ function isPublicPath(pathname: string): boolean {
 // ─── PROTECTED PATHS (need valid token) ───────────────────────────
 // '/' = a presença (orb + conversa). É o MODO CONVERSA: entra-se por dentro,
 // depois do painel — não é porta de rua.
-const PROTECTED_PATHS = ['/dashboard', '/system', '/chat', '/admin', '/', '/projetos', '/arquiteto', '/explorar'];
+const PROTECTED_PATHS = ['/dashboard', '/system', '/chat', '/admin', '/crm', '/', '/projetos', '/arquiteto', '/explorar'];
 
 function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PATHS.some((p) =>
@@ -146,10 +146,11 @@ const OWNER_ONLY_API = [
   '/api/pipeline',
   '/api/config',
   '/api/admin',
+  '/api/financeiro',
   '/api/media-factory/channels',
   '/api/media-factory/videos',
 ];
-const OWNER_ONLY_PAGES = ['/system', '/admin'];
+const OWNER_ONLY_PAGES = ['/system', '/admin', '/crm'];
 
 function soDono(pathname: string): boolean {
   // webhook tem guarda propria (nao passa por sessao de usuario)

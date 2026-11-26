@@ -113,8 +113,20 @@ const PRIMARIO: Item[] = [
 // A ORDEM é a que o dono ditou: Clientes e Organizações primeiro, e só então
 // Explorar; Sistema fecha. O corte por `soDono` é o que muda conforme quem entrou.
 const SECUNDARIO: Item[] = [
+  // CRM (dono, 26/11/2026): uma porta só para a gestão da empresa — clientes, planos
+  // e financeiro (entradas dos gateways e saídas lançadas à mão). Antes estas telas
+  // ficavam espalhadas no menu do perfil; "Clientes" e "Planos" saíram de lá para cá.
+  {
+    label: "CRM",
+    icone: <IconeBlocos />,
+    soDono: true,
+    filhos: [
+      { label: "Clientes", href: "/admin/clientes", icone: <IconeUsuarios /> },
+      { label: "Planos", href: "/admin/planos", icone: <IconeProdutos /> },
+      { label: "Financeiro", href: "/crm/financeiro", icone: <IconeCamadas /> },
+    ],
+  },
   { label: "Intelligence Control", href: "/admin/intelligence", icone: <IconeRobo />, soDono: true, selo: "NOVO" },
-  { label: "Clientes", href: "/admin/clientes", icone: <IconeUsuarios />, soDono: true },
   { label: "Organizações (gestão)", href: "/admin/organizacoes", icone: <IconeOrganizacoes />, soDono: true },
   // O CONTROLE DA VITRINE precisava de porta: a página existia e não havia
   // caminho até ela (dono, 19/11/2026: "pra mim tem que aparecer").
