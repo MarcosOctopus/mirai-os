@@ -143,14 +143,19 @@ async function lerSharepoint() {
 /** Drives conectados por pessoa (`google_drive` no cofre de cada uma).
  *  É o que faz a tela mostrar "quem conectou, quando sincronizou e quantos entraram" — em vez de
  *  um número só, que esconderia de quem é cada arquivo. */
-async function lerDrivesConectados() {
+async function lerDrivesConectados(emailFiltro?: string) {
   const { default: Database } = await import("better-sqlite3");
   const { lerCofre } = await import("@/lib/cofre-escopo");
   const path = await import("node:path");
   const db = new Database(path.join(process.cwd(), "data", "auth.db"), { readonly: true });
   const saida: Record<string, unknown>[] = [];
   try {
-    const pessoas = db.prepare("SELECT id, email, name FROM users").all() as {
+    // QUEM PERGUNTA: com `emailFiltro`, lê só o cofre daquela pessoa. Sem ele (dono), lê todos —
+    // é a visão de administração. Antes desta correção (26/11/2026) a lista de TODOS os drives
+    // conectados ia para QUALQUER conta logada, com nome, e-mail e resumo de cada um.
+    const pessoas = (emailFiltro
+      ? db.prepare("SELECT id, email, name FROM users WHERE lower(email) = lower(?)").all(emailFiltro)
+      : db.prepare("SELECT id, email, name FROM users").all()) as {
       id: number;
       email: string;
       name?: string;
@@ -185,6 +190,21 @@ async function lerDrivesConectados() {
 export async function GET(req: NextRequest) {
   const auth = await exigirConta(req);
   if (!auth.ok) return auth.resposta;
+
+  // ── O ESTADO GLOBAL É DO DONO (correção 26/11/2026) ─────────────────────────
+  // Esta rota lia o estado da fonte do Drive DO DONO (nomes de arquivo, contagem,
+  // log da rodada) e devolvia a QUALQUER conta logada: `exigirConta` só confere a
+  // sessão. Na prática, quem tinha conta no MIRAI OS abria Arca → Fontes e via os
+  // NOMES dos documentos do Drive do dono (relatório de cliente, contrato, proposta).
+  // Agora quem não é dono recebe apenas o próprio drive conectado.
+  if (!auth.conta.ehDono) {
+    return NextResponse.json({
+      fontes: [],
+      drivesConectados: await lerDrivesConectados(auth.conta.email),
+      conectarDrive: "/api/oauth/gdrive/iniciar",
+      agora: Date.now(),
+    });
+  }
 
   const estado = await lerEstado();
   const registros = Object.entries(estado).map(([id, v]) => ({ id, ...v }));
@@ -251,6 +271,15 @@ export async function POST(req: NextRequest) {
   }
   const fonte =
     corpo.fonte === "sharepoint" ? "sharepoint" : corpo.fonte === "drives" ? "drives" : "gdrive";
+
+  // A fonte do Drive do dono (script) e a do SharePoint do cliente são DELE: quem não é dono não
+  // dispara nem força rodada. O drive da própria pessoa passa por "drives" e segue liberado.
+  if (!auth.conta.ehDono && fonte !== "drives") {
+    return NextResponse.json(
+      { error: "esta fonte é da administração; conecte o seu Drive em Arca → Fontes" },
+      { status: 403 },
+    );
+  }
 
   // ── DRIVES DAS PESSOAS (18/11/2026) ────────────────────────────────────────
   // Diferente de "gdrive" (a fonte do dono, por script): aqui é o Drive de TODO MUNDO que conectou
