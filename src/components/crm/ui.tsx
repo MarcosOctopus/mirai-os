@@ -115,10 +115,20 @@ export function Pilula({
   );
 }
 
-/** Número grande (valores de KPI). */
-export function Numero({ children, cor = "#F9F9F9" }: { children: ReactNode; cor?: string }) {
+/** Número grande (valores de KPI) — pedido do dono: grande e em negrito. */
+export function Numero({ children, cor = "#F9F9F9", tamanho = 34 }: { children: ReactNode; cor?: string; tamanho?: number }) {
   return (
-    <span style={{ fontFamily: TITULO, fontSize: 30, fontWeight: 500, letterSpacing: "-0.02em", color: cor }}>
+    <span
+      style={{
+        fontFamily: TITULO,
+        fontSize: tamanho,
+        fontWeight: 600,
+        letterSpacing: "-0.02em",
+        color: cor,
+        lineHeight: 1.05,
+        fontVariantNumeric: "tabular-nums",
+      }}
+    >
       {children}
     </span>
   );

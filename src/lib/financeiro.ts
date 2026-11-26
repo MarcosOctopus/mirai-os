@@ -133,3 +133,149 @@ export function bandeiraDoPais(codigo?: string | null): string {
   if (!/^[A-Z]{2}$/.test(c)) return "🌐";
   return String.fromCodePoint(...[...c].map((l) => 0x1f1e6 + l.charCodeAt(0) - 65));
 }
+
+/* ─────────────────────── CONTAS QUE SE REPETEM ──────────────────────────
+ * Pedido do dono (26/11/2026): a tela precisa das contas que voltam todo mês, com
+ * vencimento, repetição e o "lançar sozinho". Aqui mora o cadastro; quem LANÇA de
+ * verdade no vencimento é o agendador (próxima peça), por isso a coluna `automatico`
+ * existe e é mostrada — ela descreve a intenção declarada, não um pagamento feito.
+ */
+export const REPETICOES = ["mensal", "semanal", "anual", "unica"] as const;
+export type Repeticao = (typeof REPETICOES)[number];
+
+export type Conta = {
+  id: number;
+  tipo: "entrada" | "saida";
+  descricao: string;
+  categoria: string;
+  valor_centavos: number;
+  moeda: string;
+  vencimento: string;
+  repeticao: Repeticao;
+  automatico: number;
+  ativo: number;
+  criado_em: string;
+  proxima?: string;
+};
+
+function comBancoContas<T>(acao: (conexao: ReturnType<typeof db>) => T): T {
+  return comBanco((c) => {
+    c.exec(`
+      create table if not exists financeiro_contas (
+        id integer primary key autoincrement,
+        tipo text not null default 'saida',
+        descricao text not null,
+        categoria text not null default 'Outros',
+        valor_centavos integer not null,
+        moeda text not null default 'BRL',
+        vencimento text not null,
+        repeticao text not null default 'mensal',
+        automatico integer not null default 1,
+        ativo integer not null default 1,
+        criado_em text not null default (datetime('now'))
+      )
+    `);
+    return acao(c);
+  });
+}
+
+/** Próxima data da conta a partir de hoje, andando na cadência dela. */
+export function proximoVencimento(conta: Conta, hoje = new Date()): Date {
+  const base = new Date(`${conta.vencimento}T12:00:00`);
+  if (Number.isNaN(base.getTime())) return hoje;
+  const alvo = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 12);
+  if (conta.repeticao === "unica") return base;
+  const passo = (d: Date, n: number) => {
+    const x = new Date(d);
+    if (conta.repeticao === "mensal") x.setMonth(x.getMonth() + n);
+    else if (conta.repeticao === "semanal") x.setDate(x.getDate() + 7 * n);
+    else x.setFullYear(x.getFullYear() + n);
+    return x;
+  };
+  let atual = base;
+  let voltas = 0;
+  while (atual < alvo && voltas < 600) {
+    atual = passo(base, ++voltas);
+  }
+  return atual;
+}
+
+export function listarContas(): Conta[] {
+  return comBancoContas((c) => {
+    const lista = c.prepare("select * from financeiro_contas order by vencimento asc, id asc").all() as Conta[];
+    return lista.map((x) => ({ ...x, proxima: proximoVencimento(x).toISOString().slice(0, 10) }));
+  });
+}
+
+export function criarConta(dados: {
+  tipo: "entrada" | "saida";
+  descricao: string;
+  categoria?: string;
+  valor_centavos: number;
+  moeda?: string;
+  vencimento: string;
+  repeticao?: Repeticao;
+  automatico?: boolean;
+}): Conta {
+  return comBancoContas((c) => {
+    const info = c
+      .prepare(
+        `insert into financeiro_contas
+           (tipo, descricao, categoria, valor_centavos, moeda, vencimento, repeticao, automatico, ativo)
+         values (?,?,?,?,?,?,?,?,1)`,
+      )
+      .run(
+        dados.tipo === "entrada" ? "entrada" : "saida",
+        dados.descricao,
+        dados.categoria || "Outros",
+        Math.abs(Math.round(dados.valor_centavos)),
+        (dados.moeda || "BRL").toUpperCase() === "USD" ? "USD" : "BRL",
+        dados.vencimento,
+        REPETICOES.includes(dados.repeticao as Repeticao) ? (dados.repeticao as string) : "mensal",
+        dados.automatico === false ? 0 : 1,
+      );
+    return c.prepare("select * from financeiro_contas where id = ?").get(info.lastInsertRowid) as Conta;
+  });
+}
+
+export function alternarConta(id: number, ativo: boolean, automatico?: boolean): boolean {
+  return comBancoContas((c) => {
+    if (automatico === undefined) return c.prepare("update financeiro_contas set ativo = ? where id = ?").run(ativo ? 1 : 0, id).changes > 0;
+    return c
+      .prepare("update financeiro_contas set ativo = ?, automatico = ? where id = ?")
+      .run(ativo ? 1 : 0, automatico ? 1 : 0, id).changes > 0;
+  });
+}
+
+export function apagarConta(id: number): boolean {
+  return comBancoContas((c) => c.prepare("delete from financeiro_contas where id = ?").run(id).changes > 0);
+}
+
+/** O que vence nos próximos N dias, convertido pelo câmbio declarado. */
+export function projetar(contas: Conta[], dias = 30) {
+  const hoje = new Date();
+  const limite = new Date(hoje.getTime() + dias * 86400000);
+  let receberBrl = 0;
+  let receberUsd = 0;
+  let pagarBrl = 0;
+  let pagarUsd = 0;
+  for (const conta of contas) {
+    if (!conta.ativo) continue;
+    const quando = proximoVencimento(conta, hoje);
+    if (quando > limite) continue;
+    const emUsd = conta.moeda === "USD";
+    if (conta.tipo === "entrada") {
+      if (emUsd) receberUsd += conta.valor_centavos;
+      else receberBrl += conta.valor_centavos;
+    } else if (emUsd) pagarUsd += conta.valor_centavos;
+    else pagarBrl += conta.valor_centavos;
+  }
+  const aReceber = receberBrl + receberUsd * CAMBIO_USD_BRL;
+  const aPagar = pagarBrl + pagarUsd * CAMBIO_USD_BRL;
+  return {
+    dias,
+    a_receber_brl_centavos: aReceber,
+    a_pagar_brl_centavos: aPagar,
+    saldo_previsto_brl_centavos: aReceber - aPagar,
+  };
+}
