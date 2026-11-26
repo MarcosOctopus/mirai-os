@@ -95,8 +95,8 @@ const PRIMARIO: Item[] = [
     icone: <IconeUsuarios />,
     soDono: true,
     filhos: [
-      { label: "Clientes", href: "/admin/clientes", icone: <IconeUsuarios /> },
-      { label: "Planos", href: "/admin/planos", icone: <IconeProdutos /> },
+      { label: "Clientes", href: "/crm/clientes", icone: <IconeUsuarios /> },
+      { label: "Planos", href: "/crm/planos", icone: <IconeProdutos /> },
       { label: "Financeiro", href: "/crm/financeiro", icone: <IconeCamadas /> },
     ],
   }, 
