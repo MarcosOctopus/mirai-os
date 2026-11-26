@@ -1,4 +1,4 @@
-const CACHE = "mirai-v4";
+const CACHE = "mirai-v5";
 const OFFLINE = "/offline";
 
 // Guarda a página OFFLINE já na instalação: é a única que precisa sobreviver
