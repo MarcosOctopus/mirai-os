@@ -15,10 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import Shell from "@/components/dash/Shell";
 import {
-  Apoio,
   CAMPO,
-  CORPO,
-  Filete,
   MONO,
   Numero,
   Painel,
@@ -26,7 +23,6 @@ import {
   Rotulo,
   Segmentado,
   SegmentadoItem,
-  Titulo,
 } from "@/components/crm/ui";
 
 type OrganizacaoDoCliente = {
@@ -130,17 +126,12 @@ export default function ClientesPage() {
 
   return (
     <Shell titulo="Clientes" usuario={{ nome: conta?.nome, email: conta?.email, ehDono: true }}>
-      <main className="flex flex-col pb-16" style={{ background: "#000", fontFamily: CORPO }}>
-        <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-8 px-6 pt-8 lg:px-10">
-          <div className="flex flex-wrap items-end justify-between gap-6">
-            <div className="flex max-w-[680px] flex-col gap-3">
-              <Filete texto="02 — CRM" />
-              <Titulo>Clientes</Titulo>
-              <Apoio>
-                Uma linha por pessoa. Quem tem conta em dois produtos aparece uma vez só, porque é a mesma conta.
-              </Apoio>
-            </div>
-            <a
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="m-0 max-w-[620px] text-[14px] leading-[1.6] text-[#A7A7A7]">
+            Uma linha por pessoa. Quem tem conta em dois produtos aparece uma vez só, porque é a mesma conta.
+          </p>
+          <a
               href="/admin/clientes"
               className="inline-flex h-12 items-center gap-2.5 rounded-[14px] bg-[#E85002] px-5 text-[15px] font-semibold text-black"
             >
@@ -325,8 +316,7 @@ export default function ClientesPage() {
               </Rotulo>
             </div>
           </Painel>
-        </div>
-      </main>
+      </div>
     </Shell>
   );
 }

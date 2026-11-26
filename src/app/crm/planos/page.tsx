@@ -12,16 +12,12 @@ import { useEffect, useMemo, useState } from "react";
 
 import Shell from "@/components/dash/Shell";
 import {
-  Apoio,
-  CORPO,
-  Filete,
   MONO,
   Numero,
   Painel,
   Pilula,
   Rotulo,
   TITULO,
-  Titulo,
   dinheiro,
 } from "@/components/crm/ui";
 
@@ -66,18 +62,13 @@ export default function PlanosPage() {
 
   return (
     <Shell titulo="Planos" usuario={{ nome: conta?.nome, email: conta?.email, ehDono: true }}>
-      <main className="flex flex-col pb-16" style={{ background: "#000", fontFamily: CORPO }}>
-        <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-8 px-6 pt-8 lg:px-10">
-          <div className="flex flex-wrap items-end justify-between gap-6">
-            <div className="flex max-w-[680px] flex-col gap-3">
-              <Filete texto="02 — CRM" />
-              <Titulo>Planos</Titulo>
-              <Apoio>
-                Cada plano vive no plano de controle e passa a valer nos produtos na hora. Preço e limite só mudam
-                pelo e-mail autorizado.
-              </Apoio>
-            </div>
-            <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="m-0 max-w-[620px] text-[14px] leading-[1.6] text-[#A7A7A7]">
+            Cada plano vive no plano de controle e passa a valer nos produtos na hora. Preço e limite só mudam pelo
+            e-mail autorizado.
+          </p>
+          <div className="flex items-center gap-2">
               <a href="/admin/planos" className="inline-flex h-12 items-center rounded-[14px] border border-[#333] px-4 text-[14px] text-[#F9F9F9]">
                 Ferramentas
               </a>
@@ -197,8 +188,7 @@ export default function PlanosPage() {
           <p className="m-0" style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.14em", color: "#A7A7A7" }}>
             MUDANÇA DE PREÇO PEDE CONFIRMAÇÃO NO E-MAIL AUTORIZADO
           </p>
-        </div>
-      </main>
+      </div>
     </Shell>
   );
 }

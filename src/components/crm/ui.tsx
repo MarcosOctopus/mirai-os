@@ -15,8 +15,10 @@
 import type { ReactNode } from "react";
 
 export const MONO = "'JetBrains Mono', ui-monospace, monospace";
-export const TITULO = "'Unbounded', Poppins, system-ui, sans-serif";
+export const TITULO = "Poppins, system-ui, sans-serif";
 export const CORPO = "Poppins, system-ui, sans-serif";
+/** Só os números grandes continuam na display (Unbounded). */
+export const NUMERO = "'Unbounded', Poppins, system-ui, sans-serif";
 
 export const CAMPO =
   "h-12 w-full rounded-[14px] border border-[#333] bg-black px-3.5 text-[14px] text-[#F9F9F9] outline-none placeholder:text-[#646464] focus:border-[#E85002]";
@@ -120,7 +122,7 @@ export function Numero({ children, cor = "#F9F9F9", tamanho = 34 }: { children: 
   return (
     <span
       style={{
-        fontFamily: TITULO,
+        fontFamily: NUMERO,
         fontSize: tamanho,
         fontWeight: 600,
         letterSpacing: "-0.02em",

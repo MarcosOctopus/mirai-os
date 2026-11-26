@@ -15,10 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Shell from "@/components/dash/Shell";
 import {
-  Apoio,
   CAMPO,
-  CORPO,
-  Filete,
   MONO,
   Numero,
   Painel,
@@ -26,7 +23,6 @@ import {
   Rotulo,
   Segmentado,
   SegmentadoItem,
-  Titulo,
   dinheiro,
 } from "@/components/crm/ui";
 
@@ -317,18 +313,13 @@ export default function FinanceiroPage() {
 
   return (
     <Shell titulo="Financeiro" usuario={{ nome: conta?.nome, email: conta?.email, ehDono: true }}>
-      <main className="flex flex-col pb-16" style={{ background: "#000", fontFamily: CORPO }}>
-        <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-7 px-6 pt-8 lg:px-10">
-          <div className="flex flex-wrap items-end justify-between gap-6">
-            <div className="flex max-w-[680px] flex-col gap-3">
-              <Filete texto="02 — CRM" />
-              <Titulo>Financeiro</Titulo>
-              <Apoio>
-                Entradas confirmadas pelos gateways e saídas que você lança. Real e dólar ficam separados, e o
-                consolidado usa o câmbio de {dinheiro(cambio * 100)} por dólar.
-              </Apoio>
-            </div>
-            <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="m-0 max-w-[620px] text-[14px] leading-[1.6] text-[#A7A7A7]">
+            Entradas confirmadas pelos gateways e saídas que você lança. Real e dólar separados, consolidado com o
+            câmbio de {dinheiro(cambio * 100)} por dólar.
+          </p>
+          <div className="flex items-center gap-2">
               <a href="/crm/planos" className="inline-flex h-12 items-center rounded-[14px] border border-[#333] px-4 text-[14px] text-[#F9F9F9]">
                 Planos
               </a>
@@ -669,8 +660,7 @@ export default function FinanceiroPage() {
           <p className="m-0 text-center" style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.14em", color: "#A7A7A7" }}>
             CÂMBIO DECLARADO NA TELA · NADA É CONVERTIDO EM SILÊNCIO
           </p>
-        </div>
-      </main>
+      </div>
     </Shell>
   );
 }
