@@ -17,6 +17,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Shell from "@/components/dash/Shell";
 import { agruparEmModulos, idsDoModulo } from "@/lib/modulos-plano";
 import {
+  AREAS_FERRAMENTAS,
+  FERRAMENTAS_OS,
+  capacidadesAvulsas,
+  capacidadesDeFerramentas,
+  ferramentasDeCapacidades,
+} from "@/lib/ferramentas-os";
+import {
   CAMPO,
   MONO,
   Numero,
@@ -303,6 +310,32 @@ export default function PlanosPage() {
     } catch (e) {
       setErro((e as Error).message);
     }
+  }
+
+  // No produto MIRAI a vitrine certa é o catálogo do "supermercado" (ferramentas-os.ts),
+  // que já tem A Arca, Synapse, Agendamentos, CRM do Saaso. Os outros produtos seguem
+  // agrupados por módulo.
+  const vitrineMirai = useMemo(() => {
+    const escolhidas = new Set(ferramentasDeCapacidades(fCapacidades).map((f) => f.id));
+    const porArea = AREAS_FERRAMENTAS.map((area) => ({
+      area,
+      itens: FERRAMENTAS_OS.filter((f) => f.area === area && !f.semCapacidade),
+    })).filter((g) => g.itens.length > 0);
+    return {
+      escolhidas,
+      porArea,
+      incluidas: FERRAMENTAS_OS.filter((f) => f.semCapacidade),
+      avulsas: capacidadesAvulsas(fCapacidades),
+    };
+  }, [fCapacidades]);
+
+  function alternarFerramenta(id: string) {
+    const atuais = new Set(ferramentasDeCapacidades(fCapacidades).map((f) => f.id));
+    if (atuais.has(id)) atuais.delete(id);
+    else atuais.add(id);
+    const cobertas = new Set(FERRAMENTAS_OS.flatMap((f) => f.capacidades));
+    const novas = capacidadesDeFerramentas([...atuais]);
+    setFCapacidades([...new Set([...novas, ...fCapacidades.filter((c) => !cobertas.has(c))])]);
   }
 
   const grupos = useMemo(() => {
@@ -623,53 +656,119 @@ export default function PlanosPage() {
               <div className="flex items-center justify-between gap-3">
                 <Rotulo>Ferramentas do plano</Rotulo>
                 <span className="text-[12px] text-[#A7A7A7]">
-                  {modulos.filter((m) => m.produto === fProduto && idsDoModulo(m).some((id) => fCapacidades.includes(id))).length} de{" "}
-                  {modulos.filter((m) => m.produto === fProduto).length} ligados
+                  {fProduto === "mirai"
+                    ? `${vitrineMirai.escolhidas.size} ligadas`
+                    : `${modulos.filter((m) => m.produto === fProduto && idsDoModulo(m).some((id) => fCapacidades.includes(id))).length} de ${modulos.filter((m) => m.produto === fProduto).length} ligados`}
                 </span>
               </div>
-              <div className="flex max-h-[260px] flex-col gap-1 overflow-y-auto rounded-[14px] border border-[#333] p-2">
-                {modulos
-                  .filter((m) => m.produto === fProduto)
-                  .map((m) => {
-                    const ids = idsDoModulo(m);
-                    const ligadas = ids.filter((id) => fCapacidades.includes(id));
-                    const tudoOuNada = ligadas.length === ids.length;
-                    const parcial = ligadas.length > 0 && !tudoOuNada;
-                    return (
-                      <button
-                        key={m.chave}
-                        type="button"
-                        onClick={() =>
-                          setFCapacidades((atual) =>
-                            tudoOuNada ? atual.filter((x) => !ids.includes(x)) : [...new Set([...atual, ...ids])],
-                          )
-                        }
-                        className="flex items-start gap-2.5 rounded-[10px] px-2.5 py-2.5 text-left hover:bg-white/5"
-                      >
-                        <span
-                          className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-[6px] border text-[11px]"
-                          style={{
-                            borderColor: tudoOuNada || parcial ? "#E85002" : "#333",
-                            background: tudoOuNada ? "#E85002" : "transparent",
-                            color: tudoOuNada ? "#fff" : parcial ? "#E85002" : "#646464",
-                          }}
+
+              {fProduto === "mirai" ? (
+                <div className="flex max-h-[320px] flex-col gap-3 overflow-y-auto rounded-[14px] border border-[#333] p-2">
+                  {vitrineMirai.porArea.map(({ area, itens }) => (
+                    <div key={area} className="flex flex-col gap-1">
+                      <span className="px-2 pt-1 text-[11px] uppercase tracking-[0.14em] text-[#646464]" style={{ fontFamily: MONO }}>
+                        {area}
+                      </span>
+                      {itens.map((f) => {
+                        const ligada = vitrineMirai.escolhidas.has(f.id);
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => alternarFerramenta(f.id)}
+                            className="flex items-start gap-2.5 rounded-[10px] px-2.5 py-2 text-left hover:bg-white/5"
+                          >
+                            <span
+                              className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-[6px] border text-[11px]"
+                              style={{ borderColor: ligada ? "#E85002" : "#333", background: ligada ? "#E85002" : "transparent", color: ligada ? "#fff" : "#646464" }}
+                            >
+                              {ligada ? "✓" : ""}
+                            </span>
+                            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                              <span className="truncate text-[13px] font-medium text-[#F9F9F9]">{f.nome}</span>
+                              <span className="text-[12px] leading-snug text-[#A7A7A7]">{f.descricao}</span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+
+                  {vitrineMirai.incluidas.length ? (
+                    <div className="flex flex-col gap-1">
+                      <span className="px-2 pt-1 text-[11px] uppercase tracking-[0.14em] text-[#646464]" style={{ fontFamily: MONO }}>
+                        Vem em todo plano
+                      </span>
+                      {vitrineMirai.incluidas.map((f) => (
+                        <div key={f.id} className="flex items-start gap-2.5 px-2.5 py-2 opacity-70">
+                          <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-[6px] border border-[#333] text-[11px] text-[#646464]">•</span>
+                          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <span className="truncate text-[13px] text-[#F9F9F9]">{f.nome}</span>
+                            <span className="text-[12px] leading-snug text-[#A7A7A7]">{f.descricao}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {vitrineMirai.avulsas.length ? (
+                    <div className="flex flex-col gap-1">
+                      <span className="px-2 pt-1 text-[11px] uppercase tracking-[0.14em] text-[#646464]" style={{ fontFamily: MONO }}>
+                        Ações fora de ferramenta
+                      </span>
+                      {vitrineMirai.avulsas.map((c) => (
+                        <span key={c} className="truncate px-2.5 py-1 text-[12px] text-[#A7A7A7]" style={{ fontFamily: MONO }}>
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="flex max-h-[260px] flex-col gap-1 overflow-y-auto rounded-[14px] border border-[#333] p-2">
+                  {modulos
+                    .filter((m) => m.produto === fProduto)
+                    .map((m) => {
+                      const ids = idsDoModulo(m);
+                      const ligadas = ids.filter((id) => fCapacidades.includes(id));
+                      const tudoOuNada = ligadas.length === ids.length;
+                      const parcial = ligadas.length > 0 && !tudoOuNada;
+                      return (
+                        <button
+                          key={m.chave}
+                          type="button"
+                          onClick={() =>
+                            setFCapacidades((atual) =>
+                              tudoOuNada ? atual.filter((x) => !ids.includes(x)) : [...new Set([...atual, ...ids])],
+                            )
+                          }
+                          className="flex items-start gap-2.5 rounded-[10px] px-2.5 py-2.5 text-left hover:bg-white/5"
                         >
-                          {tudoOuNada ? "✓" : parcial ? "–" : ""}
-                        </span>
-                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <span className="truncate text-[13px] font-medium text-[#F9F9F9]">{m.nome}</span>
-                          <span className="truncate text-[12px] text-[#A7A7A7]">{m.descricao}</span>
-                        </span>
-                        <span className="shrink-0 text-[11px] text-[#646464]" style={{ fontFamily: MONO }}>
-                          {ids.length}
-                        </span>
-                      </button>
-                    );
-                  })}
-                {modulos.filter((m) => m.produto === fProduto).length === 0 ? (
-                  <span className="px-2.5 py-3 text-[13px] text-[#A7A7A7]">Nenhum módulo desse produto.</span>
-                ) : null}
-              </div>
+                          <span
+                            className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-[6px] border text-[11px]"
+                            style={{
+                              borderColor: tudoOuNada || parcial ? "#E85002" : "#333",
+                              background: tudoOuNada ? "#E85002" : "transparent",
+                              color: tudoOuNada ? "#fff" : parcial ? "#E85002" : "#646464",
+                            }}
+                          >
+                            {tudoOuNada ? "✓" : parcial ? "–" : ""}
+                          </span>
+                          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <span className="truncate text-[13px] font-medium text-[#F9F9F9]">{m.nome}</span>
+                            <span className="truncate text-[12px] text-[#A7A7A7]">{m.descricao}</span>
+                          </span>
+                          <span className="shrink-0 text-[11px] text-[#646464]" style={{ fontFamily: MONO }}>
+                            {ids.length}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  {modulos.filter((m) => m.produto === fProduto).length === 0 ? (
+                    <span className="px-2.5 py-3 text-[13px] text-[#A7A7A7]">Nenhum módulo desse produto.</span>
+                  ) : null}
+                </div>
+              )}
             </div>
 
             <button type="button" onClick={() => void salvar()} disabled={salvando} className="h-[52px] rounded-[14px] bg-[#E85002] text-[15px] font-semibold text-white disabled:opacity-50">
