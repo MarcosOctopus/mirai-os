@@ -87,6 +87,19 @@ const PRIMARIO: Item[] = [
   // + o botão de criar; a gestão completa (todas as empresas, credencial Saaso)
   // continua na tela do dono, no grupo secundário.
   { label: "Organizações", href: "/organizacoes", icone: <IconeOrganizacoes /> },
+  // CRM (dono, 26/11/2026): pedido dele, na LATERAL — "dentro do menu lateral entra
+  // essa parte de CRM/financeiro". Grupo só-dono com Clientes, Planos e Financeiro;
+  // as telas existentes não foram reescritas, só ganharam a porta certa.
+  {
+    label: "CRM",
+    icone: <IconeUsuarios />,
+    soDono: true,
+    filhos: [
+      { label: "Clientes", href: "/admin/clientes", icone: <IconeUsuarios /> },
+      { label: "Planos", href: "/admin/planos", icone: <IconeProdutos /> },
+      { label: "Financeiro", href: "/crm/financeiro", icone: <IconeCamadas /> },
+    ],
+  }, 
   // ORANGE BOX (dono, 18/11/2026): as ferramentas saem do menu principal e
   // passam a viver num submenu, com a ordem que ele ditou — Arquiteto,
   // Agendamentos, Reunião e Chaves de API por ÚLTIMO (é o que se mexe uma vez
@@ -113,19 +126,8 @@ const PRIMARIO: Item[] = [
 // A ORDEM é a que o dono ditou: Clientes e Organizações primeiro, e só então
 // Explorar; Sistema fecha. O corte por `soDono` é o que muda conforme quem entrou.
 const SECUNDARIO: Item[] = [
-  // CRM (dono, 26/11/2026): uma porta só para a gestão da empresa — clientes, planos
-  // e financeiro (entradas dos gateways e saídas lançadas à mão). Antes estas telas
-  // ficavam espalhadas no menu do perfil; "Clientes" e "Planos" saíram de lá para cá.
-  {
-    label: "CRM",
-    icone: <IconeBlocos />,
-    soDono: true,
-    filhos: [
-      { label: "Clientes", href: "/admin/clientes", icone: <IconeUsuarios /> },
-      { label: "Planos", href: "/admin/planos", icone: <IconeProdutos /> },
-      { label: "Financeiro", href: "/crm/financeiro", icone: <IconeCamadas /> },
-    ],
-  },
+  // CRM mora na LATERAL (pedido do dono, 26/11/2026), não aqui: "dentro do menu
+  // lateral entra essa parte de CRM/financeiro". Ver PRIMARIO.
   { label: "Intelligence Control", href: "/admin/intelligence", icone: <IconeRobo />, soDono: true, selo: "NOVO" },
   { label: "Organizações (gestão)", href: "/admin/organizacoes", icone: <IconeOrganizacoes />, soDono: true },
   // O CONTROLE DA VITRINE precisava de porta: a página existia e não havia
