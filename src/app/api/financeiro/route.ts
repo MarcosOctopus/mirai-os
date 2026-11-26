@@ -44,8 +44,15 @@ async function entradasDoGateway(limite = 200) {
     "https://id.miraitohope.com"
   ).replace(/\/+$/, "");
   const url = `${base}/v1/billing/movimentos?limite=${limite}`;
+  // Cabeçalho limpo: valor com caractere de controle (env copiado com \r, por exemplo)
+  // faz o fetch estourar TypeError "invalid header value" — e a tela mostraria
+  // "cobrança inacessível" sem dizer por quê.
+  const limpos: Record<string, string> = {};
+  for (const [chave, valor] of Object.entries(cabecalhosPlanoDeControle())) {
+    limpos[chave] = String(valor).replace(/[^\x20-\x7E]/g, "").trim();
+  }
   try {
-    const r = await fetch(url, { headers: cabecalhosPlanoDeControle(), cache: "no-store" });
+    const r = await fetch(url, { headers: limpos, cache: "no-store" });
     if (!r.ok) {
       return { entradas: [], totais: { brl_centavos: 0, usd_centavos: 0 }, erro: `cobrança respondeu ${r.status}` };
     }
@@ -62,10 +69,12 @@ async function entradasDoGateway(limite = 200) {
       erro: null as string | null,
     };
   } catch (e) {
+    const causa = (e as { cause?: { code?: string; message?: string } }).cause;
+    const detalhe = causa?.code || causa?.message || (e as Error).message;
     return {
       entradas: [],
       totais: { brl_centavos: 0, usd_centavos: 0 },
-      erro: `cobrança inacessível (${(e as Error).name})`,
+      erro: `cobrança inacessível (${(e as Error).name}: ${String(detalhe).slice(0, 120)}) em ${base}`,
     };
   }
 }
