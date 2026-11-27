@@ -46,6 +46,7 @@ const AIAPIFLOW_KEY   = loadEnv("AIAPIFLOW_API_KEY");
 const CHAT_PROV_KEY   = loadEnv("AIBEE_API_KEY");
 
 import { gatewayDaConta, MODELO_DA_CONTA, type GatewayDaConta } from "@/lib/gateway-da-conta";
+import { limparVicio } from "@/lib/limpar-vicio";
 import { vincularContaMirai } from "@/lib/vinculo-conta-mirai";
 import { arcaConfigurada, headersDaArca } from "@/lib/arca-cliente";
 import { pedirTokenNaArca, tokenArcaDaConta } from "@/lib/arca-conta";
@@ -1793,7 +1794,9 @@ async function streamOpenAIResponse(resp: Response, ctx: { provedor: string; mod
                 };
               }
               const d = p.choices?.[0]?.delta || {};
-              const c = d.content || "";
+              // O vício de escrita morre aqui, para todo mundo: o filtro de
+              // segurança (não-donos) cuida de conteúdo, este cuida de forma.
+              const c = limparVicio(d.content || "");
               if (c) {
                 viuConteudo = true;
                 if (filtro) filtro.add(c);
@@ -1816,7 +1819,7 @@ async function streamOpenAIResponse(resp: Response, ctx: { provedor: string; mod
           });
         }
         if (!viuConteudo && guardado.trim()) {
-          const limpo = guardado.replace(/[*#`]/g, "").trim();
+          const limpo = limparVicio(guardado).replace(/[*#`]/g, "").trim();
           if (filtro) filtro.add(limpo);
           else controller.enqueue(encoder.encode(`data: ${JSON.stringify({choices:[{delta:{content:limpo}}]})}\n\n`));
         }
