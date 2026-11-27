@@ -621,6 +621,19 @@ export async function blocoDeAnexos(
       } catch {}
     }
   }
+  // Como ela devolve um arquivo na conversa (27/11/2026): o modelo recebe o
+  // marcador junto do anexo. Sem isso a Mirai tende a escrever o caminho cru,
+  // que não vira cartão e obriga a pessoa a caçar o arquivo na mão.
+  if (blocos.length) {
+    blocos.push(
+      "COMO DEVOLVER UM ARQUIVO NA CONVERSA: para entregar um arquivo à pessoa " +
+      "(um anexo dela ou algo do acervo), escreva o marcador em linha própria, sozinho: " +
+      "[[arquivo:midia:<id-do-anexo>|<nome do arquivo>]] — e, para nota do acervo, " +
+      "[[arquivo:acervo:<caminho da nota>|<nome>]]. A tela transforma isso num cartão " +
+      "com Abrir e Baixar. Use o id que veio acima; nunca invente id nem escreva " +
+      "caminho de disco.",
+    );
+  }
   return { blocos, imagens };
 }
 
