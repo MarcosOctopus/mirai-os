@@ -118,5 +118,13 @@ The API key is in `~/.claude/settings.json`.
 - A lixeira da NOTA nasceu `opacity-0 group-hover:opacity-100`: no toque/trackpad ela não existia, e o dono concluiu "não dá pra apagar" enquanto clicava no ✎ ao lado. Ação destrutiva/útil tem de estar sempre visível (opacidade baixa), com o hover só reforçando.
 - Espaço (pessoal/organização) desenhado como pasta na árvore de "Tudo" carrega `espaco` no nó e NÃO ganha 🗑 ✎ ⠿ — senão a pessoa apaga "a pasta Meu espaço".
 
+## Aprendizado: a conversa vira nota (27/11/2026)
+- `POST /api/aprendizado` (`src/app/api/aprendizado/route.ts` + `src/lib/aprendizado.ts`) grava **uma nota por conversa** no acervo: `{modo:"agora"}` ("guarda isso") e `{modo:"fim"}` (fecho). O carimbo vive em `data/auth.db` → `notas_aprendizado` (chave `user_id + conversa_id`): reprocessar a mesma conversa devolve `ja_existia:true` e **não** duplica.
+- A nota é o ENTENDIMENTO (o que foi tratado / decidido / pendente), não o log. De áudio entra a transcrição; de imagem, a descrição — o binário continua no trilho `/api/arquivo/<id>` e a nota carrega o marcador `[[arquivo:midia:<id>|<nome>]]`.
+- A destilação passa pelo **gateway da conta** (`gatewayDaConta`, o mesmo do chat): o consumo cai na cota. Se o modelo falhar, a nota é gravada com resumo simples e a linha `Destilação: não rodou` no corpo.
+- Onde vive: a árvore manda — pasta de aprendizado existente (`06_APRENDIZADOS`) + subpasta `conversas`; sem ela, a canônica. Nome do arquivo: `AAAA-MM-DD-conversa-sobre-<resumo>.md`, corte em fim de palavra (a Arca corta o slug no limite do caminho, e corte dela é no meio da palavra).
+- Escopo: `tudo` escreve no espaço PESSOAL ("tudo" é leitura, não lugar de gravar); organização usa `credencialDoEscopo` (nunca a credencial pessoal de quem conversou).
+- Gatilhos no cliente (`src/lib/aprendizado-cliente.ts` + `ChatEscrito`): botão "Guarda isso" em cada resposta (sempre visível, opacidade baixa), texto ("guarda isso", "salva no acervo"...), e o fim por `sendBeacon` em troca de conversa / `visibilitychange` / `pagehide` / 5 min parado. Nada disso segura a resposta do chat.
+
 ## Task
 Redesign and rebuild the MIRAI OS from scratch. Use Three.js for the orb. Make it feel alive, cinematic, intelligent. The user should feel they're operating a real AI, not using a web app.
