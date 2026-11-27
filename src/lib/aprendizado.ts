@@ -240,15 +240,30 @@ type Destilacao = {
   aviso?: string;
 };
 
-/** Tira acento, pontuação e espaço — é o que vira nome de arquivo. */
+/** Tira acento, pontuação e espaço — é o que vira nome de arquivo.
+ *  O corte é SEMPRE em fim de palavra: nome de arquivo cortado no meio
+ *  ("...do-crm-praz") parece defeito, e a Arca corta o slug no limite do
+ *  caminho sem dó nenhuma. */
 export function resumoDoTitulo(texto: string, limite = 60): string {
-  const limpo = (texto || "")
+  const palavras = (texto || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-  return limpo.split(" ").filter(Boolean).slice(0, 8).join(" ").slice(0, limite).trim();
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+  const escolhidas: string[] = [];
+  for (const p of palavras) {
+    const tentativa = [...escolhidas, p].join(" ");
+    if (tentativa.length > limite) break;
+    escolhidas.push(p);
+    if (escolhidas.length >= 8) break;
+  }
+  // Palavra de ligação no fim ("...funil de crm E") é sobra do corte: sai.
+  const LIGACAO = new Set(["e", "de", "do", "da", "dos", "das", "com", "que", "o", "a", "os", "as", "em", "no", "na", "para", "por", "sobre"]);
+  while (escolhidas.length > 1 && LIGACAO.has(escolhidas[escolhidas.length - 1])) escolhidas.pop();
+  return escolhidas.join(" ");
 }
 
 function corpoDaConversa(mensagens: MensagemAprendizado[], anexos: AnexoDaNota[]): string {
@@ -408,13 +423,17 @@ function montarCorpo({
   linhas.push("");
 
   const secoesLimpas = limparMarcadores(destilacao.secoes, anexos).trim();
+  // Respiro antes de cada título de seção: o modelo às vezes entrega
+  // "- item" e "## Seção" colados, e aí a seção vira continuação da lista em
+  // qualquer renderizador de markdown.
+  const secoesComRespiro = secoesLimpas.replace(/\n(#{2,4}\s)/g, "\n\n$1").replace(/\n{3,}/g, "\n\n");
   // O modelo pode ter esquecido um anexo: a referência é OBRIGATÓRIA (sem ela o
   // cartão não existe e o arquivo some da história). Completa no fim.
-  const faltando = anexos.filter((a) => !secoesLimpas.includes(a.marcador));
+  const faltando = anexos.filter((a) => !secoesComRespiro.includes(a.marcador));
 
   // Se a destilação não trouxe seção de anexos, cria uma.
-  const temSecaoAnexos = /##\s*Anexos/i.test(secoesLimpas);
-  linhas.push(secoesLimpas);
+  const temSecaoAnexos = /##\s*Anexos/i.test(secoesComRespiro);
+  linhas.push(secoesComRespiro);
   linhas.push("");
   if (anexos.length && (!temSecaoAnexos || faltando.length)) {
     if (!temSecaoAnexos) linhas.push("## Anexos");
@@ -654,8 +673,13 @@ export async function gerarNotaDeAprendizado({
     const destilacao = await destilar(conta, mensagens, anexos);
 
     const hoje = dataDeHoje();
-    const resumo = destilacao.titulo || "conversa";
-    const tituloComData = `${hoje} conversa sobre ${resumo}`.slice(0, 80);
+    // NOME DO ARQUIVO: `AAAA-MM-DD-conversa-sobre-<resumo>.md`. A Arca corta o
+    // slug no limite do caminho (`06_APRENDIZADOS/conversas` → 45 caracteres) e
+    // corta no MEIO da palavra. Então o resumo já nasce no tamanho que cabe.
+    const prefixoSlug = `${hoje}-conversa-sobre`;
+    const orcamento = Math.max(12, 45 - prefixoSlug.length - 1);
+    const resumo = resumoDoTitulo(destilacao.titulo || "conversa", orcamento) || "conversa";
+    const tituloComData = `${hoje} conversa sobre ${resumo}`;
     const corpo = montarCorpo({
       tituloComData,
       conta,
