@@ -12,7 +12,7 @@
  * dizer "nao sei", e nunca divisao por zero quando o plano nao declara teto.
  */
 
-import { basePlanoDeControle } from "@/lib/plano-controle";
+import { basePlanoDeControle, chamarPlanoDeControle, planoDeControleConfigurado } from "@/lib/plano-controle";
 import { db as abrirAuth } from "@/lib/auth";
 
 export type LeituraDeTokens =
@@ -40,6 +40,47 @@ function motivoDoStatus(status: number): string {
   return `medidor respondeu ${status}`;
 }
 
+type CorpoConsumoAdmin = { usado?: unknown; teto?: unknown; produto?: unknown; periodo_inicio?: unknown };
+
+/**
+ * CAMINHO PREFERENCIAL — leitura de ADMIN por conta, em `/v1/admin/consumo`.
+ *
+ * Por que existe (27/11/2026): a rota antiga (`/v1/ai/quota`) autentica o
+ * PRODUTO que pergunta e exige o vínculo conta<->produto. Este app é o produto
+ * `mirai`, então toda conta de OUTRO produto (Saaso, Dark Matter, Pathfinder,
+ * Media Factory) recebia 403 e a barra dizia "medidor não lê esta conta" — em
+ * contas que TÊM teto no plano (medido: 13 contas do Saaso).
+ *
+ * A credencial é a de ADMIN da instalação, lida do AMBIENTE DO SERVIDOR por
+ * `cabecalhosPlanoDeControle()` — o navegador nunca a vê. Somente leitura.
+ *
+ * Devolve `null` (não lança) quando não há como ler por aqui: sem credencial de
+ * admin no ambiente, status diferente de 200 (401/403/404/5xx) ou corpo sem
+ * número. Quem chamou cai na rota antiga — nada quebra.
+ */
+async function leituraPeloAdmin(tenantId: string): Promise<LeituraDeTokens | null> {
+  try {
+    if (!planoDeControleConfigurado()) return null;
+    const r = await chamarPlanoDeControle(
+      `/v1/admin/consumo?tenant_id=${encodeURIComponent(tenantId)}`,
+      { method: "GET", timeoutMs: ESPERA_MS },
+    );
+    if (r.status !== 200) return null;
+    const corpo = (r.corpo || {}) as CorpoConsumoAdmin;
+    const usado = Number(corpo.usado);
+    if (!Number.isFinite(usado)) return null;
+    const tetoBruto = corpo.teto;
+    const teto = tetoBruto === null || tetoBruto === undefined ? null : Number(tetoBruto);
+    return {
+      leitura: "ok",
+      usado: Math.max(0, usado),
+      teto: typeof teto === "number" && Number.isFinite(teto) && teto > 0 ? teto : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Le o medidor central para UM tenant. Nunca lanca. */
 export async function tokensDoTenant(tenantId: string): Promise<LeituraDeTokens> {
   if (!tenantId) return { leitura: "sem_leitura", motivo: "conta sem organização" };
@@ -47,6 +88,16 @@ export async function tokensDoTenant(tenantId: string): Promise<LeituraDeTokens>
   const guardado = cache.get(tenantId);
   if (guardado && Date.now() - guardado.em < CACHE_MS) return guardado.valor;
 
+  // 1) ADMIN (vale para conta de QUALQUER produto).
+  const peloAdmin = await leituraPeloAdmin(tenantId);
+  if (peloAdmin) {
+    cache.set(tenantId, { em: Date.now(), valor: peloAdmin });
+    return peloAdmin;
+  }
+
+  // 2) RESERVA: a rota antiga, com as credenciais de CLIENTE deste app. É o que
+  //    existia antes; continua igual, inclusive a mensagem quando não há
+  //    credencial nenhuma configurada neste ambiente.
   const cab = cabecalhosDeCliente();
   if (!cab["x-mirai-client-id"]) {
     return { leitura: "sem_leitura", motivo: "medidor sem credencial neste app" };
