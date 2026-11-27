@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { exigirDono } from "@/lib/orgs";
 import { chamarPlanoDeControle, planoDeControleConfigurado } from "@/lib/plano-controle";
 import { db } from "@/lib/auth";
+import { espacoPorUsuario, tokensDoTenant, type EspacoUsado, type LeituraDeTokens } from "@/lib/consumo-cliente";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +52,8 @@ type OrgDoControle = {
   convite_email: string | null;
   membros: string[];
   desde: string | null;
+  /** JSONB `limits` do plano, ja como numero (storage_gb, tokens_mes em milhoes). */
+  limites?: Record<string, number>;
 };
 
 /** A linha da tela: UMA pessoa e a lista de onde ela esta. */
@@ -66,6 +69,15 @@ type Pessoa = {
   organizacoes: OrgDoControle[];
 };
 
+function numeros(bruto?: Record<string, unknown>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(bruto || {})) {
+    const n = typeof v === "number" ? v : Number(v);
+    if (Number.isFinite(n)) out[k] = n;
+  }
+  return out;
+}
+
 function orgDoAdmin(o: any, papel: string | null = null): OrgDoControle {
   return {
     tenant_id: o.tenant_id,
@@ -77,6 +89,7 @@ function orgDoAdmin(o: any, papel: string | null = null): OrgDoControle {
     convite_email: String(o.convite_email || "").toLowerCase() || null,
     membros: [],
     desde: o.desde || null,
+    limites: numeros(o.limites),
   };
 }
 
@@ -214,12 +227,24 @@ export async function GET(req: NextRequest) {
   // Quem TEM membro ja esta representado como pessoa (mesmo sem conta local),
   // entao nao se repete aqui.
   const r2 = await chamarPlanoDeControle("/v1/admin/organizacoes", { method: "GET" });
+  const limitesPorTenant = new Map<string, Record<string, number>>();
   if (r2.status === 200) {
     const todas = (((r2.corpo as any)?.organizacoes || []) as any[]).filter(Boolean);
     for (const o of todas) {
-      const membros = emailsPorTenant.get(String(o.tenant_id)) || [];
+      const tid = String(o.tenant_id);
+      limitesPorTenant.set(tid, numeros(o.limites));
+      const membros = emailsPorTenant.get(tid) || [];
       if (membros.length > 0) continue;
       semConta.push({ ...orgDoAdmin(o), membros });
+    }
+  }
+
+  // O teto do plano (espaco em GB, tokens em milhoes) vem do plano de controle,
+  // nao do catalogo carregado pelo navegador: plano pode mudar de limites.
+  for (const p of porEmail.values()) {
+    for (const o of p.organizacoes) {
+      const lim = limitesPorTenant.get(String(o.tenant_id));
+      if (lim) o.limites = lim;
     }
   }
 
@@ -231,6 +256,37 @@ export async function GET(req: NextRequest) {
     return a.nome.localeCompare(b.nome, "pt-BR");
   });
 
+  // ── consumo (?consumo=1) ──────────────────────────────────────────
+  // Duas leituras, cada uma com a sua fonte: tokens do medidor central
+  // (`usage_events` pela rota de cota) e espaco da soma de `uploads.tamanho`.
+  // A tela pede uma vez por carga; nao ha chamada por linha.
+  const params = new URL(req.url).searchParams;
+  let consumo:
+    | {
+        tokens: Record<string, LeituraDeTokens>;
+        espaco: Record<string, EspacoUsado>;
+      }
+    | undefined;
+
+  if (params.get("consumo") === "1") {
+    const tenants = new Set<string>();
+    for (const p of pessoas) for (const o of p.organizacoes) if (o.tenant_id) tenants.add(o.tenant_id);
+    for (const o of semConta) if (o.tenant_id) tenants.add(o.tenant_id);
+
+    const tokens: Record<string, LeituraDeTokens> = {};
+    const lista = [...tenants];
+    const LOTE = 6;
+    for (let i = 0; i < lista.length; i += LOTE) {
+      const fatia = lista.slice(i, i + LOTE);
+      const lidos = await Promise.all(fatia.map((t) => tokensDoTenant(t)));
+      fatia.forEach((t, k) => {
+        tokens[t] = lidos[k];
+      });
+    }
+
+    consumo = { tokens, espaco: espacoPorUsuario() };
+  }
+
   return NextResponse.json({
     ok: true,
     contas: contas.length,
@@ -238,6 +294,7 @@ export async function GET(req: NextRequest) {
     aviso,
     pessoas,
     semConta,
+    consumo,
     gerado_em: new Date().toISOString(),
   });
 }

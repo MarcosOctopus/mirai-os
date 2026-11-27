@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
 
 // Toda escrita passa por aqui: dono (middleware + exigirDono) E o e-mail de
 // preco. Se nao for o EMAIL_QUE_MUDA_PRECO, nem toca no plano de controle.
-async function escrever(req: NextRequest): Promise<{ ok: true; corpo: Record<string, unknown> } | { ok: false; resposta: NextResponse }> {
+async function escrever(req: NextRequest): Promise<{ ok: true; corpo: Record<string, unknown>; autor: string } | { ok: false; resposta: NextResponse }> {
   const g = await exigirDono(req);
   if (!g.ok) return g;
   if (g.conta.email !== EMAIL_QUE_MUDA_PRECO) {
@@ -84,7 +84,7 @@ async function escrever(req: NextRequest): Promise<{ ok: true; corpo: Record<str
     };
   }
   const corpo = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  return { ok: true, corpo };
+  return { ok: true, corpo, autor: String(g.conta.email || "desconhecido") };
 }
 
 function despachar(
@@ -160,6 +160,31 @@ async function tratarEscrita(req: NextRequest, esperado: Metodo) {
   }
 
   const r = await chamarPlanoDeControle(alvo.caminho, { method: alvo.method, body: alvo.body });
+
+  // ── O LIVRO DA TROCA DE PLANO (27/11/2026) ──────────────────────────
+  // Pedido do dono: toda troca de plano precisa dizer DE ONDE partiu, PARA ONDE
+  // foi, QUEM trocou e QUANDO. Uma linha JSON no log do servidor, para o caso
+  // poder ser reconstruido sem abrir o banco. `plano_anterior` vem do navegador
+  // so para o registro: o valor que vale e o `plan_id` que o plano de controle
+  // ACEITOU (status 200), e e esse que a linha grava como destino.
+  if (acao === "definir_plano_da_org" || acao === "definir_capacidade_da_org") {
+    const ehPlano = acao === "definir_plano_da_org";
+    console.log(
+      JSON.stringify({
+        evento: ehPlano ? "plano.trocado" : "capacidade.alterada",
+        hora: new Date().toISOString(),
+        autor: g.autor,
+        tenant_id: String(g.corpo.tenant_id || ""),
+        de: ehPlano ? String(g.corpo.plano_anterior || "") : "",
+        para: ehPlano
+          ? String(g.corpo.plan_id || "")
+          : `${String(g.corpo.capability_id || "")}:${g.corpo.conceder === false ? "revogada" : "concedida"}`,
+        status: r.status,
+        gravou: r.status >= 200 && r.status < 300,
+      }),
+    );
+  }
+
   return NextResponse.json(r.corpo, { status: r.status });
 }
 

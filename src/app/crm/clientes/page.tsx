@@ -1,16 +1,22 @@
 "use client";
 
 /**
- * /crm/clientes — desenho do dono (Claude), adaptado à nossa realidade (26/11/2026).
+ * /crm/clientes, desenho do dono (Claude), adaptado à nossa realidade (26/11/2026).
  *
  * Uma linha por PESSOA (o e-mail é a chave): quem tem conta em dois produtos aparece
  * uma vez só, e dentro dela ficam os vínculos. Fonte: /api/admin/clientes.
  *
- * TUDO acontece aqui: adicionar cliente abre a gaveta desta tela e grava pelo
- * /api/admin/clientes (acao criar_cliente). Nenhum botão manda para a tela antiga.
+ * 27/11/2026, três pedidos do dono nesta tela:
+ *   (1) o PLANO de cada cliente é um seletor que grava de verdade, pela rota
+ *       /api/admin/planos (ação definir_plano_da_org). A troca é otimista: a tela
+ *       mostra na hora e volta atrás se o plano de controle recusar.
+ *   (2) DUAS barras finas por cliente, empilhadas: tokens do mês (laranja neon) e
+ *       espaço usado (verde água neon). Plano sem teto e conta sem leitura não
+ *       viram barra cheia: viram barra neutra com o motivo escrito.
+ *   (3) clicar no cliente abre o card com todos os dados dele.
  *
  * País e gateway ainda não existem nesta fonte (vivem nos eventos de cobrança); onde
- * não há dado, aparece "—" em vez de invenção. O país real está no Financeiro.
+ * não há dado, aparece o traço em vez de invenção. O país real está no Financeiro.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -38,6 +44,7 @@ type OrganizacaoDoCliente = {
   extras: string[];
   convite_email: string | null;
   desde: string | null;
+  limites?: Record<string, number>;
 };
 
 type Pessoa = {
@@ -51,22 +58,30 @@ type Pessoa = {
   organizacoes: OrganizacaoDoCliente[];
 };
 
+type LeituraDeTokens =
+  | { leitura: "ok"; usado: number; teto: number | null }
+  | { leitura: "sem_leitura"; motivo: string };
+
+type Consumo = {
+  tokens: Record<string, LeituraDeTokens>;
+  espaco: Record<string, { bytes: number; arquivos: number }>;
+};
+
 type Resposta = {
   ok?: boolean;
   contas?: number;
   organizacoes?: number;
   aviso?: string | null;
   pessoas: Pessoa[];
+  consumo?: Consumo;
 };
 
 type PlanoDoCatalogo = { plan_id: string; product_id: string; nome: string };
 
-function iniciais(nome: string, email: string) {
-  const base = (nome || email || "?").trim();
-  const partes = base.split(/[\s@._-]+/).filter(Boolean);
-  if (partes.length >= 2) return (partes[0][0] + partes[1][0]).toUpperCase();
-  return base.slice(0, 2).toUpperCase();
-}
+type Recado = { tipo: "ok" | "erro"; texto: string } | null;
+
+const LARANJA = "#FF6A1A";
+const VERDE_AGUA = "#3BF0C0";
 
 const NOME_PLANO: Record<string, string> = {
   mirai_free: "Free",
@@ -77,6 +92,77 @@ const NOME_PLANO: Record<string, string> = {
 };
 
 const PAPEIS = ["dono", "admin", "membro"];
+
+function iniciais(nome: string, email: string) {
+  const base = (nome || email || "?").trim();
+  const partes = base.split(/[\s@._-]+/).filter(Boolean);
+  if (partes.length >= 2) return (partes[0][0] + partes[1][0]).toUpperCase();
+  return base.slice(0, 2).toUpperCase();
+}
+
+/** Bytes em unidade legível, com vírgula decimal. */
+function tamanhoLegivel(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 MB";
+  const mb = bytes / (1024 * 1024);
+  if (mb < 1) return `${Math.round(bytes / 1024)} KB`;
+  if (mb < 1024) return `${mb.toFixed(mb < 10 ? 1 : 0).replace(".", ",")} MB`;
+  return `${(mb / 1024).toFixed(2).replace(".", ",")} GB`;
+}
+
+/** Tokens em milhares ou milhões, que é como o plano fala. */
+function tokensLegivel(tokens: number) {
+  if (!Number.isFinite(tokens) || tokens <= 0) return "0";
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(tokens >= 10_000_000 ? 0 : 2).replace(".", ",")}M`;
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(tokens >= 10_000 ? 0 : 1).replace(".", ",")}k`;
+  return String(Math.round(tokens));
+}
+
+/**
+ * Barra fina de consumo. `fracao` nula significa leitura ausente ou plano sem
+ * teto: a barra fica neutra e tracejada, nunca cheia.
+ */
+function BarraDeConsumo({
+  rotulo,
+  detalhe,
+  fracao,
+  cor,
+}: {
+  rotulo: string;
+  detalhe: string;
+  fracao: number | null;
+  cor: string;
+}) {
+  const neutra = fracao === null;
+  const largura = neutra ? 0 : Math.min(100, Math.max(0, fracao * 100));
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-baseline justify-between gap-2">
+        <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", color: "#646464" }} className="uppercase">
+          {rotulo}
+        </span>
+        <span className="truncate text-[11px]" style={{ color: neutra ? "#646464" : "#A7A7A7" }}>
+          {detalhe}
+        </span>
+      </div>
+      <div
+        className="h-[3px] w-full overflow-hidden rounded-full"
+        style={{ background: neutra ? "transparent" : "#1c1c1c", border: neutra ? "1px dashed #3a3a3a" : "none" }}
+      >
+        {neutra ? null : (
+          <span
+            className="block h-full rounded-full"
+            style={{
+              width: `${largura}%`,
+              background: cor,
+              boxShadow: `0 0 9px ${cor}88`,
+              transition: "width 240ms ease",
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function ClientesPage() {
   const [conta, setConta] = useState<{ nome?: string; email?: string } | null>(null);
@@ -95,11 +181,16 @@ export default function ClientesPage() {
   const [novoPlano, setNovoPlano] = useState("");
   const [novoPapel, setNovoPapel] = useState("dono");
   const [salvando, setSalvando] = useState(false);
-  const [recado, setRecado] = useState("");
+  const [recado, setRecado] = useState<Recado>(null);
+
+  /** e-mails com troca de plano em curso (o seletor fica travado) */
+  const [trocando, setTrocando] = useState<string[]>([]);
+  /** pessoa aberta no card */
+  const [card, setCard] = useState<string | null>(null);
 
   async function carregar() {
     try {
-      const r = await fetch("/api/admin/clientes", { cache: "no-store" });
+      const r = await fetch("/api/admin/clientes?consumo=1", { cache: "no-store" });
       if (!r.ok) throw new Error(`a rota respondeu ${r.status}`);
       setDados((await r.json()) as Resposta);
       setErro("");
@@ -125,8 +216,14 @@ export default function ClientesPage() {
   }, []);
 
   const pessoas = useMemo(() => dados?.pessoas || [], [dados]);
+  const consumo = dados?.consumo;
   const semOrganizacao = useMemo(() => pessoas.filter((p) => !p.organizacoes.length).length, [pessoas]);
   const vinculos = useMemo(() => pessoas.reduce((s, p) => s + p.organizacoes.length, 0), [pessoas]);
+
+  const nomeDoPlano = (planId: string) => {
+    const achado = planos.find((p) => p.plan_id === planId);
+    return achado?.nome || NOME_PLANO[planId] || planId || "sem plano";
+  };
 
   const produtos = useMemo(() => {
     const mapa: Record<string, number> = {};
@@ -147,13 +244,15 @@ export default function ClientesPage() {
     });
   }, [pessoas, busca, produto, plano]);
 
+  const pessoaDoCard = useMemo(() => pessoas.find((p) => p.email === card) || null, [pessoas, card]);
+
   async function adicionar() {
     if (!novoEmail.includes("@")) {
-      setRecado("informe um e-mail válido");
+      setRecado({ tipo: "erro", texto: "Informe um e-mail válido." });
       return;
     }
     setSalvando(true);
-    setRecado("");
+    setRecado(null);
     try {
       const r = await fetch("/api/admin/clientes", {
         method: "POST",
@@ -169,15 +268,82 @@ export default function ClientesPage() {
       });
       const corpo = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(corpo?.error || `a rota respondeu ${r.status}`);
-      setRecado("Cliente entrou. O convite sai no próximo acesso dele.");
+      setRecado({ tipo: "ok", texto: "Cliente entrou. O convite sai no próximo acesso dele." });
       setNovoEmail("");
       setNovoNome("");
       setNovoPlano("");
       await carregar();
     } catch (e) {
-      setRecado((e as Error).message);
+      setRecado({ tipo: "erro", texto: (e as Error).message });
     } finally {
       setSalvando(false);
+    }
+  }
+
+  /**
+   * Troca o plano de UMA organização do cliente e grava no plano de controle.
+   * Otimista: a tela assume o novo plano na hora, e volta ao anterior se a rota
+   * recusar (403 sem o e-mail autorizado, 422 plano de outro produto, 5xx).
+   */
+  async function trocarPlano(pessoa: Pessoa, org: OrganizacaoDoCliente, novo: string) {
+    const anterior = org.plano;
+    if (!novo || novo === anterior) return;
+
+    setTrocando((t) => [...t, pessoa.email]);
+    setRecado(null);
+    setDados((atual) => {
+      if (!atual) return atual;
+      return {
+        ...atual,
+        pessoas: atual.pessoas.map((p) =>
+          p.email !== pessoa.email
+            ? p
+            : {
+                ...p,
+                organizacoes: p.organizacoes.map((o) => (o.tenant_id === org.tenant_id ? { ...o, plano: novo } : o)),
+              },
+        ),
+      };
+    });
+
+    try {
+      const r = await fetch("/api/admin/planos", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          acao: "definir_plano_da_org",
+          tenant_id: org.tenant_id,
+          plan_id: novo,
+          plano_anterior: anterior,
+        }),
+      });
+      const corpo = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(corpo?.error || corpo?.detail || `a rota respondeu ${r.status}`);
+      setRecado({
+        tipo: "ok",
+        texto: `${pessoa.nome || pessoa.email} passou de ${nomeDoPlano(anterior)} para ${nomeDoPlano(novo)}.`,
+      });
+      await carregar();
+    } catch (e) {
+      setDados((atual) => {
+        if (!atual) return atual;
+        return {
+          ...atual,
+          pessoas: atual.pessoas.map((p) =>
+            p.email !== pessoa.email
+              ? p
+              : {
+                  ...p,
+                  organizacoes: p.organizacoes.map((o) =>
+                    o.tenant_id === org.tenant_id ? { ...o, plano: anterior } : o,
+                  ),
+                },
+          ),
+        };
+      });
+      setRecado({ tipo: "erro", texto: `O plano não mudou: ${(e as Error).message}` });
+    } finally {
+      setTrocando((t) => t.filter((e) => e !== pessoa.email));
     }
   }
 
@@ -187,16 +353,67 @@ export default function ClientesPage() {
     { rotulo: "Sem organização", valor: String(semOrganizacao), nota: "conta sem espaço ainda" },
   ];
 
-  const grade = "minmax(230px,2.2fr) 1.1fr 130px 1.3fr 1.4fr 44px";
+  const grade = "minmax(190px,1.6fr) 116px 150px minmax(150px,1.35fr) minmax(120px,1fr) 34px";
+
+  /** Opções do seletor: só planos do MESMO produto da organização. */
+  function planosDoProduto(prod: string, atual: string) {
+    const lista = planos.filter((p) => p.product_id === prod);
+    if (atual && !lista.some((p) => p.plan_id === atual)) {
+      return [{ plan_id: atual, product_id: prod, nome: nomeDoPlano(atual) }, ...lista];
+    }
+    return lista;
+  }
+
+  /** Tokens e espaço desta pessoa, já no formato das duas barras. */
+  function barrasDe(p: Pessoa) {
+    const principal = p.organizacoes[0] || null;
+    const leitura = principal ? consumo?.tokens?.[principal.tenant_id] : undefined;
+
+    let barraTokens: { detalhe: string; fracao: number | null };
+    if (!principal) {
+      barraTokens = { detalhe: "sem organização", fracao: null };
+    } else if (!leitura) {
+      barraTokens = { detalhe: "sem leitura", fracao: null };
+    } else if (leitura.leitura === "sem_leitura") {
+      barraTokens = { detalhe: leitura.motivo, fracao: null };
+    } else if (leitura.teto === null) {
+      barraTokens = { detalhe: `${tokensLegivel(leitura.usado)}, sem teto`, fracao: null };
+    } else {
+      barraTokens = {
+        detalhe: `${tokensLegivel(leitura.usado)} de ${tokensLegivel(leitura.teto)}`,
+        fracao: leitura.usado / leitura.teto,
+      };
+    }
+
+    const tetoGb = Number(principal?.limites?.storage_gb);
+    const espaco = p.conta_id !== null ? consumo?.espaco?.[String(p.conta_id)] : undefined;
+    let barraEspaco: { detalhe: string; fracao: number | null };
+    if (!principal) {
+      barraEspaco = { detalhe: "sem organização", fracao: null };
+    } else if (p.conta_id === null) {
+      barraEspaco = { detalhe: "sem conta local", fracao: null };
+    } else if (!Number.isFinite(tetoGb) || tetoGb <= 0) {
+      barraEspaco = { detalhe: "plano sem teto de espaço", fracao: null };
+    } else if (!espaco) {
+      barraEspaco = { detalhe: "sem leitura", fracao: null };
+    } else {
+      barraEspaco = {
+        detalhe: `${tamanhoLegivel(espaco.bytes)} de ${tetoGb} GB`,
+        fracao: espaco.bytes / (tetoGb * 1024 * 1024 * 1024),
+      };
+    }
+
+    return { barraTokens, barraEspaco };
+  }
 
   return (
     <Shell titulo="Clientes" usuario={{ nome: conta?.nome, email: conta?.email, ehDono: true }}>
-      <div className="flex flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-[960px] flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="m-0 max-w-[620px] text-[14px] leading-[1.6] text-[#A7A7A7]">
             Uma linha por pessoa. Quem tem conta em dois produtos aparece uma vez só, porque é a mesma conta.
           </p>
-          <button type="button" onClick={() => { setGaveta(true); setRecado(""); }} className={BOTAO_MARCA}>
+          <button type="button" onClick={() => { setGaveta(true); setRecado(null); }} className={BOTAO_MARCA}>
             <span aria-hidden>+</span> Adicionar cliente
           </button>
         </div>
@@ -206,6 +423,14 @@ export default function ClientesPage() {
         ) : null}
         {dados?.aviso ? (
           <div className="rounded-[14px] border border-[#E85002] bg-[#111] px-4 py-3 text-[14px] text-[#F9F9F9]">{dados.aviso}</div>
+        ) : null}
+        {recado ? (
+          <div
+            className="rounded-[14px] border px-4 py-3 text-[14px] text-[#F9F9F9]"
+            style={{ borderColor: recado.tipo === "ok" ? VERDE_AGUA : "#E85002", background: "#111" }}
+          >
+            {recado.texto}
+          </div>
         ) : null}
 
         <div className="grid gap-0 overflow-hidden rounded-[24px] border border-[#333] sm:grid-cols-3" style={{ background: "#111" }}>
@@ -232,7 +457,7 @@ export default function ClientesPage() {
             </Segmentado>
 
             <div className="flex flex-wrap items-center gap-2">
-              <label className="flex h-11 w-[260px] max-w-full items-center gap-2.5 rounded-[14px] border border-[#333] bg-black px-3.5">
+              <label className="flex h-11 w-[240px] max-w-full items-center gap-2.5 rounded-[14px] border border-[#333] bg-black px-3.5">
                 <span aria-hidden className="text-[13px] text-[#646464]">⌕</span>
                 <input
                   className="w-full border-0 bg-transparent text-[14px] text-[#F9F9F9] outline-none placeholder:text-[#646464]"
@@ -241,7 +466,7 @@ export default function ClientesPage() {
                   onChange={(e) => setBusca(e.target.value)}
                 />
               </label>
-              <select className={`${CAMPO} !h-11 w-[170px]`} value={plano} onChange={(e) => setPlano(e.target.value)}>
+              <select className={`${CAMPO} !h-11 w-[160px]`} value={plano} onChange={(e) => setPlano(e.target.value)}>
                 <option value="todos">Todos os planos</option>
                 {Object.values(NOME_PLANO).map((n) => (
                   <option key={n} value={n}>{n}</option>
@@ -257,8 +482,8 @@ export default function ClientesPage() {
           >
             <span>Pessoa</span>
             <span>Origem</span>
-            <span>Gateway</span>
             <span>Plano</span>
+            <span>Consumo</span>
             <span>Organização</span>
             <span />
           </div>
@@ -276,82 +501,95 @@ export default function ClientesPage() {
             <ul className="m-0 list-none p-0">
               {filtradas.map((p) => {
                 const principal = p.organizacoes[0];
+                const { barraTokens, barraEspaco } = barrasDe(p);
+                const emTroca = trocando.includes(p.email);
                 return (
-                  <li key={p.email} className="grid items-center gap-4 border-t border-[#1c1c1c] px-5 py-4" style={{ gridTemplateColumns: grade }}>
-                    <div className="flex min-w-0 items-center gap-3.5">
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border border-[#333] text-[13px] font-medium" style={{ background: "#0b0b0b", color: "#E85002" }}>
+                  <li
+                    key={p.email}
+                    onClick={() => setCard(p.email)}
+                    className="grid cursor-pointer items-center gap-4 border-t border-[#1c1c1c] px-5 py-4 transition hover:bg-white/[0.02]"
+                    style={{ gridTemplateColumns: grade }}
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[#333] text-[12px] font-medium" style={{ background: "#0b0b0b", color: "#E85002" }}>
                         {iniciais(p.nome, p.email)}
                       </span>
                       <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="truncate text-[15px] font-medium text-[#F9F9F9]">{p.nome || p.email}</span>
-                        <span className="truncate text-[13px] text-[#A7A7A7]">{p.email}</span>
-                        <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.14em", color: "#646464" }}>
-                          ENTRA POR {(p.entra_por || "—").toUpperCase()}
+                        <span className="truncate text-[14px] font-medium text-[#F9F9F9]">{p.nome || p.email}</span>
+                        <span className="truncate text-[12px] text-[#A7A7A7]">{p.email}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", color: "#646464" }}>
+                          ENTRA POR {(p.entra_por || "sem conta local").toUpperCase()}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5">
-                      <span className="grid h-8 w-8 place-items-center rounded-[6px] border border-[#333] text-[11px] text-[#F9F9F9]" style={{ fontFamily: MONO }} title="O país nasce do pagamento e aparece no Financeiro">
-                        —
+                    <div className="flex items-center gap-2">
+                      <span className="grid h-7 w-7 place-items-center rounded-[6px] border border-[#333] text-[11px] text-[#F9F9F9]" style={{ fontFamily: MONO }} title="O país nasce do pagamento e aparece no Financeiro">
+                        -
                       </span>
                       <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="text-[14px] text-[#F9F9F9]">{p.vinculado ? "Vinculado" : "Sem vínculo"}</span>
-                        <span className="truncate text-[12px] text-[#A7A7A7]">{p.tenant_local || "sem espaço local"}</span>
+                        <span className="text-[13px] text-[#F9F9F9]">{p.vinculado ? "Vinculado" : "Sem vínculo"}</span>
+                        <span className="truncate text-[11px] text-[#A7A7A7]">{p.desde ? `desde ${p.desde}` : "sem data"}</span>
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-start gap-1">
-                      <Pilula ponto={principal ? "#34D399" : "#646464"} tracejada={!principal}>
-                        {principal ? "asaas" : "sem pagamento"}
-                      </Pilula>
-                      <span className="text-[12px] text-[#A7A7A7]">{p.desde ? `desde ${p.desde}` : ""}</span>
+                    <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
+                      {principal ? (
+                        <select
+                          className={`${CAMPO} !h-9 !rounded-[10px] !px-2.5 !text-[13px] ${emTroca ? "opacity-40" : ""}`}
+                          value={principal.plano}
+                          disabled={emTroca}
+                          aria-label={`Plano de ${p.nome || p.email}`}
+                          onChange={(e) => void trocarPlano(p, principal, e.target.value)}
+                        >
+                          {planosDoProduto(principal.produto, principal.plano).map((op) => (
+                            <option key={op.plan_id} value={op.plan_id}>{op.nome}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-[13px] text-[#646464]">Sem plano</span>
+                      )}
                     </div>
 
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[14px] font-medium text-[#F9F9F9]">
-                        {principal ? NOME_PLANO[principal.plano] || principal.plano : "Sem plano"}
-                      </span>
-                      <span className="text-[12px]" style={{ color: principal ? "#34D399" : "#A7A7A7" }}>
-                        {principal ? principal.papel || "membro" : "conta livre"}
-                      </span>
+                    <div className="flex min-w-0 flex-col gap-2">
+                      <BarraDeConsumo rotulo="Tokens do mês" detalhe={barraTokens.detalhe} fracao={barraTokens.fracao} cor={LARANJA} />
+                      <BarraDeConsumo rotulo="Espaço" detalhe={barraEspaco.detalhe} fracao={barraEspaco.fracao} cor={VERDE_AGUA} />
                     </div>
 
                     <div className="flex flex-wrap gap-1.5">
                       {p.organizacoes.length === 0 ? (
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setNovoEmail(p.email);
                             setNovoNome(p.nome || "");
                             setGaveta(true);
-                            setRecado("");
+                            setRecado(null);
                           }}
                           className="rounded-[10px] border border-dashed border-[#646464] px-3 py-1.5 text-[13px] text-[#F9F9F9]"
                         >
                           Vincular
                         </button>
                       ) : (
-                        p.organizacoes.slice(0, 2).map((o) => (
-                          <span key={o.tenant_id} className="rounded-full border border-[#333] px-2.5 py-1 text-[12px] text-[#A7A7A7]">
+                        p.organizacoes.slice(0, 1).map((o) => (
+                          <span key={o.tenant_id} className="max-w-[130px] truncate rounded-full border border-[#333] px-2.5 py-1 text-[11px] text-[#A7A7A7]">
                             {o.organizacao}
                           </span>
                         ))
                       )}
-                      {p.organizacoes.length > 2 ? (
-                        <span className="rounded-full border border-[#333] px-2.5 py-1 text-[12px] text-[#646464]">+{p.organizacoes.length - 2}</span>
+                      {p.organizacoes.length > 1 ? (
+                        <span className="rounded-full border border-[#333] px-2.5 py-1 text-[11px] text-[#646464]">+{p.organizacoes.length - 1}</span>
                       ) : null}
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => {
-                        setNovoEmail(p.email);
-                        setNovoNome(p.nome || "");
-                        setGaveta(true);
-                        setRecado("");
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCard(p.email);
                       }}
-                      className="grid h-10 w-10 place-items-center rounded-[10px] text-[#A7A7A7] hover:text-[#F9F9F9]"
+                      className="grid h-9 w-9 place-items-center rounded-[10px] text-[#A7A7A7] hover:text-[#F9F9F9]"
                       aria-label={`Abrir ${p.email}`}
                     >
                       ⋯
@@ -370,7 +608,144 @@ export default function ClientesPage() {
         </Painel>
       </div>
 
-      {/* gaveta de adicionar cliente — tudo aqui, sem mandar para a tela antiga */}
+      {/* ── card do cliente: todos os dados dele, num lugar só ─────────── */}
+      {pessoaDoCard ? (
+        <div className="fixed inset-0 z-[90] grid place-items-center p-4" role="dialog" aria-modal="true">
+          <button type="button" aria-label="Fechar" onClick={() => setCard(null)} className="absolute inset-0 bg-black/70" />
+          <div
+            className="relative flex max-h-[88vh] w-full max-w-[560px] flex-col gap-5 overflow-y-auto rounded-[24px] border border-[#333] p-6"
+            style={{ background: "#111" }}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <span className="grid h-11 w-11 place-items-center rounded-[12px] border border-[#333] text-[14px] font-medium" style={{ background: "#0b0b0b", color: "#E85002" }}>
+                  {iniciais(pessoaDoCard.nome, pessoaDoCard.email)}
+                </span>
+                <div className="flex flex-col gap-0.5">
+                  <h2 className="m-0 text-[18px] font-semibold text-[#F9F9F9]">{pessoaDoCard.nome || pessoaDoCard.email}</h2>
+                  <span className="text-[13px] text-[#A7A7A7]">{pessoaDoCard.email}</span>
+                </div>
+              </div>
+              <button type="button" onClick={() => setCard(null)} className="grid h-9 w-9 place-items-center rounded-[10px] border border-[#333] text-[#A7A7A7]">
+                ✕
+              </button>
+            </div>
+
+            {(() => {
+              const p = pessoaDoCard;
+              const principal = p.organizacoes[0];
+              const leitura = principal ? consumo?.tokens?.[principal.tenant_id] : undefined;
+              const espaco = p.conta_id !== null ? consumo?.espaco?.[String(p.conta_id)] : undefined;
+              const tetoGb = Number(principal?.limites?.storage_gb);
+              const { barraTokens, barraEspaco } = barrasDe(p);
+              return (
+                <>
+                  <section className="grid gap-4 rounded-[16px] border border-[#1c1c1c] p-4">
+                    <div className="flex flex-col gap-2">
+                      <Rotulo>Tokens do mês corrente</Rotulo>
+                      <BarraDeConsumo rotulo="Consumo" detalhe={barraTokens.detalhe} fracao={barraTokens.fracao} cor={LARANJA} />
+                      <span className="text-[12px] text-[#A7A7A7]">
+                        {leitura && leitura.leitura === "ok"
+                          ? `Teto do plano: ${leitura.teto === null ? "sem teto declarado" : `${tokensLegivel(leitura.teto)} de tokens`}.`
+                          : "O medidor central não devolveu leitura para esta conta."}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Rotulo>Espaço usado</Rotulo>
+                      <BarraDeConsumo rotulo="Arquivos" detalhe={barraEspaco.detalhe} fracao={barraEspaco.fracao} cor={VERDE_AGUA} />
+                      <span className="text-[12px] text-[#A7A7A7]">
+                        {Number.isFinite(tetoGb) && tetoGb > 0 ? `Teto do plano: ${tetoGb} GB.` : "Plano sem teto de espaço declarado."}{" "}
+                        {espaco ? `${espaco.arquivos} arquivo${espaco.arquivos === 1 ? "" : "s"} enviado${espaco.arquivos === 1 ? "" : "s"}, ${tamanhoLegivel(espaco.bytes)}.` : "Sem leitura de arquivos."}
+                      </span>
+                    </div>
+                  </section>
+
+                  <section className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1">
+                      <Rotulo>Entra por</Rotulo>
+                      <span className="text-[14px] text-[#F9F9F9]">{p.entra_por || "sem conta local"}</span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Rotulo>Conta local</Rotulo>
+                      <span className="text-[14px] text-[#F9F9F9]">{p.conta_id !== null ? `#${p.conta_id}` : "não existe"}</span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Rotulo>Espaço local</Rotulo>
+                      <span className="truncate text-[14px] text-[#F9F9F9]">{p.tenant_local || "sem espaço local"}</span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Rotulo>Entrou em</Rotulo>
+                      <span className="text-[14px] text-[#F9F9F9]">{p.desde || "sem data"}</span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Rotulo>Vínculo com o plano</Rotulo>
+                      <span className="text-[14px] text-[#F9F9F9]">{p.vinculado ? "vinculado" : "sem vínculo"}</span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Rotulo>Arquivos</Rotulo>
+                      <span className="text-[14px] text-[#F9F9F9]">{espaco ? String(espaco.arquivos) : "sem leitura"}</span>
+                    </div>
+                  </section>
+
+                  <section className="flex flex-col gap-3">
+                    <Rotulo>Organizações e planos</Rotulo>
+                    {p.organizacoes.length === 0 ? (
+                      <span className="text-[13px] text-[#A7A7A7]">Nenhum vínculo com produto ainda.</span>
+                    ) : (
+                      <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                        {p.organizacoes.map((o) => {
+                          const emTroca = trocando.includes(p.email);
+                          return (
+                            <li key={o.tenant_id} className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[#1c1c1c] px-3.5 py-3">
+                              <div className="flex min-w-0 flex-col gap-0.5">
+                                <span className="truncate text-[14px] text-[#F9F9F9]">{o.organizacao}</span>
+                                <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", color: "#646464" }}>
+                                  {String(o.produto).toUpperCase()} · {o.papel || "membro"} · {o.desde || "sem data"}
+                                </span>
+                                <span className="text-[11px] text-[#A7A7A7]">
+                                  Teto: {Number(o.limites?.storage_gb) > 0 ? `${o.limites?.storage_gb} GB` : "sem espaço declarado"},{" "}
+                                  {Number(o.limites?.tokens_mes) > 0 ? `${o.limites?.tokens_mes}M de tokens` : "sem tokens declarados"}
+                                </span>
+                              </div>
+                              <select
+                                className={`${CAMPO} !h-9 w-[150px] !rounded-[10px] !px-2.5 !text-[13px] ${emTroca ? "opacity-40" : ""}`}
+                                value={o.plano}
+                                disabled={emTroca}
+                                aria-label={`Plano de ${o.organizacao}`}
+                                onChange={(e) => void trocarPlano(p, o, e.target.value)}
+                              >
+                                {planosDoProduto(o.produto, o.plano).map((op) => (
+                                  <option key={op.plan_id} value={op.plan_id}>{op.nome}</option>
+                                ))}
+                              </select>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </section>
+
+                  {p.organizacoes.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {p.organizacoes.flatMap((o) =>
+                        (o.extras || []).map((x) => (
+                          <Pilula key={`${o.tenant_id}-${x}`} cor="#F9F9F9">{x}</Pilula>
+                        )),
+                      )}
+                    </div>
+                  ) : null}
+                </>
+              );
+            })()}
+
+            <button type="button" onClick={() => setCard(null)} className={`${BOTAO_CONTORNO} justify-center`}>
+              Fechar
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* gaveta de adicionar cliente, tudo aqui, sem mandar para a tela antiga */}
       {gaveta ? (
         <div className="fixed inset-0 z-[80] flex justify-end" role="dialog" aria-modal="true">
           <button type="button" aria-label="Fechar" onClick={() => setGaveta(false)} className="absolute inset-0 bg-black/60" />
@@ -386,7 +761,12 @@ export default function ClientesPage() {
             </div>
 
             {recado ? (
-              <div className="rounded-[14px] border border-[#E85002] px-3.5 py-2.5 text-[13px] text-[#F9F9F9]">{recado}</div>
+              <div
+                className="rounded-[14px] border px-3.5 py-2.5 text-[13px] text-[#F9F9F9]"
+                style={{ borderColor: recado.tipo === "ok" ? VERDE_AGUA : "#E85002" }}
+              >
+                {recado.texto}
+              </div>
             ) : null}
 
             <label className="flex flex-col gap-2">
