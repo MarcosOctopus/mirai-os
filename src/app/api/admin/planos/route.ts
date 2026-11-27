@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { EMAIL_QUE_MUDA_PRECO, exigirDono } from "@/lib/orgs";
 import { chamarPlanoDeControle } from "@/lib/plano-controle";
+import { esquecerTokens } from "@/lib/consumo-cliente";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -183,6 +184,10 @@ async function tratarEscrita(req: NextRequest, esperado: Metodo) {
         gravou: r.status >= 200 && r.status < 300,
       }),
     );
+    // Plano novo, teto novo: a leitura de cota guardada daquele tenant nao vale mais.
+    if (ehPlano && r.status >= 200 && r.status < 300) {
+      esquecerTokens(String(g.corpo.tenant_id || ""));
+    }
   }
 
   return NextResponse.json(r.corpo, { status: r.status });

@@ -82,6 +82,11 @@ export async function tokensDoTenant(tenantId: string): Promise<LeituraDeTokens>
   return valor;
 }
 
+/** Esquece a leitura guardada de um tenant (usado quando o plano muda). */
+export function esquecerTokens(tenantId: string) {
+  if (tenantId) cache.delete(tenantId);
+}
+
 /** Soma de `uploads.tamanho` por usuario (o espaco que a pessoa de fato gastou). */
 export function espacoPorUsuario(): Record<string, EspacoUsado> {
   const saida: Record<string, EspacoUsado> = {};
