@@ -43,6 +43,10 @@ export function limparVicio(texto: string): string {
   // Vírgula colada na palavra seguinte ganha espaço — mas NUNCA no meio de um
   // número: "5,00" é decimal e viraria "5, 00" (erro que já apareceu no teste).
   t = t.replace(/(?<!\d)([,;:])(?=[^\d\s])/g, "$1 ");
+  // Travessão entre vírgulas virava ", ," na tela (visto em produção em 27/11):
+  // o traço já ERA a pausa, então duas vírgulas seguidas são defeito, não estilo.
+  t = t.replace(/,\s*,/g, ",");
+  t = t.replace(/,\s*([.;:!?])/g, "$1");
   t = t.replace(/ {2,}/g, " ");
   t = t.replace(/[ \t]+$/gm, "");
 
