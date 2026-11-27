@@ -46,6 +46,7 @@ const AIAPIFLOW_KEY   = loadEnv("AIAPIFLOW_API_KEY");
 const CHAT_PROV_KEY   = loadEnv("AIBEE_API_KEY");
 
 import { gatewayDaConta, MODELO_DA_CONTA, type GatewayDaConta } from "@/lib/gateway-da-conta";
+import { respostaDeTokensEsgotados, tetoEstouradoDaConta } from "@/lib/limite-de-tokens";
 import { limparVicio } from "@/lib/limpar-vicio";
 import { vincularContaMirai } from "@/lib/vinculo-conta-mirai";
 import { arcaConfigurada, headersDaArca } from "@/lib/arca-cliente";
@@ -105,17 +106,29 @@ async function garantirGateway(apoio: ApoioConta): Promise<GatewayDaConta | null
   return gatewayDaConta(id);
 }
 
-/** A recusa do gateway, com o motivo REAL (inclusive 402 de teto de tokens). */
-function recusaDaConta(status: number, texto: string): Response {
+/** A recusa do gateway. 402 é CASO PRÓPRIO, não erro genérico: é o teto de
+ *  tokens do plano. Vira o recado humano (`respostaDeTokensEsgotados`) com o
+ *  NÚMERO (usado de teto) lido do mesmo medidor — nunca o texto cru do serviço,
+ *  nunca um stack trace, nunca o status na cara do cliente. */
+async function recusaDaConta(status: number, texto: string, userId?: number | null): Promise<Response> {
   let detalhe = (texto || "").slice(0, 400);
   try {
     const j = JSON.parse(texto);
     detalhe = String(j.detail || j.error || detalhe);
   } catch {
-    /* texto cru serve */
+    /* texto cru serve para o log */
   }
-  const codigo = status === 402 ? 402 : 502;
-  return Response.json({ error: detalhe || "a inteligência da sua conta não respondeu" }, { status: codigo });
+  if (status === 402) {
+    const estado = await tetoEstouradoDaConta(userId ?? null);
+    if (!estado) {
+      // O gateway recusou por franquia ("plano sem cota" ou leitura falhou):
+      // o recado sai sem número em vez de com número inventado.
+      console.warn("[limite] 402 do gateway sem número lido do medidor:", detalhe.slice(0, 160));
+    }
+    console.warn("[limite] conta sem tokens do mês — resposta do chat não foi ao modelo, recado entregue à tela");
+    return respostaDeTokensEsgotados(estado);
+  }
+  return Response.json({ error: detalhe || "a inteligência da sua conta não respondeu" }, { status: 502 });
 }
 
 async function textoDaRecusa(r: Response): Promise<string> {
@@ -996,6 +1009,14 @@ async function conversarComFerramentas(opts: {
           fecharCircuito();
           return r;
         }
+        // ── TETO DE TOKENS: caso próprio, e a rodada ACABA AQUI ─────────────
+        // Não é falha do gateway: é a franquia do plano que virou. Seguir
+        // adiante faria o caminho de baixo chamar o modelo de novo (outro 402,
+        // outra espera) e perderia o recado humano. Devolve o bloco canônico.
+        if (r.status === 402) {
+          fecharCircuito();
+          return await recusaDaConta(402, await textoDaRecusa(r), CONTA_ID);
+        }
         // ── O QUE ABRE O CIRCUITO (medido 23/10/2026) ─────────────────────
         // O gateway NÃO devolve 401 quando uma integração da conta falha: ele
         // devolve **400**, com o 401 do provedor DENTRO do corpo:
@@ -1018,13 +1039,16 @@ async function conversarComFerramentas(opts: {
     }
     // Sem escada: quem não tem chave própria NÃO cai em provedor direto.
     if (!apoio.byok) {
+      if (ultimaRecusa?.status === 402) {
+        return await recusaDaConta(402, ultimaRecusa.texto, CONTA_ID);
+      }
       return Response.json(
         {
           error:
             ultimaRecusa?.texto ||
             "a inteligência da sua conta não respondeu agora — tente de novo em instantes.",
         },
-        { status: ultimaRecusa?.status === 402 ? 402 : 502 },
+        { status: 502 },
       );
     }
     return chamarDireto(comFerramentas);
@@ -1041,6 +1065,10 @@ async function conversarComFerramentas(opts: {
       return null;
     }
     if (!resp.ok) {
+      // 402 = teto de tokens do plano. Não é "provedor sem suporte a
+      // ferramentas": subir como está, para o recado humano chegar à tela em
+      // vez de o caminho antigo chamar o modelo outra vez.
+      if (resp.status === 402) return resp;
       const err = await resp.text().catch(() => "");
       console.error(`Laço de ferramentas ${modelo}:`, resp.status, err.slice(0, 200));
       return null; // provedor sem suporte a ferramentas: caminho antigo assume
@@ -1299,6 +1327,27 @@ export async function POST(req: NextRequest) {
 
     const apoio: ApoioConta = { ctxPessoa, conta, saasoToken, byok };
 
+    /* ── A FRANQUIA DE TOKENS DO MÊS (27/11/2026) ────────────────────────────
+       Quando a conta estourou o teto, o turno NÃO vai ao modelo: nem tenta. Isso
+       fecha o gasto na porta (antes, o trabalho caro — Arca, anexos, prompt —
+       rodava e só a chamada final era recusada) e evita log de erro a cada
+       mensagem. O ACESSO continua: esta trava vive SÓ aqui, no caminho que
+       consome IA — login, telas, acervo e CRM não passam por ela.
+
+       Isenções, na ordem: o DONO/ADMIN nunca é barrado (a isenção vive no plano
+       de controle; aqui ela é espelhada) e quem usa a PRÓPRIA chave (BYOK) não
+       gasta o nosso token, então o teto não se aplica. Leitura que falha NÃO
+       fecha a porta — o gateway ainda tem a palavra final (402). */
+    if (conta && !conta.ehDono && !byok) {
+      const estouro = await tetoEstouradoDaConta(conta.id);
+      if (estouro) {
+        console.warn(
+          `[limite] conta ${conta.id}: tokens do mês esgotados (${estouro.usado}/${estouro.teto}) — turno não foi ao modelo`,
+        );
+        return respostaDeTokensEsgotados(estouro);
+      }
+    }
+
     // ── A MEMÓRIA DA ARCA (o que já foi feito não se perde) ──────────────────
     // O dono (14/10/2026): *"n tem salvado os contextos e sempre está perdido a
     // respeito de coisas que ja fez. Tem olhado e salvado tudo sempre na arca?"*
@@ -1534,8 +1583,9 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
       console.error("Gateway da conta recusou:", r.status, erro.slice(0, 200));
       if (!apoio.byok) {
         // Sem escada: sem chave própria não existe provedor direto para onde
-        // cair. A recusa sobe com o motivo real (inclusive 402 de teto).
-        return recusaDaConta(r.status, erro);
+        // cair. A recusa sobe com o motivo real — e 402 vira o recado humano
+        // do teto de tokens (com o número), não um erro seco.
+        return await recusaDaConta(r.status, erro, apoio.conta?.id);
       }
     } catch (e) {
       console.error("Gateway da conta — rede:", e instanceof Error ? e.message : e);
@@ -1617,8 +1667,8 @@ async function callVerboo(messages: {role:string;content:string}[], lastMsg: str
       );
     }
     // SEM ESCADA: nada de reserva Verboo, Gemini ou aiapiflow. A recusa sobe
-    // com o motivo real — inclusive 402 quando o teto de tokens estourou.
-    return recusaDaConta(resp.status, err);
+    // com o motivo real — 402 vira o recado humano do teto de tokens.
+    return await recusaDaConta(resp.status, err, apoio.conta?.id);
   }
 
   console.log(`Verboo respondeu OK com o modelo: ${modelo}`);

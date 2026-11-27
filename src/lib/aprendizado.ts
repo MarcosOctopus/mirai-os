@@ -42,6 +42,7 @@ import {
 } from "./arca-conta";
 import { credencialDoEscopo } from "./credencial-do-escopo";
 import { gatewayDaConta, MODELO_DA_CONTA } from "./gateway-da-conta";
+import { tetoEstouradoDaConta } from "./limite-de-tokens";
 import type { Conta } from "./orgs";
 import { escopoPessoal, type Escopo } from "./escopos";
 import { cifrar } from "./segredo-guardado";
@@ -321,6 +322,25 @@ async function destilar(
   if (!gw) {
     return resumoSimples(mensagens, "a conta não tem vínculo com a inteligência da casa");
   }
+  /* ── TETO DE TOKENS (27/11/2026) ───────────────────────────────────────────
+     A destilação da nota roda SOZINHA (troca de conversa, sair da tela,
+     ociosidade): é o único caminho deste app que chama modelo sem a pessoa
+     pedir. Com a franquia do mês estourada, ele tem de PARAR aqui — uma
+     tentativa por evento, que o gateway recusaria, só encheria o log e a espera.
+     A nota continua sendo gravada, montada localmente: o aprendizado não perde
+     nada, só perde a redação do modelo. O dono nunca é barrado. */
+  if (!conta.ehDono) {
+    const estouro = await tetoEstouradoDaConta(conta.id);
+    if (estouro) {
+      console.warn(
+        `[aprendizado] conta ${conta.id}: tokens do mês esgotados (${estouro.usado}/${estouro.teto}) — nota gravada SEM modelo`,
+      );
+      return resumoSimples(
+        mensagens,
+        "os tokens de IA do plano deste mês acabaram — a nota foi montada sem modelo",
+      );
+    }
+  }
   try {
     const chamada = gw.chamar({
       model: MODELO_DA_CONTA,
@@ -338,7 +358,16 @@ async function destilar(
       new Promise<null>((ok) => setTimeout(() => ok(null), 45000)),
     ]);
     if (!r) return resumoSimples(mensagens, "a destilação passou do tempo");
-    if (!r.ok) return resumoSimples(mensagens, `o gateway da conta respondeu HTTP ${r.status}`);
+    if (!r.ok) {
+      if (r.status === 402) {
+        console.warn("[aprendizado] gateway recusou por teto de tokens — nota gravada SEM modelo");
+        return resumoSimples(
+          mensagens,
+          "os tokens de IA do plano deste mês acabaram — a nota foi montada sem modelo",
+        );
+      }
+      return resumoSimples(mensagens, `o gateway da conta respondeu HTTP ${r.status}`);
+    }
 
     const d = (await r.json().catch(() => null)) as {
       choices?: { message?: { content?: string } }[];

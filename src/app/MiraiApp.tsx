@@ -326,10 +326,33 @@ function MiraiAppCore() {
           setStatus("idle");
           return;
         }
-        let errorMessage = "Falha na API";
+        let errorMessage = "Não consegui falar com a Mirai agora. Tenta de novo em instantes.";
         try {
-          const err = await resp.json();
-          errorMessage = err?.error || errorMessage;
+          const err = (await resp.json()) as {
+            erro?: string;
+            mensagem?: string;
+            conversa?: string;
+            error?: string;
+          } | null;
+          // TETO DE TOKENS: caso próprio, com o recado humano do servidor.
+          // O ORB fala por voz e escreve texto simples — então usa `mensagem`
+          // (sem marcador de bloco), nunca o status HTTP e nunca "Erro: 402".
+          if (err?.erro === "tokens-esgotados" && err.mensagem) {
+            setMessages((prev) => [...prev, { role: "assistant", content: err.mensagem as string }]);
+            setThinking(false);
+            setStatus("idle");
+            return;
+          }
+          if (err?.erro === "sem-plano" && err.mensagem) {
+            setMessages((prev) => [
+              ...prev,
+              { role: "assistant", content: `${err.mensagem}\n\nVeja os planos em /planos.` },
+            ]);
+            setThinking(false);
+            setStatus("idle");
+            return;
+          }
+          errorMessage = err?.mensagem || err?.error || errorMessage;
         } catch (_) {}
         throw new Error(errorMessage);
       }

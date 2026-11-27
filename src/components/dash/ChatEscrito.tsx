@@ -740,7 +740,34 @@ export default function ChatEscrito({
         return;
       }
       if (!r.ok || !r.body) {
-        trocarUltima(`Não consegui falar com a Mirai agora (${r.status}). Tenta de novo.`);
+        /* O corpo diz O QUE aconteceu, e é ele que a tela usa. Antes daqui saía
+           "Não consegui falar com a Mirai agora (402). Tenta de novo." — status
+           de HTTP na cara do cliente e um conselho falso: tentar de novo não
+           resolve teto de tokens. Dois casos próprios:
+             tokens-esgotados -> o bloco do teto (peça da conversa, com o número)
+             sem-plano        -> o recado do plano, com o caminho de /planos   */
+        const corpo = (await r.json().catch(() => null)) as
+          | {
+              erro?: string;
+              mensagem?: string;
+              usado?: number | null;
+              teto?: number | null;
+              conversa?: string;
+            }
+          | null;
+        if (corpo?.erro === "tokens-esgotados") {
+          trocarUltima(corpo.conversa || "Os tokens de IA do seu plano neste mês acabaram.");
+          return;
+        }
+        if (corpo?.erro === "sem-plano") {
+          trocarUltima(
+            corpo.mensagem
+              ? `${corpo.mensagem}\n\nVeja os planos em /planos.`
+              : "Sua conta ainda não tem um plano ativo. Veja os planos em /planos.",
+          );
+          return;
+        }
+        trocarUltima("Não consegui falar com a Mirai agora. Tenta de novo em instantes.");
         return;
       }
 

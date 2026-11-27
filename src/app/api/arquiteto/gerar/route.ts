@@ -4,6 +4,8 @@ import { existsSync, readFileSync } from "fs";
 import { exigirConta } from "@/lib/orgs";
 import { decidirAcessoArquiteto, CAPACIDADE_ARQUITETO } from "@/lib/arquiteto-acesso";
 import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
+import { tetoEstouradoDaConta } from "@/lib/limite-de-tokens";
+import { mensagemDeTokensEsgotados } from "@/lib/tokens-esgotados";
 import { normalizarTokens, type Tokens } from "@/lib/arquiteto-tokens";
 import { mesclarMudanca } from "@/lib/arquiteto-mescla";
 import { aplicarEdicoes, extrairEdicoes } from "@/lib/arquiteto-edicoes";
@@ -751,6 +753,20 @@ async function chamarModelo(
         const texto = await lerTexto(r, onProgresso);
         if (texto.trim()) return { ok: true, texto, motor: "conta" };
       }
+      /* TETO DE TOKENS (27/11/2026): 402 do gateway NÃO cai em provedor de
+         reserva. Antes, cair aqui gastava a chave da casa por uma conta que já
+         tinha estourado a franquia do mês — o oposto do que o teto existe para
+         fazer. A recusa sobe com o recado humano, com o número. */
+      if (r.status === 402) {
+        const estado = await tetoEstouradoDaConta(tenant);
+        console.warn(
+          `[limite] Arquiteto: teto de tokens da conta ${tenant} atingido — não vai a provedor de reserva`,
+        );
+        return {
+          ok: false,
+          erro: mensagemDeTokensEsgotados(estado?.usado ?? null, estado?.teto ?? null),
+        };
+      }
       console.error("Arquiteto: gateway da conta recusou:", r.status);
     } catch (e) {
       console.error("Arquiteto: gateway da conta fora do ar:", e instanceof Error ? e.message : e);
@@ -845,6 +861,25 @@ export async function POST(req: NextRequest) {
       },
       { status: 403 },
     );
+  }
+
+  // 2b) TETO DE TOKENS (27/11/2026): com a franquia do mês estourada, a rota
+  // não monta prompt, não lê projeto e não chama modelo — nada é gasto. O dono
+  // nunca é barrado (a isenção vive no plano de controle e é espelhada aqui).
+  if (!g.conta.ehDono) {
+    const estouro = await tetoEstouradoDaConta(g.conta.id);
+    if (estouro) {
+      console.warn(
+        `[limite] Arquiteto: conta ${g.conta.id} sem tokens (${estouro.usado}/${estouro.teto}) — pedido recusado antes de montar o prompt`,
+      );
+      return NextResponse.json(
+        {
+          erro: mensagemDeTokensEsgotados(estouro.usado, estouro.teto),
+          tokens: "esgotados",
+        },
+        { status: 402 },
+      );
+    }
   }
 
   // 3) O pedido.

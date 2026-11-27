@@ -5,6 +5,8 @@ import { exigirConta } from "@/lib/orgs";
 import { decidirAcessoArquiteto, CAPACIDADE_ARQUITETO } from "@/lib/arquiteto-acesso";
 import { REGRAS_CRAFT, REGRAS_VISUAL } from "@/lib/arquiteto-craft";
 import { gatewayDaConta, MODELO_DA_CONTA } from "@/lib/gateway-da-conta";
+import { tetoEstouradoDaConta } from "@/lib/limite-de-tokens";
+import { mensagemDeTokensEsgotados } from "@/lib/tokens-esgotados";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -179,6 +181,17 @@ async function chamarModelo(
         const texto = j?.choices?.[0]?.message?.content || "";
         if (texto.trim()) return { ok: true, texto, motor: "conta" };
       }
+      // TETO DE TOKENS: 402 é limite do plano, não falha — não cai em reserva.
+      if (r.status === 402) {
+        const estado = await tetoEstouradoDaConta(tenant);
+        console.warn(
+          `[limite] Arquiteto plano: teto de tokens da conta ${tenant} atingido — não vai a provedor de reserva`,
+        );
+        return {
+          ok: false,
+          erro: mensagemDeTokensEsgotados(estado?.usado ?? null, estado?.teto ?? null),
+        };
+      }
       console.error("Arquiteto plano: gateway da conta recusou:", r.status);
     } catch (e) {
       console.error("Arquiteto plano: gateway da conta fora do ar:", e instanceof Error ? e.message : e);
@@ -267,6 +280,24 @@ export async function POST(req: NextRequest) {
       },
       { status: 403 },
     );
+  }
+
+  // 2b) TETO DE TOKENS (27/11/2026): franquia do mês estourada = nenhum modelo
+  // é chamado. O dono nunca é barrado.
+  if (!g.conta.ehDono) {
+    const estouro = await tetoEstouradoDaConta(g.conta.id);
+    if (estouro) {
+      console.warn(
+        `[limite] Arquiteto plano: conta ${g.conta.id} sem tokens (${estouro.usado}/${estouro.teto}) — pedido recusado antes de montar o prompt`,
+      );
+      return NextResponse.json(
+        {
+          erro: mensagemDeTokensEsgotados(estouro.usado, estouro.teto),
+          tokens: "esgotados",
+        },
+        { status: 402 },
+      );
+    }
   }
 
   // 3) O pedido.

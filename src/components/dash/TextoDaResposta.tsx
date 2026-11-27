@@ -2,6 +2,8 @@
 
 import type { ReactNode } from "react";
 import { CardArquivo } from "@/components/dash/CardArquivo";
+import { BlocoLimiteDeTokens } from "@/components/dash/BlocoLimiteDeTokens";
+import { RE_MARCADOR_LIMITE } from "@/lib/tokens-esgotados";
 import { IconeDocumento } from "@/components/dash/icons";
 
 /**
@@ -216,14 +218,31 @@ export default function TextoDaResposta({
   cursor?: boolean;
 }) {
   /* o marcador de arquivo é tratado ANTES do parser: ele é inline e não pode ser
-     comido como texto de lista/parágrafo. */
+     comido como texto de lista/parágrafo. O marcador de LIMITE usa o mesmo
+     mecanismo (mesmo padrão visual das outras peças): `[[limite:tokens|usado|teto]]`
+     vira o bloco do teto — a franquia acabou, e a tela diz isso em língua de
+     gente, com o número, sem status HTTP. */
   // Dois marcadores convivem: o antigo `[arquivo:<id>]` (que já está nas
   // conversas gravadas) e o novo, com trilho e nome. Conversa antiga não quebra.
   const partes = texto.split(
-    /(\[\[arquivo:(?:midia|acervo):[^\]]+\]\]|\[arquivo:[0-9a-f-]{36}\])/i,
+    /(\[\[limite:tokens(?:\|\d+\|\d+)?\]\]|\[\[arquivo:(?:midia|acervo):[^\]]+\]\]|\[arquivo:[0-9a-f-]{36}\])/i,
   );
 
   const corpo = partes.map((parte, ip) => {
+    // Marcador do teto de tokens: peça própria da conversa.
+    if (RE_MARCADOR_LIMITE.test(parte)) {
+      const m = /\[\[limite:tokens(?:\|(\d+)\|(\d+))?\]\]/i.exec(parte);
+      const usado = m?.[1] ? Number(m[1]) : null;
+      const teto = m?.[2] ? Number(m[2]) : null;
+      return (
+        <BlocoLimiteDeTokens
+          key={`l${ip}`}
+          usado={Number.isFinite(usado as number) ? usado : null}
+          teto={Number.isFinite(teto as number) ? teto : null}
+        />
+      );
+    }
+
     // Marcador novo: trilho explícito, com nome de exibição.
     const marca = parte.match(/^\[\[arquivo:(midia|acervo):(.+?)(?:\|(.+?))?\]\]$/i);
     if (marca) {
