@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { CardArquivo } from "@/components/dash/CardArquivo";
 import { IconeDocumento } from "@/components/dash/icons";
 
 /**
@@ -216,23 +217,32 @@ export default function TextoDaResposta({
 }) {
   /* o marcador de arquivo é tratado ANTES do parser: ele é inline e não pode ser
      comido como texto de lista/parágrafo. */
-  const partes = texto.split(/(\[arquivo:[0-9a-f-]{36}\])/i);
+  // Dois marcadores convivem: o antigo `[arquivo:<id>]` (que já está nas
+  // conversas gravadas) e o novo, com trilho e nome. Conversa antiga não quebra.
+  const partes = texto.split(
+    /(\[\[arquivo:(?:midia|acervo):[^\]]+\]\]|\[arquivo:[0-9a-f-]{36}\])/i,
+  );
 
   const corpo = partes.map((parte, ip) => {
-    const marca = parte.match(/^\[arquivo:([0-9a-f-]{36})\]$/i);
+    // Marcador novo: trilho explícito, com nome de exibição.
+    const marca = parte.match(/^\[\[arquivo:(midia|acervo):(.+?)(?:\|(.+?))?\]\]$/i);
     if (marca) {
       return (
-        <a
+        <CardArquivo
           key={`a${ip}`}
-          href={`/api/arquivo/${marca[1]}?dl=1`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="my-1 flex w-fit items-center gap-2 rounded-[10px] border border-dash-hair/12 bg-white/[0.03] px-3 py-2 text-[12.5px] text-dash-fg/90 transition hover:border-dash-brand/50"
-        >
-          <IconeDocumento className="h-4 w-4 shrink-0 text-dash-brand" />
-          <span className="font-medium">Baixar arquivo</span>
-        </a>
+          arquivo={{
+            trilho: marca[1].toLowerCase() === "midia" ? "midia" : "acervo",
+            ref: marca[2].trim(),
+            nome: marca[3]?.trim(),
+          }}
+        />
       );
+    }
+
+    // Marcador antigo (conversas já gravadas): id de upload, sem nome.
+    const legado = parte.match(/^\[arquivo:([0-9a-f-]{36})\]$/i);
+    if (legado) {
+      return <CardArquivo key={`a${ip}`} arquivo={{ trilho: "midia", ref: legado[1] }} />;
     }
     if (!parte.trim()) return null;
 
