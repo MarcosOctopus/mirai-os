@@ -1,11 +1,18 @@
 /**
  * Consumo de um cliente do CRM, medido nos dois lados que existem de verdade:
  *
- *   TOKENS  -> `usage_events` do plano de controle, pela rota /v1/ai/quota do
- *              servico de identidade. Ela devolve o uso do mes corrente e o teto
- *              do plano JA em tokens (o plano declara `tokens_mes` em milhoes).
- *              A chamada e server-to-server, com as credenciais de CLIENTE deste
- *              app (as mesmas do gateway de IA); o navegador nunca ve segredo.
+ *   TOKENS  -> `usage_events` do plano de controle. Duas leituras, nesta ordem:
+ *              (1) `/v1/admin/consumo` — leitura de ADMIN por conta, com o
+ *                  segredo do servidor; vale para conta de QUALQUER produto
+ *                  (Saaso, Dark Matter, Pathfinder, Media Factory), porque
+ *                  resolve pelo produto DO TENANT, nao pelo produto que pergunta;
+ *              (2) `/v1/ai/quota` — a rota antiga, autenticada como CLIENTE
+ *                  deste app; so le conta do proprio produto `mirai`. Fica como
+ *                  reserva: se (1) nao existir ou falhar, o comportamento e'
+ *                  exatamente o de antes.
+ *              As duas devolvem o uso do mes corrente e o teto do plano JA em
+ *              tokens (o plano declara `tokens_mes` em milhoes). A chamada e'
+ *              server-to-server; o navegador nunca ve segredo.
  *   ESPACO  -> soma de `uploads.tamanho` por usuario, no banco local do app.
  *
  * Regra dura: quando nao ha leitura, dizemos que nao ha leitura. Nunca 0% para

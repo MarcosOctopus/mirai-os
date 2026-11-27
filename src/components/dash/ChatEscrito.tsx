@@ -41,6 +41,13 @@ import {
   useConversas,
 } from "@/lib/conversas-cliente";
 import SessaoVencida, { ehSessaoVencida } from "@/components/dash/SemSessao";
+import {
+  guardarAgora,
+  guardarNoFim,
+  OCIOSIDADE_MS,
+  paraNota,
+  pediuParaGuardar,
+} from "@/lib/aprendizado-cliente";
 
 type Papel = "user" | "assistant";
 type Mensagem = { role: Papel; content: string; anexos?: AnexoCliente[] };
@@ -238,6 +245,89 @@ export default function ChatEscrito({
   // Qual conversa já foi CARREGADA do servidor (evita recarregar a cada render
   // e evita limpar a tela quando o envio acabou de criar a conversa).
   const carregadaRef = useRef<string | null>(null);
+
+  /* ── APRENDIZADO: a conversa vira nota no acervo (dono, 27/11/2026) ───────
+   * UMA nota por conversa. O botão "Guarda isso" é o caminho confiável; o texto
+   * ("guarda isso", "salva no acervo") é conveniência; e o FIM da conversa é
+   * fechado por três portas: troca de conversa, sair da tela e ociosidade.
+   *
+   * Nada aqui espera resposta: a nota não pode atrasar nem quebrar a conversa.
+   * `sendBeacon` é o que sobrevive a `pagehide` — `fetch` é cancelado quando a
+   * página morre. */
+  const [avisoAcervo, setAvisoAcervo] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [guardando, setGuardando] = useState(false);
+  const conversaAtual = useRef<{ id: string | null; mensagens: Mensagem[] }>({ id: null, mensagens: [] });
+  const conversaAnterior = useRef<{ id: string | null; mensagens: Mensagem[] }>({ id: null, mensagens: [] });
+  const ociosidade = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const idAgora = aberta ?? null;
+    const anterior = conversaAnterior.current;
+    // Trocou de conversa: fecha a anterior ANTES de perder o texto dela.
+    if (anterior.id && anterior.id !== idAgora && anterior.mensagens.length) {
+      guardarNoFim(anterior.id, paraNota(anterior.mensagens));
+    }
+    conversaAtual.current = { id: idAgora, mensagens };
+    conversaAnterior.current = { id: idAgora, mensagens };
+  }, [aberta, mensagens]);
+
+  // Ociosidade: parado por OCIOSIDADE_MS = a conversa acabou.
+  useEffect(() => {
+    if (ociosidade.current) clearTimeout(ociosidade.current);
+    ociosidade.current = setTimeout(() => {
+      const { id, mensagens: ms } = conversaAtual.current;
+      if (id && ms.length) guardarNoFim(id, paraNota(ms));
+    }, OCIOSIDADE_MS);
+    return () => {
+      if (ociosidade.current) clearTimeout(ociosidade.current);
+    };
+  }, [mensagens, aberta]);
+
+  // Sair da tela / esconder a aba.
+  useEffect(() => {
+    const aoEsconder = () => {
+      if (document.visibilityState !== "hidden") return;
+      const { id, mensagens: ms } = conversaAtual.current;
+      if (id && ms.length) guardarNoFim(id, paraNota(ms));
+    };
+    const aoSair = () => {
+      const { id, mensagens: ms } = conversaAtual.current;
+      if (id && ms.length) guardarNoFim(id, paraNota(ms));
+    };
+    document.addEventListener("visibilitychange", aoEsconder);
+    window.addEventListener("pagehide", aoSair);
+    return () => {
+      document.removeEventListener("visibilitychange", aoEsconder);
+      window.removeEventListener("pagehide", aoSair);
+    };
+  }, []);
+
+  /** O botão (e o atalho por texto): grava AGORA e diz o que o acervo respondeu. */
+  const guardarConversa = useCallback(async (idConversa: string | null, ms: Mensagem[]) => {
+    const id = (idConversa || "").trim();
+    if (!id || !ms.length) {
+      setAvisoAcervo({ ok: false, texto: "Ainda não há conversa para guardar." });
+      return;
+    }
+    setGuardando(true);
+    const r = await guardarAgora(id, paraNota(ms));
+    setGuardando(false);
+    if (!r.ok) {
+      setAvisoAcervo({ ok: false, texto: `Não consegui guardar no acervo: ${r.error || "falha"}` });
+      return;
+    }
+    if (r.ja_existia) {
+      setAvisoAcervo({ ok: true, texto: "Esta conversa já está no acervo." });
+      return;
+    }
+    setAvisoAcervo({
+      ok: true,
+      texto:
+        r.destilacao === "resumo"
+          ? `Guardei no acervo (resumo simples, sem IA): ${r.caminho}`
+          : `Guardei no acervo: ${r.caminho}`,
+    });
+  }, []);
 
   /* ── tela de início: a caixa que cresce e o ditado por voz ─────── */
   // A caixa começa com UMA linha (40px) e cresce conforme o texto até um teto
@@ -680,6 +770,14 @@ export default function ChatEscrito({
       }
 
       if (!acumulado) trocarUltima("(resposta vazia — tenta de novo)");
+
+      /* "GUARDA ISSO" NO TEXTO (dono, 27/11/2026): a pessoa pediu no meio da
+         conversa. O botão é o caminho confiável; isto é conveniência — e roda
+         DEPOIS do stream, sem segurar nada. A conversa completa (com a
+         resposta que acabou de chegar) é o que vai para a nota. */
+      if (pediuParaGuardar(conteudo) && idConversa) {
+        void guardarConversa(idConversa, [...historico, { role: "assistant", content: acumulado }]);
+      }
     } catch {
       trocarUltima("Caiu a conexão no meio. Tenta de novo.");
     } finally {
@@ -985,6 +1083,25 @@ export default function ChatEscrito({
                         aria-label="Mirai está respondendo"
                       />
                     ) : null}
+
+                    {/* A NOTA DE APRENDIZADO — o botão é o caminho confiável do
+                        "guarda isso". Sempre visível (opacidade baixa): ação útil
+                        não pode existir só no hover (regra da casa, 20/11/2026).
+                        Uma nota por conversa; o servidor recusa a segunda. */}
+                    {m.role === "assistant" && !!m.content && !(enviando && i === mensagens.length - 1) && (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => void guardarConversa(aberta, mensagens)}
+                          disabled={guardando || !aberta}
+                          className="flex items-center gap-1.5 text-[11px] text-dash-dim opacity-60 transition hover:text-dash-fg hover:opacity-100 disabled:cursor-default disabled:opacity-40"
+                          title="Guardar esta conversa no acervo — o entendimento, não o log"
+                        >
+                          <IconeDocumento className="h-3.5 w-3.5" />
+                          {guardando ? "Guardando…" : "Guarda isso"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
                 <div ref={fim} />
@@ -992,6 +1109,18 @@ export default function ChatEscrito({
             </div>
 
             <div className="border-t border-dash-hair/[0.07] px-4 py-3">
+              {!!avisoAcervo && (
+                <div
+                  className={`mb-2 flex items-start gap-2 rounded-[10px] px-3 py-2 text-[11px] ${
+                    avisoAcervo.ok ? "bg-dash-brand/10 text-dash-fg/90" : "bg-dash-bad/10 text-dash-bad"
+                  }`}
+                >
+                  <span className="min-w-0 flex-1 break-words">{avisoAcervo.texto}</span>
+                  <button onClick={() => setAvisoAcervo(null)} aria-label="Dispensar">
+                    <IconeFechar className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
               {faixaAnexos}
 
               <SeletorDeCaixa
