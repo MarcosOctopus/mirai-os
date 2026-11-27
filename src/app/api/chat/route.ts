@@ -839,10 +839,14 @@ function streamDeTexto(
   ctx: { provedor: string; modelo: string; proteger?: boolean },
 ): Response {
   const encoder = new TextEncoder();
+  // O vício de escrita morre aqui TAMBÉM: este é o caminho do laço de
+  // ferramentas, que monta o texto inteiro antes de virar stream. Foi por esta
+  // porta que um travessão escapou em produção em 27/11 (a prova pegou).
+  const textoLimpo = limparVicio(texto);
   const stream = new ReadableStream({
     start(controller) {
       const filtro = ctx.proteger ? criarFiltroSaida(controller, encoder) : null;
-      const pedacos = texto.match(/[\s\S]{1,60}/g) || [];
+      const pedacos = textoLimpo.match(/[\s\S]{1,60}/g) || [];
       for (const p of pedacos) {
         if (filtro) filtro.add(p);
         else controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: p } }] })}\n\n`));
